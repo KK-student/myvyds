@@ -1125,6 +1125,7 @@ dependencies = [
  "futures",
  "posix-regex",
  "serde",
+ "serde_json",
  "tokio",
  "tokio-util",
 ]
