@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use futures::lock::{Mutex, MutexLockFuture};
 use serde::Deserialize;
 
 use actix_web::{
@@ -9,7 +10,9 @@ use actix_web::{
 use posix_regex::{PosixRegex, PosixRegexBuilder};
 use tokio_util::io::ReaderStream;
 
-use crate::file_handling::file_handling::{file_stream_reader, get_mime_type, read_small_file};
+use crate::file_handling::file_handling::{
+    DataManager, file_stream_reader, get_mime_type, read_small_file,
+};
 
 mod file_handling;
 
@@ -205,14 +208,19 @@ async fn watch(v_qid: Query<VideoID>) -> impl Responder {
     HttpResponse::Ok().body(watch_js_bytes)
 }
 
-#[get("/js/{js_file}")]
-async fn get_js()
+static DATA_MANAGER: std::sync::LazyLock<Mutex<DataManager>> =
+    std::sync::LazyLock::new(|| -> Mutex<DataManager> { Mutex::new(DataManager::new("./data")) });
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // let test_params = "v=1203487watch_me&id=+=asdpfoiu";
     // let test_params = "v=1203487watch_me&id=+=asdpfoiu&ui=&hc&&=;lkj";
     // let result = parse_url_parameters(test_params);
+
+    {
+        let data_manager_guard = DATA_MANAGER.lock().await;
+        data_manager_guard.load_data();
+    }
 
     HttpServer::new(move || {
         App::new()

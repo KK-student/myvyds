@@ -1,8 +1,54 @@
+///#Module for handling files (including the webpage and media files).
+///##Structure for media files:
+///./data/media/{video_id}/
+///|---[MPEG-DASH files generated my ffmpeg with ./output.mpd file]
+///|---thumbnail.png
+///|---thumbnail-video.webm
+///|---[input video for while not finished processing - must be deleted after finished processing]
+///|---info.json
+///./data/media/hidden-vids.json
+///Where video_id is a randomly-generated u64 value, generated when uploading the video - must have 20 digits.
+///###info.json file:
+///{"video": {
+///"id": [video_id],
+///"finished_processing": true/false,
+///"input_file": [file name of input video while not finished processing - must be removed after
+///finished processing],
+///"name": "[video_name]",
+///"description": "[video_description]",
+///"author": "[authors_user_id]",
+///"uploaded_time": [time uploaded in secs since epoch in u64 or 0 if not finished processing],
+///"comments": {[comments in the comment data format]}
+///"likes": [number of likes as u64],
+///"dislikes": [number of dislikes as u64],
+///}}
+///####Comment data format:
+///"comment_id": {"author": "[authors_user_id]", "text": "[comment text]", "creation_time": [time_uploaded_in_secs_since_epoch_in_u64], "replies": {[replies in the comment data format]}, "likes": [number of likes as u64], "dislikes": [number of dislikes as u64]}
+///###hidden-vids.json file:
+///{"hidden-vids": [video_ids of hidden videos (including the video that are not finished processing) as an array]}
+///##Structure for user data:
+///./data/user_data/
+///|---user-icon-[icon_id].png
+///|---users.json
+///###users.json file:
+///{"users": {
+///"[user_id]": {
+///"time_created": [time user was created in secs since epoch in u64]
+///"icon_id": [icon_id],
+///"description": "[description]",
+///"videos": [video_id, ...],
+///"subscriptions": ["[user_id of another user]", ...],
+///"comments": {"[video_id]": ["comment_id", ...], ...},
+///"password_hash": "[hash of user's password]",
+///"liked_vids": [video_id, ...],
+///"disliked_vids": [video_id, ...],
+///},
+///}}
 pub mod file_handling {
-    use std::io::ErrorKind;
+    use std::{collections::HashMap, io::ErrorKind, str::FromStr};
 
     use tokio::fs::File;
-    use tokio_util::io::ReaderStream;
+    use tokio_util::io::{ReaderStream, simplex::new};
 
     ///Get the mime type for a file. Supports only a limited set of mime types.
     pub fn get_mime_type(file_path: &std::path::Path) -> &str {
@@ -63,7 +109,110 @@ pub mod file_handling {
         }
     }
 
-    pub fn get_media(file_path_str: &str) -> Result<Vec<u8>, std::io::Error> {
-        return read_small_file(format!("./media/{}", file_path_str).as_str());
+    #[derive(Debug, Clone)]
+    pub struct User {
+        user_id: String,
+        time_created: u64,
+        icon_id: u64,
+        description: String,
+        videos: Vec<VideoData>,
+        subscriptions: Vec<String>,
+        comments: HashMap<u64, Vec<u64>>,
+        password_hash: String,
+        liked_vids: Vec<u64>,
+        disliked_vids: Vec<u64>,
+        dirty: bool,
+    }
+
+    impl User {
+        pub fn get_user_id(&self) -> &String {
+            &self.user_id
+        }
+        pub fn get_time_created(&self) -> &u64 {
+            &self.time_created
+        }
+        pub fn get_icon_id(&self) -> &u64 {
+            &self.icon_id
+        }
+        pub fn set_icon_id(&mut self, icon_id: &u64) {
+            self.icon_id = *icon_id;
+            self.dirty = true;
+        }
+        pub fn get_description(&self) -> &String {
+            &self.description
+        }
+        pub fn set_description(&mut self, description: &String) {
+            self.description = description.clone();
+            self.dirty = true;
+        }
+        pub fn get_videos(&self) -> Vec<VideoData> {
+            self.videos.clone()
+        }
+        pub fn get_subscriptions(&self) -> Vec<String> {
+            self.subscriptions.clone()
+        }
+        pub fn get_comments(&self) -> HashMap<u64, Vec<u64>> {
+            self.comments.clone()
+        }
+        pub fn get_liked_vids(&self) -> Vec<u64> {
+            self.liked_vids.clone()
+        }
+        pub fn get_disliked_vids(&self) -> Vec<u64> {
+            self.disliked_vids.clone()
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct VideoData {
+        id: u64,
+        finished_processing: bool,
+        input_file: String,
+        name: String,
+        description: String,
+        author: String,
+        uploaded_time: u64,
+        comments: Vec<Comment>,
+        likes: u64,
+        dislikes: u64,
+        dirty: bool,
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct Comment {
+        id: u64,
+        author: String,
+        text: String,
+        creation_time: u64,
+        replies: Vec<Comment>,
+        likes: u64,
+        dislikes: u64,
+    }
+
+    #[derive(Debug)]
+    pub struct DataManager {
+        users: HashMap<String, User>,
+        videos: HashMap<u64, VideoData>,
+        videos_by_name: HashMap<String, u64>,
+        data_path: String,
+    }
+
+    impl DataManager {
+        pub fn new(data_path: &str) -> Self {
+            let data_manager = DataManager {
+                users: HashMap::new(),
+                videos: HashMap::new(),
+                videos_by_name: HashMap::new(),
+                data_path: String::from_str(data_path).unwrap(),
+            };
+            return data_manager;
+        }
+
+        pub fn set_data_path(&mut self, data_path: &String) {
+            self.data_path = data_path.clone();
+        }
+
+        pub fn load_data(&self) {
+            println!("Loading data from \"{}\". ", self.data_path);
+        }
     }
 }
