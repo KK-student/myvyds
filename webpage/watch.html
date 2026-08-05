@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Video</title>
+  </head>
+  <body>
+    <script>
+      let root = document.documentElement;
+      const urlObject = new URL(window.location);
+      let id = urlObject.searchParams.get("id");
+      let vid_tag = document.createElement("video");
+      vid_tag.setAttribute("src", "/get_video?id=" + id.toString());
+      vid_tag.setAttribute("controls", "true");
+      root.appendChild(vid_tag);
+    </script>
+  </body>
+</html>
