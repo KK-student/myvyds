@@ -218,7 +218,7 @@ async fn main() -> std::io::Result<()> {
     // let result = parse_url_parameters(test_params);
 
     {
-        let data_manager_guard = DATA_MANAGER.lock().await;
+        let mut data_manager_guard = DATA_MANAGER.lock().await;
         data_manager_guard.load_data();
     }
 
