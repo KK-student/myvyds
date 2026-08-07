@@ -96,7 +96,7 @@ pub mod file_handling {
         ops::{Deref, DerefMut},
         rc::Rc,
         str::FromStr,
-        sync::Arc,
+        sync::{Arc, Mutex, MutexGuard},
     };
 
     use serde_json::Value;
@@ -191,7 +191,7 @@ pub mod file_handling {
         description: String,
         author: String,
         uploaded_time: u64,
-        comments: Box<Vec<Arc<Comment>>>,
+        comments: Box<Vec<Arc<Mutex<Comment>>>>,
         likes: u64,
         dislikes: u64,
         dirty: bool,
@@ -201,31 +201,37 @@ pub mod file_handling {
     #[derive(Debug, Clone)]
     pub struct Comment {
         id: u64,
+        level: u64,
         author: String,
         text: String,
         creation_time: u64,
-        replies: Box<Vec<Comment>>, //TODO: Comment values may not be the same across DataManager.comments_by_id and this. Needs to be fixed.
+        replies: Box<Vec<Arc<Mutex<Comment>>>>,
         likes: u64,
         dislikes: u64,
     }
 
     impl Comment {
-        pub fn from_json_value(json: &Value, comment_id: u64) -> Self {
+        pub fn from_json_value(json: &Value, comment_id: u64, level: u64) -> Self {
             //{"author": "[authors_user_id]", "text": "[comment text]", "creation_time": [time_uploaded_in_secs_since_epoch_in_u64], "replies": {[replies in the comment data format]}}
+            if level > 2 {
+                panic!("Comment level > 2")
+            }
             let author: &str = json["author"].as_str().unwrap();
             let text: &str = json["text"].as_str().unwrap();
             let creation_time: u64 = json["creation_time"].as_u64().unwrap();
 
-            let mut replies: Box<Vec<Comment>> = Box::new(Vec::new());
+            let mut replies: Box<Vec<Arc<Mutex<Comment>>>> = Box::new(Vec::new());
             for (rc_id, rc_json) in json["replies"].as_object().unwrap() {
-                replies.push(Comment::from_json_value(
-                    rc_json,
-                    rc_id.parse::<u64>().unwrap(),
+                let reply_comment_id = rc_id.parse::<u64>().unwrap();
+                let reply_arc: Arc<Mutex<Comment>> = Arc::new(Mutex::new(
+                    Comment::from_json_value(rc_json, reply_comment_id, level + 1),
                 ));
+                replies.push(Arc::clone(&reply_arc));
             }
 
             Comment {
                 id: comment_id,
+                level: level,
                 author: author.to_string(),
                 text: text.to_string(),
                 creation_time: creation_time,
@@ -237,14 +243,6 @@ pub mod file_handling {
 
         pub fn parse_json_comment_indexes(json: &Vec<Value>) -> Box<Vec<u64>> /*Box<HashMap<u64, Vec<u64>>>*/
         {
-            // let mut comments: Box<HashMap<u64, Vec<u64>>> = Box::new(HashMap::new());
-            // for (comment_vid, comment_ids_json) in json {
-            //     let mut comment_ids: Vec<u64> = Vec::new();
-            //     for data in comment_ids_json.as_array().unwrap() {
-            //         comment_ids.push(data.as_u64().unwrap());
-            //     }
-            //     comments.insert(comment_vid.parse::<u64>().unwrap(), comment_ids);
-            // }
             let mut comments: Box<Vec<u64>> = Box::new(Vec::new());
             for comment_id in json {
                 comments.push(comment_id.as_u64().unwrap());
@@ -252,6 +250,77 @@ pub mod file_handling {
 
             return comments;
         }
+
+        pub fn get_children(
+            top_comment_arc: Arc<Mutex<Comment>>,
+        ) -> Arc<Mutex<HashMap<u64, Arc<Mutex<Comment>>>>> {
+            let top_comment_mutg = top_comment_arc.lock().unwrap();
+            let top_comment: &Comment = top_comment_mutg.deref();
+
+            let replies_arc: Arc<Mutex<HashMap<u64, Arc<Mutex<Comment>>>>> =
+                Arc::new(Mutex::new(HashMap::new()));
+            let mut replies_mutg = replies_arc.lock().unwrap();
+            let replies: &mut HashMap<u64, Arc<Mutex<Comment>>> = replies_mutg.deref_mut();
+
+            for comment_reply_arc in top_comment.replies.deref() {
+                let comment_reply_mutg = comment_reply_arc.lock().unwrap();
+                let comment_reply: &Comment = comment_reply_mutg.deref();
+                replies.insert(comment_reply.id, Arc::clone(&comment_reply_arc));
+
+                let comment_reply_replies_arc: Arc<Mutex<HashMap<u64, Arc<Mutex<Comment>>>>> =
+                    Self::get_children(Arc::new(Mutex::new(comment_reply.clone())));
+                let comment_reply_replies_mutg = comment_reply_replies_arc.lock().unwrap();
+                for (k, v) in comment_reply_replies_mutg.deref() {
+                    replies.insert(*k, Arc::clone(v));
+                }
+            }
+
+            return Arc::clone(&replies_arc);
+        }
+
+        pub fn can_add_replies(&self) -> bool {
+            self.level < 2
+        }
+
+        pub fn add_reply(&mut self, reply: Arc<Mutex<Comment>>) -> bool {
+            if !Self::can_add_replies(self) {
+                return false;
+            }
+
+            let replies: &mut Vec<Arc<Mutex<Comment>>> = self.replies.deref_mut();
+            replies.push(reply);
+
+            return true;
+        }
+
+        // fn get_reply_index(&self, reply_comment_id: u64) -> i64 {
+        //     let replies: &mut Vec<Arc<Mutex<Comment>>> = self.replies.deref_mut();
+        //     for reply_arc in replies {
+        //         let reply_mutg = reply_arc.lock().unwrap();
+        //         let reply = reply_mutg.deref();
+        //         if reply.id == reply_comment_id {
+        //             return reply.id as i64;
+        //         }
+        //     }
+        //
+        //     return -1;
+        // }
+        //
+        // pub fn remove_all_replies(&mut self) {
+        //     let replies: &mut Vec<Arc<Mutex<Comment>>> = self.replies.deref_mut();
+        //
+        //     for reply_arc in replies {
+        //         let mut reply_mutg = reply_arc.lock().unwrap();
+        //         let reply = reply_mutg.deref_mut();
+        //         reply.remove_all_replies();
+        //     }
+        //
+        //     replies.clear();
+        // }
+        //
+        // pub fn remove_reply(&mut self, reply_comment_id: u64) {
+        //     let replies: &mut Vec<Arc<Mutex<Comment>>> = self.replies.deref_mut();
+        // }
     }
 
     ///Handles the storage of all of the user accounts, comments, and videos.
@@ -260,7 +329,7 @@ pub mod file_handling {
         users: HashMap<String, Box<User>>,
         videos: HashMap<u64, VideoData>,
         videos_by_name: HashMap<String, u64>,
-        comments_by_id: HashMap<u64, Arc<Comment>>,
+        comments_by_id: HashMap<u64, Arc<Mutex<Comment>>>,
         data_path: String,
     }
 
@@ -305,7 +374,6 @@ pub mod file_handling {
             //Parse JSON:
             let users_json_root: Value = serde_json::from_str(users_json_cont_slice_str).unwrap();
             let users_json: &Value = &users_json_root["users"];
-            // println!("users_json_root: {:?}", users_json_root);
             println!("users_json: {:?}", users_json);
             let users_json_vals = users_json.as_object().unwrap();
             println!("\nusers_json_vals: {:?}", users_json_vals);
@@ -334,9 +402,6 @@ pub mod file_handling {
                 }
 
                 //comments:
-                // let comments: Box<HashMap<u64, Vec<u64>>> = Comment::parse_json_comment_indexes(
-                //     user_json_value["comments"].as_object().unwrap(),
-                // );
                 let comments: Box<Vec<u64>> = Comment::parse_json_comment_indexes(
                     user_json_value["comments"].as_array().unwrap(),
                 );
@@ -361,19 +426,11 @@ pub mod file_handling {
                 }
 
                 //liked_comments:
-                // let liked_comments: Box<HashMap<u64, Vec<u64>>> =
-                //     Comment::parse_json_comment_indexes(
-                //         user_json_value["liked_comments"].as_object().unwrap(),
-                //     );
                 let liked_comments: Box<Vec<u64>> = Comment::parse_json_comment_indexes(
                     user_json_value["liked_comments"].as_array().unwrap(),
                 );
 
                 //disliked_comments:
-                // let disliked_comments: Box<HashMap<u64, Vec<u64>>> =
-                //     Comment::parse_json_comment_indexes(
-                //         user_json_value["disliked_comments"].as_object().unwrap(),
-                //     );
                 let disliked_comments: Box<Vec<u64>> = Comment::parse_json_comment_indexes(
                     user_json_value["disliked_comments"].as_array().unwrap(),
                 );
@@ -411,7 +468,6 @@ pub mod file_handling {
             let videos_json_root: Value = serde_json::from_str(videos_json_cont_slice_str).unwrap();
             for (video_id_string, video_json) in videos_json_root.as_object().unwrap() {
                 println!("{}: {:?}", video_id_string, video_json);
-                unbug::prelude::breakpoint!();
                 let video_id: u64 = video_id_string.parse::<u64>().unwrap();
 
                 let finished_processing: bool =
@@ -426,21 +482,29 @@ pub mod file_handling {
                 let description: &str = video_json["description"].as_str().unwrap();
 
                 let uploaded_time_json: &Value = &video_json["uploaded_time"];
-                // println!(
-                //     "uploaded_time_json: {:?}, is_u64: {}",
-                //     uploaded_time_json,
-                //     uploaded_time_json.is_u64()
-                // );
                 let uploaded_time: u64 = uploaded_time_json.as_u64().unwrap();
 
-                let mut comments: Box<Vec<Arc<Comment>>> = Box::new(Vec::new());
+                println!("Do you see this? ");
+
+                unbug::prelude::breakpoint!();
+                let mut comments: Box<Vec<Arc<Mutex<Comment>>>> = Box::new(Vec::new());
                 for (comment_id, comment_json) in video_json["comments"].as_object().unwrap() {
                     let comment_id_num: u64 = comment_id.parse::<u64>().unwrap();
-                    let comment_rc: Arc<Comment> =
-                        Arc::new(Comment::from_json_value(comment_json, comment_id_num));
+                    let comment_rc: Arc<Mutex<Comment>> = Arc::new(Mutex::new(
+                        Comment::from_json_value(comment_json, comment_id_num, 0),
+                    ));
                     comments.push(Arc::clone(&comment_rc));
                     self.comments_by_id
                         .insert(comment_id_num, Arc::clone(&comment_rc));
+
+                    //Add replies to self.comments_by_id:
+                    // Comment::add_children(comment_id_num, &self.comments_by_id);
+                    let replies_map_arc: Arc<Mutex<HashMap<u64, Arc<Mutex<Comment>>>>> =
+                        Comment::get_children(Arc::clone(&comment_rc));
+                    let replies_map_mutg = replies_map_arc.lock().unwrap();
+                    for (reply_id, reply_arc) in replies_map_mutg.deref() {
+                        self.comments_by_id.insert(*reply_id, Arc::clone(reply_arc));
+                    }
                 }
 
                 let TODO_MESSAGE: &String = &"NEEDS TO BE SUBSTITUTED!!!!!!!!".to_string();
@@ -485,26 +549,31 @@ pub mod file_handling {
                     video_data.dislikes += 1;
                 }
 
-                //TODO: Change Arc::get_mut to Mutex. Not safe to use Arc::get_mut.
                 //Set comment likes:
                 let user_liked_comments: &Vec<u64> = user.liked_comments.deref();
                 for comment_id in user_liked_comments {
-                    let comment_arc = self.comments_by_id.get_mut(comment_id).unwrap(); //FIX: Runtime error here: called `Option::unwrap()` on a `None` value. 
-                    let comment: &mut Comment = Arc::<Comment>::get_mut(comment_arc).unwrap();
+                    let comment_arc = self.comments_by_id.get_mut(comment_id).unwrap();
+                    // let comment: &mut Comment = Arc::<Mutex<Comment>>::get_mut(comment_arc)
+                    //     .unwrap()
+                    //     .lock()
+                    //     .unwrap()
+                    //     .deref_mut();
+                    let comment_mutg = &mut comment_arc.lock().unwrap();
+                    let comment: &mut Comment = comment_mutg.deref_mut();
                     comment.likes += 1;
                 }
 
                 //Set comment dislikes:
-                // let user_disliked_comments: &Vec<u64> = user.disliked_comments.deref();
-                // for comment_id in user_disliked_comments {
-                //     let comment: &mut Comment =
-                //         self.comments_by_id.get_mut(comment_id).unwrap().deref_mut();
-                //     comment.dislikes += 1;
-                // }
                 let user_disliked_comments: &Vec<u64> = user.disliked_comments.deref();
                 for comment_id in user_disliked_comments {
                     let comment_arc = self.comments_by_id.get_mut(comment_id).unwrap();
-                    let comment: &mut Comment = Arc::<Comment>::get_mut(comment_arc).unwrap();
+                    // let comment: &mut Comment = Arc::<Mutex<Comment>>::get_mut(comment_arc)
+                    //     .unwrap()
+                    //     .lock()
+                    //     .unwrap()
+                    //     .deref_mut();
+                    let comment_mutg = &mut comment_arc.lock().unwrap();
+                    let comment: &mut Comment = comment_mutg.deref_mut();
                     comment.dislikes += 1;
                 }
             }
