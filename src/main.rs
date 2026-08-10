@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    ops::{Deref, DerefMut},
+};
 
 use futures::lock::{Mutex, MutexLockFuture};
 use serde::Deserialize;
@@ -219,7 +222,9 @@ async fn main() -> std::io::Result<()> {
 
     {
         let mut data_manager_guard = DATA_MANAGER.lock().await;
-        data_manager_guard.load_data();
+        let data_manager: &mut DataManager = data_manager_guard.deref_mut();
+        data_manager.load_data();
+        println!("DATA_MANAGER: \n{:#?}", data_manager);
     }
 
     HttpServer::new(move || {

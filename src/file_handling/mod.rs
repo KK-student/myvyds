@@ -181,6 +181,81 @@ pub mod file_handling {
         dirty: bool,
     }
 
+    impl User {
+        pub fn from_json_value(user_json_value: &Value, user_id: &String) -> Arc<Mutex<Self>> {
+            //time_created, icon_id, and description:
+            let time_created: u64 = user_json_value["time_created"].as_u64().unwrap();
+            let icon_id: u64 = user_json_value["icon_id"].as_u64().unwrap();
+            let description: &String =
+                &String::from_str(user_json_value["description"].as_str().unwrap()).unwrap();
+
+            //videos:
+            let videos_vec: &Vec<Value> = user_json_value["videos"].as_array().unwrap();
+            let mut videos: Box<Vec<u64>> = Box::new(Vec::new());
+            for video_id_json in videos_vec {
+                videos.push(video_id_json.as_u64().unwrap());
+            }
+
+            //subscriptions:
+            let subscriptions_vec: &Vec<Value> =
+                user_json_value["subscriptions"].as_array().unwrap();
+            let mut subscriptions: Box<Vec<String>> = Box::new(Vec::new());
+            for subscription_json in subscriptions_vec {
+                subscriptions.push(String::from_str(subscription_json.as_str().unwrap()).unwrap());
+            }
+
+            //comments:
+            let comments: Box<Vec<u64>> = Comment::parse_json_comment_indexes(
+                user_json_value["comments"].as_array().unwrap(),
+            );
+
+            //password_hash:
+            let password_hash: String =
+                String::from_str(user_json_value["password_hash"].as_str().unwrap()).unwrap();
+
+            //liked_vids:
+            let liked_vids_vec: &Vec<Value> = user_json_value["liked_vids"].as_array().unwrap();
+            let mut liked_vids: Box<Vec<u64>> = Box::new(Vec::new());
+            for liked_video_id_json in liked_vids_vec {
+                liked_vids.push(liked_video_id_json.as_u64().unwrap());
+            }
+
+            //disliked_vids:
+            let disliked_vids_vec: &Vec<Value> =
+                user_json_value["disliked_vids"].as_array().unwrap();
+            let mut disliked_vids: Box<Vec<u64>> = Box::new(Vec::new());
+            for disl_video_id_json in disliked_vids_vec {
+                disliked_vids.push(disl_video_id_json.as_u64().unwrap());
+            }
+
+            //liked_comments:
+            let liked_comments: Box<Vec<u64>> = Comment::parse_json_comment_indexes(
+                user_json_value["liked_comments"].as_array().unwrap(),
+            );
+
+            //disliked_comments:
+            let disliked_comments: Box<Vec<u64>> = Comment::parse_json_comment_indexes(
+                user_json_value["disliked_comments"].as_array().unwrap(),
+            );
+
+            return Arc::new(Mutex::new(User {
+                user_id: user_id.clone(),
+                time_created: time_created,
+                icon_id: icon_id,
+                description: description.clone(),
+                videos: videos,
+                subscriptions: subscriptions,
+                comments: comments,
+                password_hash: password_hash.clone(),
+                liked_vids: liked_vids,
+                disliked_vids: disliked_vids,
+                liked_comments: liked_comments,
+                disliked_comments: disliked_comments,
+                dirty: false,
+            }));
+        }
+    }
+
     ///Represents a video stored on disk.
     #[derive(Debug, Clone)]
     pub struct VideoData {
@@ -326,7 +401,7 @@ pub mod file_handling {
     ///Handles the storage of all of the user accounts, comments, and videos.
     #[derive(Debug)]
     pub struct DataManager {
-        users: HashMap<String, Box<User>>,
+        users: HashMap<String, Arc<Mutex<User>>>,
         videos: HashMap<u64, VideoData>,
         videos_by_name: HashMap<String, u64>,
         comments_by_id: HashMap<u64, Arc<Mutex<Comment>>>,
@@ -367,95 +442,92 @@ pub mod file_handling {
                 read_small_file(format!("{}/user_data/users.json", data_path).as_str()).unwrap();
             let users_json_cont_slice: &[u8] = users_json_cont.as_slice();
             let users_json_cont_slice_str: &str = str::from_utf8(users_json_cont_slice).unwrap();
-            println!(
-                "users_json_cont_slice_str: \n{}\n",
-                users_json_cont_slice_str
-            );
             //Parse JSON:
             let users_json_root: Value = serde_json::from_str(users_json_cont_slice_str).unwrap();
             let users_json: &Value = &users_json_root["users"];
-            println!("users_json: {:?}", users_json);
             let users_json_vals = users_json.as_object().unwrap();
-            println!("\nusers_json_vals: {:?}", users_json_vals);
             //Parse individual users:
             for (user_id, user_json_value) in users_json_vals.iter() {
-                //time_created, icon_id, and description:
-                let time_created: u64 = user_json_value["time_created"].as_u64().unwrap();
-                let icon_id: u64 = user_json_value["icon_id"].as_u64().unwrap();
-                let description: &String =
-                    &String::from_str(user_json_value["description"].as_str().unwrap()).unwrap();
-
-                //videos:
-                let videos_vec: &Vec<Value> = user_json_value["videos"].as_array().unwrap();
-                let mut videos: Box<Vec<u64>> = Box::new(Vec::new());
-                for video_id_json in videos_vec {
-                    videos.push(video_id_json.as_u64().unwrap());
-                }
-
-                //subscriptions:
-                let subscriptions_vec: &Vec<Value> =
-                    user_json_value["subscriptions"].as_array().unwrap();
-                let mut subscriptions: Box<Vec<String>> = Box::new(Vec::new());
-                for subscription_json in subscriptions_vec {
-                    subscriptions
-                        .push(String::from_str(subscription_json.as_str().unwrap()).unwrap());
-                }
-
-                //comments:
-                let comments: Box<Vec<u64>> = Comment::parse_json_comment_indexes(
-                    user_json_value["comments"].as_array().unwrap(),
-                );
-
-                //password_hash:
-                let password_hash: String =
-                    String::from_str(user_json_value["password_hash"].as_str().unwrap()).unwrap();
-
-                //liked_vids:
-                let liked_vids_vec: &Vec<Value> = user_json_value["liked_vids"].as_array().unwrap();
-                let mut liked_vids: Box<Vec<u64>> = Box::new(Vec::new());
-                for liked_video_id_json in liked_vids_vec {
-                    liked_vids.push(liked_video_id_json.as_u64().unwrap());
-                }
-
-                //disliked_vids:
-                let disliked_vids_vec: &Vec<Value> =
-                    user_json_value["disliked_vids"].as_array().unwrap();
-                let mut disliked_vids: Box<Vec<u64>> = Box::new(Vec::new());
-                for disl_video_id_json in disliked_vids_vec {
-                    disliked_vids.push(disl_video_id_json.as_u64().unwrap());
-                }
-
-                //liked_comments:
-                let liked_comments: Box<Vec<u64>> = Comment::parse_json_comment_indexes(
-                    user_json_value["liked_comments"].as_array().unwrap(),
-                );
-
-                //disliked_comments:
-                let disliked_comments: Box<Vec<u64>> = Comment::parse_json_comment_indexes(
-                    user_json_value["disliked_comments"].as_array().unwrap(),
-                );
+                // //time_created, icon_id, and description:
+                // let time_created: u64 = user_json_value["time_created"].as_u64().unwrap();
+                // let icon_id: u64 = user_json_value["icon_id"].as_u64().unwrap();
+                // let description: &String =
+                //     &String::from_str(user_json_value["description"].as_str().unwrap()).unwrap();
+                //
+                // //videos:
+                // let videos_vec: &Vec<Value> = user_json_value["videos"].as_array().unwrap();
+                // let mut videos: Box<Vec<u64>> = Box::new(Vec::new());
+                // for video_id_json in videos_vec {
+                //     videos.push(video_id_json.as_u64().unwrap());
+                // }
+                //
+                // //subscriptions:
+                // let subscriptions_vec: &Vec<Value> =
+                //     user_json_value["subscriptions"].as_array().unwrap();
+                // let mut subscriptions: Box<Vec<String>> = Box::new(Vec::new());
+                // for subscription_json in subscriptions_vec {
+                //     subscriptions
+                //         .push(String::from_str(subscription_json.as_str().unwrap()).unwrap());
+                // }
+                //
+                // //comments:
+                // let comments: Box<Vec<u64>> = Comment::parse_json_comment_indexes(
+                //     user_json_value["comments"].as_array().unwrap(),
+                // );
+                //
+                // //password_hash:
+                // let password_hash: String =
+                //     String::from_str(user_json_value["password_hash"].as_str().unwrap()).unwrap();
+                //
+                // //liked_vids:
+                // let liked_vids_vec: &Vec<Value> = user_json_value["liked_vids"].as_array().unwrap();
+                // let mut liked_vids: Box<Vec<u64>> = Box::new(Vec::new());
+                // for liked_video_id_json in liked_vids_vec {
+                //     liked_vids.push(liked_video_id_json.as_u64().unwrap());
+                // }
+                //
+                // //disliked_vids:
+                // let disliked_vids_vec: &Vec<Value> =
+                //     user_json_value["disliked_vids"].as_array().unwrap();
+                // let mut disliked_vids: Box<Vec<u64>> = Box::new(Vec::new());
+                // for disl_video_id_json in disliked_vids_vec {
+                //     disliked_vids.push(disl_video_id_json.as_u64().unwrap());
+                // }
+                //
+                // //liked_comments:
+                // let liked_comments: Box<Vec<u64>> = Comment::parse_json_comment_indexes(
+                //     user_json_value["liked_comments"].as_array().unwrap(),
+                // );
+                //
+                // //disliked_comments:
+                // let disliked_comments: Box<Vec<u64>> = Comment::parse_json_comment_indexes(
+                //     user_json_value["disliked_comments"].as_array().unwrap(),
+                // );
 
                 //Create and add User:
+                // self.users.insert(
+                //     user_id.clone(),
+                //     Box::new(User {
+                //         user_id: user_id.clone(),
+                //         time_created: time_created,
+                //         icon_id: icon_id,
+                //         description: description.clone(),
+                //         videos: videos,
+                //         subscriptions: subscriptions,
+                //         comments: comments,
+                //         password_hash: password_hash.clone(),
+                //         liked_vids: liked_vids,
+                //         disliked_vids: disliked_vids,
+                //         liked_comments: liked_comments,
+                //         disliked_comments: disliked_comments,
+                //         dirty: false,
+                //     }),
+                // );
                 self.users.insert(
                     user_id.clone(),
-                    Box::new(User {
-                        user_id: user_id.clone(),
-                        time_created: time_created,
-                        icon_id: icon_id,
-                        description: description.clone(),
-                        videos: videos,
-                        subscriptions: subscriptions,
-                        comments: comments,
-                        password_hash: password_hash.clone(),
-                        liked_vids: liked_vids,
-                        disliked_vids: disliked_vids,
-                        liked_comments: liked_comments,
-                        disliked_comments: disliked_comments,
-                        dirty: false,
-                    }),
+                    User::from_json_value(user_json_value, user_id),
                 );
             }
-            println!("\nParsed user data: {:?}", self.users);
 
             //Parse videos:
             let media_path_string: &String = &format!("{}/media/", data_path);
@@ -467,7 +539,6 @@ pub mod file_handling {
             //Parse JSON:
             let videos_json_root: Value = serde_json::from_str(videos_json_cont_slice_str).unwrap();
             for (video_id_string, video_json) in videos_json_root.as_object().unwrap() {
-                println!("{}: {:?}", video_id_string, video_json);
                 let video_id: u64 = video_id_string.parse::<u64>().unwrap();
 
                 let finished_processing: bool =
@@ -484,9 +555,7 @@ pub mod file_handling {
                 let uploaded_time_json: &Value = &video_json["uploaded_time"];
                 let uploaded_time: u64 = uploaded_time_json.as_u64().unwrap();
 
-                println!("Do you see this? ");
-
-                unbug::prelude::breakpoint!();
+                // unbug::prelude::breakpoint!();
                 let mut comments: Box<Vec<Arc<Mutex<Comment>>>> = Box::new(Vec::new());
                 for (comment_id, comment_json) in video_json["comments"].as_object().unwrap() {
                     let comment_id_num: u64 = comment_id.parse::<u64>().unwrap();
@@ -498,7 +567,6 @@ pub mod file_handling {
                         .insert(comment_id_num, Arc::clone(&comment_rc));
 
                     //Add replies to self.comments_by_id:
-                    // Comment::add_children(comment_id_num, &self.comments_by_id);
                     let replies_map_arc: Arc<Mutex<HashMap<u64, Arc<Mutex<Comment>>>>> =
                         Comment::get_children(Arc::clone(&comment_rc));
                     let replies_map_mutg = replies_map_arc.lock().unwrap();
@@ -527,7 +595,10 @@ pub mod file_handling {
             }
 
             //Fill in author, likes, and dislikes
-            for (user_id, user) in self.users.iter() {
+            for (user_id, user_arc) in self.users.iter() {
+                //Get user.
+                let user_mutg = user_arc.lock().unwrap();
+                let user = user_mutg.deref();
                 //Set author.
                 let user_videos: &Vec<u64> = user.videos.deref();
                 for video_id in user_videos {
@@ -553,11 +624,6 @@ pub mod file_handling {
                 let user_liked_comments: &Vec<u64> = user.liked_comments.deref();
                 for comment_id in user_liked_comments {
                     let comment_arc = self.comments_by_id.get_mut(comment_id).unwrap();
-                    // let comment: &mut Comment = Arc::<Mutex<Comment>>::get_mut(comment_arc)
-                    //     .unwrap()
-                    //     .lock()
-                    //     .unwrap()
-                    //     .deref_mut();
                     let comment_mutg = &mut comment_arc.lock().unwrap();
                     let comment: &mut Comment = comment_mutg.deref_mut();
                     comment.likes += 1;
@@ -567,20 +633,11 @@ pub mod file_handling {
                 let user_disliked_comments: &Vec<u64> = user.disliked_comments.deref();
                 for comment_id in user_disliked_comments {
                     let comment_arc = self.comments_by_id.get_mut(comment_id).unwrap();
-                    // let comment: &mut Comment = Arc::<Mutex<Comment>>::get_mut(comment_arc)
-                    //     .unwrap()
-                    //     .lock()
-                    //     .unwrap()
-                    //     .deref_mut();
                     let comment_mutg = &mut comment_arc.lock().unwrap();
                     let comment: &mut Comment = comment_mutg.deref_mut();
                     comment.dislikes += 1;
                 }
             }
-
-            //Display results:
-            println!("\nParsed user data: {:#?}", self.users);
-            println!("\nParsed video data: {:#?}", self.videos);
         }
     }
 }
