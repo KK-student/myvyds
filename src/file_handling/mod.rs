@@ -162,6 +162,11 @@ pub mod file_handling {
         }
     }
 
+    trait DirtyData {
+        fn set_dirty(&mut self, dirty: bool);
+        fn is_dirty(&self) -> bool;
+    }
+
     ///Represents a user.
     #[derive(Debug, Clone)]
     pub struct User {
@@ -178,6 +183,7 @@ pub mod file_handling {
         disliked_vids: Box<Vec<u64>>,
         liked_comments: Box<Vec<u64>>,
         disliked_comments: Box<Vec<u64>>,
+
         dirty: bool,
     }
 
@@ -254,6 +260,275 @@ pub mod file_handling {
                 dirty: false,
             }));
         }
+
+        pub fn get_user_id(&self) -> String {
+            self.user_id.clone()
+        }
+
+        pub fn get_time_created(&self) -> u64 {
+            self.time_created
+        }
+
+        pub fn get_icon_id(&self) -> u64 {
+            self.icon_id
+        }
+
+        pub fn set_icon_id(&mut self, icon_id: u64) {
+            self.icon_id = icon_id;
+            self.set_dirty(true);
+        }
+
+        pub fn get_description(&self) -> String {
+            self.description.clone()
+        }
+
+        pub fn set_description(&mut self, description: &String) {
+            self.description = description.clone();
+            self.set_dirty(true);
+        }
+
+        pub fn get_videos(&self) -> Box<Vec<u64>> {
+            Box::clone(&self.videos)
+        }
+
+        fn get_video_index(&self, video_id: u64) -> isize {
+            let videos: &Vec<u64> = &self.videos;
+            {
+                let mut i = 0;
+                while i < videos.len() {
+                    if *videos.get(i).unwrap() == video_id {
+                        return i as isize;
+                    }
+                    i += 1;
+                }
+            }
+
+            return -1;
+        }
+
+        pub fn remove_video(&mut self, video_id: u64) -> bool {
+            let video_index = self.get_video_index(video_id);
+            if video_index < 0 {
+                return false;
+            }
+            self.videos.remove(video_index as usize);
+
+            self.set_dirty(true);
+            return true;
+        }
+
+        pub fn remove_all_videos(&mut self) {
+            self.videos.clear();
+            self.set_dirty(true);
+        }
+
+        pub fn get_subscriptions(&self) -> Box<Vec<String>> {
+            return self.subscriptions.clone();
+        }
+
+        pub fn add_subscription(&mut self, subscription: &String) {
+            self.subscriptions.push(subscription.clone());
+            self.set_dirty(true);
+        }
+
+        fn get_subscription_index(&self, subscription: &String) -> isize {
+            {
+                let mut i = 0;
+                while i < self.subscriptions.len() {
+                    if self.subscriptions.get(i).unwrap() == subscription {
+                        return i as isize;
+                    }
+
+                    i += 1;
+                }
+            }
+            return -1;
+        }
+
+        pub fn remove_subscription(&mut self, subscription: &String) -> bool {
+            let sub_index = self.get_subscription_index(subscription);
+            if sub_index < 0 {
+                return false;
+            }
+            self.subscriptions.remove(sub_index as usize);
+            self.set_dirty(true);
+            return true;
+        }
+
+        pub fn remove_all_subscriptions(&mut self) {
+            self.subscriptions.clear();
+            self.set_dirty(true);
+        }
+
+        pub fn get_comments(&self) -> Box<Vec<u64>> {
+            return self.comments.clone();
+        }
+
+        pub fn add_comment(&mut self, comment_id: u64) {
+            self.comments.push(comment_id);
+            self.set_dirty(true);
+        }
+
+        fn get_comment_index(&self, comment_id: u64) -> isize {
+            {
+                let mut i = 0;
+                while i < self.comments.len() {
+                    if *self.comments.get(i).unwrap() == comment_id {
+                        return i as isize;
+                    }
+
+                    i += 1;
+                }
+            }
+            return -1;
+        }
+
+        pub fn remove_comment(&mut self, comment_id: u64) -> bool {
+            let comment_index = self.get_comment_index(comment_id);
+            if comment_index < 0 {
+                return false;
+            }
+            self.comments.remove(comment_index as usize);
+            self.set_dirty(true);
+            return true;
+        }
+
+        pub fn check_password_hash(&self, password_hash: &String) -> bool {
+            return self.password_hash == password_hash.clone();
+        }
+
+        pub fn set_password_hash(&mut self, password_hash: &String) {
+            self.password_hash = password_hash.clone();
+            self.set_dirty(true);
+        }
+
+        pub fn is_liked_vid(&self, video_id: u64) -> isize {
+            {
+                let mut i = 0;
+                while i < self.liked_vids.len() {
+                    if *self.liked_vids.get(i).unwrap() == video_id {
+                        return i as isize;
+                    }
+
+                    i += 1;
+                }
+            }
+            return -1;
+        }
+
+        pub fn is_disliked_vid(&self, video_id: u64) -> isize {
+            {
+                let mut i = 0;
+                while i < self.disliked_vids.len() {
+                    if *self.disliked_vids.get(i).unwrap() == video_id {
+                        return i as isize;
+                    }
+
+                    i += 1;
+                }
+            }
+            return -1;
+        }
+
+        pub fn remove_like_vid(&mut self, video_id: u64) -> bool {
+            let vid_index = self.is_liked_vid(video_id);
+            if vid_index < 0 {
+                return false;
+            }
+
+            self.liked_vids.remove(vid_index as usize);
+            self.set_dirty(true);
+            return true;
+        }
+
+        pub fn remove_dislike_vid(&mut self, video_id: u64) -> bool {
+            let vid_index = self.is_disliked_vid(video_id);
+            if vid_index < 0 {
+                return false;
+            }
+
+            self.disliked_vids.remove(vid_index as usize);
+            self.set_dirty(true);
+            return true;
+        }
+
+        pub fn like_vid(&mut self, video_id: u64) {
+            self.liked_vids.push(video_id);
+            self.set_dirty(true);
+        }
+
+        pub fn dislike_vid(&mut self, video_id: u64) {
+            self.disliked_vids.push(video_id);
+            self.set_dirty(true);
+        }
+
+        pub fn is_liked_comm(&self, comment_id: u64) -> isize {
+            {
+                let mut i = 0;
+                while i < self.liked_comments.len() {
+                    if *self.liked_comments.get(i).unwrap() == comment_id {
+                        return i as isize;
+                    }
+
+                    i += 1;
+                }
+            }
+            return -1;
+        }
+
+        pub fn is_disliked_comm(&self, comment_id: u64) -> isize {
+            {
+                let mut i = 0;
+                while i < self.disliked_comments.len() {
+                    if *self.disliked_comments.get(i).unwrap() == comment_id {
+                        return i as isize;
+                    }
+
+                    i += 1;
+                }
+            }
+            return -1;
+        }
+
+        pub fn remove_like_comment(&mut self, comment_id: u64) -> bool {
+            let comm_ind = self.is_liked_comm(comment_id);
+            if comm_ind < 0 {
+                return false;
+            }
+            self.liked_comments.remove(comm_ind as usize);
+            self.set_dirty(true);
+            return true;
+        }
+
+        pub fn remove_dislike_comment(&mut self, comment_id: u64) -> bool {
+            let comm_ind = self.is_disliked_comm(comment_id);
+            if comm_ind < 0 {
+                return false;
+            }
+            self.disliked_comments.remove(comm_ind as usize);
+            self.set_dirty(true);
+            return true;
+        }
+
+        pub fn like_comment(&mut self, comment_id: u64) {
+            self.liked_comments.push(comment_id);
+            self.set_dirty(true);
+        }
+
+        pub fn dislike_comment(&mut self, comment_id: u64) {
+            self.disliked_comments.push(comment_id);
+            self.set_dirty(true);
+        }
+    }
+
+    impl DirtyData for User {
+        fn set_dirty(&mut self, dirty: bool) {
+            self.dirty = dirty;
+        }
+
+        fn is_dirty(&self) -> bool {
+            self.dirty
+        }
     }
 
     ///Represents a video stored on disk.
@@ -270,6 +545,16 @@ pub mod file_handling {
         likes: u64,
         dislikes: u64,
         dirty: bool,
+    }
+
+    impl DirtyData for VideoData {
+        fn set_dirty(&mut self, dirty: bool) {
+            self.dirty = dirty;
+        }
+
+        fn is_dirty(&self) -> bool {
+            self.dirty
+        }
     }
 
     impl VideoData {
@@ -343,11 +628,13 @@ pub mod file_handling {
         replies: Box<Vec<Arc<Mutex<Comment>>>>,
         likes: u64,
         dislikes: u64,
+
+        dirty: bool,
+        edited: bool,
     }
 
     impl Comment {
         pub fn from_json_value(json: &Value, comment_id: u64, level: u64) -> Self {
-            //{"author": "[authors_user_id]", "text": "[comment text]", "creation_time": [time_uploaded_in_secs_since_epoch_in_u64], "replies": {[replies in the comment data format]}}
             if level > 2 {
                 panic!("Comment level > 2")
             }
@@ -373,7 +660,80 @@ pub mod file_handling {
                 replies: replies,
                 likes: 0,
                 dislikes: 0,
+                dirty: false,
+                edited: false,
             }
+        }
+
+        pub fn get_id(&self) -> u64 {
+            self.id
+        }
+
+        pub fn get_level(&self) -> u64 {
+            self.level
+        }
+
+        pub fn get_author(&self) -> String {
+            self.author.clone()
+        }
+
+        pub fn get_text(&self) -> String {
+            self.text.clone()
+        }
+
+        pub fn set_text(&mut self, text: &String, creation_time: u64) {
+            self.text = text.clone();
+            self.set_creation_time(creation_time);
+            self.set_edited(true);
+            self.set_dirty(true);
+        }
+
+        pub fn get_creation_time(&self) -> u64 {
+            self.creation_time
+        }
+
+        pub fn set_creation_time(&mut self, creation_time: u64) {
+            self.creation_time = creation_time;
+            self.set_dirty(true);
+        }
+
+        pub fn get_edited(&self) -> bool {
+            self.edited
+        }
+
+        pub fn set_edited(&mut self, edited: bool) {
+            self.edited = edited;
+            self.set_dirty(true);
+        }
+
+        pub fn get_likes(&self) -> u64 {
+            self.likes
+        }
+
+        pub fn set_likes(&mut self, likes: u64) {
+            self.likes = likes;
+            self.set_dirty(true);
+        }
+
+        pub fn like(&mut self) {
+            self.set_likes(self.get_likes() + 1);
+        }
+
+        pub fn set_dislikes(&mut self, dislikes: u64) {
+            self.dislikes = dislikes;
+            self.set_dirty(true);
+        }
+
+        pub fn get_dislikes(&self) -> u64 {
+            self.dislikes
+        }
+
+        pub fn dislike(&mut self) {
+            self.set_dislikes(self.get_dislikes() + 1);
+        }
+
+        pub fn get_replies(&self) -> Box<Vec<Arc<Mutex<Comment>>>> {
+            return Box::clone(&self.replies);
         }
 
         pub fn parse_json_comment_indexes(json: &Vec<Value>) -> Box<Vec<u64>> /*Box<HashMap<u64, Vec<u64>>>*/
@@ -425,37 +785,51 @@ pub mod file_handling {
             let replies: &mut Vec<Arc<Mutex<Comment>>> = self.replies.deref_mut();
             replies.push(reply);
 
+            self.set_dirty(true);
             return true;
         }
 
-        // fn get_reply_index(&self, reply_comment_id: u64) -> i64 {
-        //     let replies: &mut Vec<Arc<Mutex<Comment>>> = self.replies.deref_mut();
-        //     for reply_arc in replies {
-        //         let reply_mutg = reply_arc.lock().unwrap();
-        //         let reply = reply_mutg.deref();
-        //         if reply.id == reply_comment_id {
-        //             return reply.id as i64;
-        //         }
-        //     }
-        //
-        //     return -1;
-        // }
-        //
-        // pub fn remove_all_replies(&mut self) {
-        //     let replies: &mut Vec<Arc<Mutex<Comment>>> = self.replies.deref_mut();
-        //
-        //     for reply_arc in replies {
-        //         let mut reply_mutg = reply_arc.lock().unwrap();
-        //         let reply = reply_mutg.deref_mut();
-        //         reply.remove_all_replies();
-        //     }
-        //
-        //     replies.clear();
-        // }
-        //
-        // pub fn remove_reply(&mut self, reply_comment_id: u64) {
-        //     let replies: &mut Vec<Arc<Mutex<Comment>>> = self.replies.deref_mut();
-        // }
+        fn get_reply_index(&self, reply_comment_id: u64) -> i64 {
+            let replies: &Vec<Arc<Mutex<Comment>>> = self.replies.deref();
+            for reply_arc in replies {
+                let reply_mutg = reply_arc.lock().unwrap();
+                let reply = reply_mutg.deref();
+                if reply.id == reply_comment_id {
+                    return reply.id as i64;
+                }
+            }
+
+            return -1;
+        }
+
+        pub fn remove_reply(&mut self, reply_comment_id: u64) -> bool {
+            let reply_index = self.get_reply_index(reply_comment_id);
+            if reply_index < 0 {
+                return false;
+            } else {
+                let replies: &mut Vec<Arc<Mutex<Comment>>> = self.replies.deref_mut();
+                replies.remove(reply_index as usize);
+            }
+
+            self.set_dirty(true);
+            return true;
+        }
+
+        pub fn remove_all_replies(&mut self) {
+            let replies: &mut Vec<Arc<Mutex<Comment>>> = self.replies.deref_mut();
+            replies.clear();
+            self.set_dirty(true);
+        }
+    }
+
+    impl DirtyData for Comment {
+        fn set_dirty(&mut self, dirty: bool) {
+            self.dirty = dirty;
+        }
+
+        fn is_dirty(&self) -> bool {
+            self.dirty
+        }
     }
 
     ///Handles the storage of all of the user accounts, comments, and videos.
@@ -585,7 +959,7 @@ pub mod file_handling {
                     let comment_arc = self.comments_by_id.get_mut(comment_id).unwrap();
                     let comment_mutg = &mut comment_arc.lock().unwrap();
                     let comment: &mut Comment = comment_mutg.deref_mut();
-                    comment.likes += 1;
+                    comment.like();
                 }
 
                 //Set comment dislikes:
@@ -594,7 +968,7 @@ pub mod file_handling {
                     let comment_arc = self.comments_by_id.get_mut(comment_id).unwrap();
                     let comment_mutg = &mut comment_arc.lock().unwrap();
                     let comment: &mut Comment = comment_mutg.deref_mut();
-                    comment.dislikes += 1;
+                    comment.dislike();
                 }
             }
         }
