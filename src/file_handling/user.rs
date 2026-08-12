@@ -28,6 +28,8 @@ pub struct User {
 }
 
 impl User {
+    ///Creates a new User from the given json data (user_json_value) and with the given user id
+    ///(user_id).
     pub fn from_json_value(user_json_value: &Value, user_id: &String) -> Arc<Mutex<Self>> {
         //time_created, icon_id, and description:
         let time_created: u64 = user_json_value["time_created"].as_u64().unwrap();
@@ -98,32 +100,39 @@ impl User {
         }));
     }
 
+    ///Gets the user id.
     pub fn get_user_id(&self) -> String {
         self.user_id.clone()
     }
 
+    ///Gets the time when the user was created in seconds since epoch.
     pub fn get_time_created(&self) -> u64 {
         self.time_created
     }
 
+    ///Gets the icon id.
     pub fn get_icon_id(&self) -> u64 {
         self.icon_id
     }
 
+    ///Sets the icon id.
     pub fn set_icon_id(&mut self, icon_id: u64) {
         self.icon_id = icon_id;
         self.set_dirty(true);
     }
 
+    ///Gets the user description.
     pub fn get_description(&self) -> String {
         self.description.clone()
     }
 
+    ///Sets the user description.
     pub fn set_description(&mut self, description: &String) {
         self.description = description.clone();
         self.set_dirty(true);
     }
 
+    ///Gets a copy of the list of videos by video id.
     pub fn get_videos(&self) -> Box<Vec<u64>> {
         Box::clone(&self.videos)
     }
@@ -143,6 +152,7 @@ impl User {
         return -1;
     }
 
+    ///Removes a video from the list of user created videos.
     pub fn remove_video(&mut self, video_id: u64) -> bool {
         let video_index = self.get_video_index(video_id);
         if video_index < 0 {
@@ -154,15 +164,18 @@ impl User {
         return true;
     }
 
+    ///Removes all of the videos from the list of user created videos.
     pub fn remove_all_videos(&mut self) {
         self.videos.clear();
         self.set_dirty(true);
     }
 
+    ///Gets a copy of the user's list of subscriptions.
     pub fn get_subscriptions(&self) -> Box<Vec<String>> {
         return self.subscriptions.clone();
     }
 
+    ///Adds a subscription to the user's list of subscriptions.
     pub fn add_subscription(&mut self, subscription: &String) {
         self.subscriptions.push(subscription.clone());
         self.set_dirty(true);
@@ -182,6 +195,7 @@ impl User {
         return -1;
     }
 
+    ///Removes a subscription from the user's list of subscriptions.
     pub fn remove_subscription(&mut self, subscription: &String) -> bool {
         let sub_index = self.get_subscription_index(subscription);
         if sub_index < 0 {
@@ -192,15 +206,18 @@ impl User {
         return true;
     }
 
+    ///Removes all subscriptions from the user's list of subscriptions.
     pub fn remove_all_subscriptions(&mut self) {
         self.subscriptions.clear();
         self.set_dirty(true);
     }
 
+    ///Gets a copy of the list of the comments created by the user.
     pub fn get_comments(&self) -> Box<Vec<u64>> {
         return self.comments.clone();
     }
 
+    ///Adds a comment to the list of the comments created by the user.
     pub fn add_comment(&mut self, comment_id: u64) {
         self.comments.push(comment_id);
         self.set_dirty(true);
@@ -220,6 +237,7 @@ impl User {
         return -1;
     }
 
+    ///Removes a comment from the list of the comments created by the user.
     pub fn remove_comment(&mut self, comment_id: u64) -> bool {
         let comment_index = self.get_comment_index(comment_id);
         if comment_index < 0 {
@@ -230,23 +248,29 @@ impl User {
         return true;
     }
 
+    ///Checks if the given password hash (password_hash parameter) matches exactly to that of the user's password hash.
     pub fn check_password_hash(&self, password_hash: &String) -> bool {
         return self.password_hash == password_hash.clone();
     }
 
+    ///Sets the user's password hash.
     pub fn set_password_hash(&mut self, password_hash: &String) {
         self.password_hash = password_hash.clone();
         self.set_dirty(true);
     }
 
+    ///Gets a copy of the list of liked videos.
     pub fn get_liked_vids(&self) -> Box<Vec<u64>> {
         self.liked_vids.clone()
     }
 
+    ///Gets a copy of the list of disliked videos.
     pub fn get_disliked_vids(&self) -> Box<Vec<u64>> {
         self.disliked_vids.clone()
     }
 
+    ///Is the given video_id currently in the list of liked videos? Returns -1 if no, otherwise
+    ///returns the index of the video in user.liked_vids.
     pub fn is_liked_vid(&self, video_id: u64) -> isize {
         {
             let mut i = 0;
@@ -261,6 +285,8 @@ impl User {
         return -1;
     }
 
+    ///Is the given video_id currently in the list of disliked videos? Returns -1 if no, otherwise
+    ///returns the index of the video in user.disliked_vids.
     pub fn is_disliked_vid(&self, video_id: u64) -> isize {
         {
             let mut i = 0;
@@ -275,6 +301,7 @@ impl User {
         return -1;
     }
 
+    ///Removes a video from the list of liked vids. Returns true if successful, otherwise false.
     pub fn remove_like_vid(&mut self, video_id: u64) -> bool {
         let vid_index = self.is_liked_vid(video_id);
         if vid_index < 0 {
@@ -286,6 +313,7 @@ impl User {
         return true;
     }
 
+    ///Removes a video from the list of disliked vids. Returns true if successful, otherwise false.
     pub fn remove_dislike_vid(&mut self, video_id: u64) -> bool {
         let vid_index = self.is_disliked_vid(video_id);
         if vid_index < 0 {
@@ -297,24 +325,29 @@ impl User {
         return true;
     }
 
+    ///Adds a video to the list of liked videos.
     pub fn like_vid(&mut self, video_id: u64) {
         self.liked_vids.push(video_id);
         self.set_dirty(true);
     }
 
+    ///Adds a video to the list of disliked videos.
     pub fn dislike_vid(&mut self, video_id: u64) {
         self.disliked_vids.push(video_id);
         self.set_dirty(true);
     }
 
+    ///Gets a copy of the list of liked comments.
     pub fn get_liked_comments(&self) -> Box<Vec<u64>> {
         self.liked_comments.clone()
     }
 
+    ///Gets a copy of the list of disliked comments.
     pub fn get_disliked_comments(&self) -> Box<Vec<u64>> {
         self.disliked_comments.clone()
     }
 
+    ///Is the comment with the given comment id (comment_id) in the user's list of liked comments?
     pub fn is_liked_comm(&self, comment_id: u64) -> isize {
         {
             let mut i = 0;
@@ -329,6 +362,7 @@ impl User {
         return -1;
     }
 
+    ///Is the comment with the given comment id (comment_id) in the user's list of disliked comments?
     pub fn is_disliked_comm(&self, comment_id: u64) -> isize {
         {
             let mut i = 0;
@@ -343,6 +377,7 @@ impl User {
         return -1;
     }
 
+    ///Remove the comment with the given comment id (comment_id) from the user's list of liked comments. Returns true if successful, otherwise false.
     pub fn remove_like_comment(&mut self, comment_id: u64) -> bool {
         let comm_ind = self.is_liked_comm(comment_id);
         if comm_ind < 0 {
@@ -353,6 +388,7 @@ impl User {
         return true;
     }
 
+    ///Remove the comment with the given comment id (comment_id) from the user's list of disliked comments. Returns true if successful, otherwise false.
     pub fn remove_dislike_comment(&mut self, comment_id: u64) -> bool {
         let comm_ind = self.is_disliked_comm(comment_id);
         if comm_ind < 0 {
@@ -363,11 +399,13 @@ impl User {
         return true;
     }
 
+    ///Add a comment to the user's list of liked comments.
     pub fn like_comment(&mut self, comment_id: u64) {
         self.liked_comments.push(comment_id);
         self.set_dirty(true);
     }
 
+    ///Add a comment to the user's list of disliked comments.
     pub fn dislike_comment(&mut self, comment_id: u64) {
         self.disliked_comments.push(comment_id);
         self.set_dirty(true);
