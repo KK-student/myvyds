@@ -25,6 +25,7 @@ pub struct Comment {
 }
 
 impl Comment {
+    ///Create a new Comment from json data.
     pub fn from_json_value(json: &Value, comment_id: u64, level: u64) -> Self {
         if level > 2 {
             panic!("Comment level > 2")
@@ -58,22 +59,33 @@ impl Comment {
         }
     }
 
+    ///Get comment id.
     pub fn get_id(&self) -> u64 {
         self.id
     }
 
+    ///Get comment level.
     pub fn get_level(&self) -> u64 {
         self.level
     }
 
+    ///Get comment author.
     pub fn get_author(&self) -> String {
         self.author.clone()
     }
 
+    ///Set comment author.
+    pub fn set_author(&mut self, author: &String) {
+        self.author = author.clone();
+        self.set_dirty(true);
+    }
+
+    ///Get comment text.
     pub fn get_text(&self) -> String {
         self.text.clone()
     }
 
+    ///Set comment text.
     pub fn set_text(&mut self, text: &String, creation_time: u64) {
         self.text = text.clone();
         self.set_creation_time(creation_time);
@@ -81,30 +93,35 @@ impl Comment {
         self.set_dirty(true);
     }
 
+    ///Get comment creation time (in seconds since epoch).
     pub fn get_creation_time(&self) -> u64 {
         self.creation_time
     }
 
+    ///Set comment creation time (in seconds since epoch).
     pub fn set_creation_time(&mut self, creation_time: u64) {
         self.creation_time = creation_time;
         self.set_dirty(true);
     }
 
-    pub fn get_edited(&self) -> bool {
+    ///Has this comment been edited?
+    pub fn is_edited(&self) -> bool {
         self.edited
     }
 
+    ///Set whether or not if this comment has been edited.
     pub fn set_edited(&mut self, edited: bool) {
         self.edited = edited;
         self.set_dirty(true);
     }
 
+    ///Get a copy of the replies vector.
     pub fn get_replies(&self) -> Box<Vec<Arc<Mutex<Comment>>>> {
         return Box::clone(&self.replies);
     }
 
-    pub fn parse_json_comment_indexes(json: &Vec<Value>) -> Box<Vec<u64>> /*Box<HashMap<u64, Vec<u64>>>*/
-    {
+    ///Parse json comment indexes.
+    pub fn parse_json_comment_indexes(json: &Vec<Value>) -> Box<Vec<u64>> {
         let mut comments: Box<Vec<u64>> = Box::new(Vec::new());
         for comment_id in json {
             comments.push(comment_id.as_u64().unwrap());
@@ -113,6 +130,7 @@ impl Comment {
         return comments;
     }
 
+    ///Get the replies as a HashMap where keys are comment ids and values are the comments themselves.
     pub fn get_children(
         top_comment_arc: Arc<Mutex<Comment>>,
     ) -> Arc<Mutex<HashMap<u64, Arc<Mutex<Comment>>>>> {
@@ -140,10 +158,12 @@ impl Comment {
         return Arc::clone(&replies_arc);
     }
 
+    ///Determine if replies can be added.
     pub fn can_add_replies(&self) -> bool {
         self.level < 2
     }
 
+    ///Add a reply.
     pub fn add_reply(&mut self, reply: Arc<Mutex<Comment>>) -> bool {
         if !Self::can_add_replies(self) {
             return false;
@@ -169,6 +189,8 @@ impl Comment {
         return -1;
     }
 
+    ///Recursively looks for a reply by it's id (reply_comment_id). Returns true if it exists and
+    ///false if not.
     pub fn has_reply_recursive(&self, reply_comment_id: u64) -> bool {
         let top_level_index = self.get_reply_index(reply_comment_id);
         if top_level_index >= 0 {
@@ -187,6 +209,8 @@ impl Comment {
         return false;
     }
 
+    ///Recursively looks for a reply by it's id (reply_comment_id). Returns the reply if it exists
+    ///and () if not.
     pub fn find_reply_recursive(&self, comment_id: u64) -> Result<Arc<Mutex<Comment>>, ()> {
         let top_level_index = self.get_reply_index(comment_id);
         if top_level_index >= 0 {
@@ -208,7 +232,7 @@ impl Comment {
         }
     }
 
-    pub fn remove_reply(&mut self, reply_comment_id: u64) -> bool {
+    fn remove_top_reply(&mut self, reply_comment_id: u64) -> bool {
         let reply_index = self.get_reply_index(reply_comment_id);
         if reply_index < 0 {
             return false;
@@ -220,23 +244,31 @@ impl Comment {
         }
     }
 
+    ///Recursively looks through all of the replies and removes the reply with the specified id (reply_comment_id).
     pub fn remove_reply_recursive(&mut self, reply_comment_id: u64) -> bool {
-        if self.remove_reply(reply_comment_id) {
-            return true;
-        } else {
+        let mut result = false;
+        if self.remove_top_reply(reply_comment_id) {
+            result = true;
+        }
+        if !result {
             let replies: &Vec<Arc<Mutex<Comment>>> = self.replies.deref();
             for reply_arc in replies {
                 let mut reply_mutg = reply_arc.lock().unwrap();
                 let reply: &mut Comment = reply_mutg.deref_mut();
                 if reply.remove_reply_recursive(reply_comment_id) {
-                    return true;
+                    result = true;
+                    break;
                 }
             }
-
-            return false;
         }
+        if result {
+            self.set_dirty(true);
+        }
+
+        return result;
     }
 
+    ///Removes all of the replies.
     pub fn remove_all_replies(&mut self) {
         let replies: &mut Vec<Arc<Mutex<Comment>>> = self.replies.deref_mut();
         replies.clear();
