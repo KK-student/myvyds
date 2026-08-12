@@ -187,6 +187,27 @@ impl Comment {
         return false;
     }
 
+    pub fn find_reply_recursive(&self, comment_id: u64) -> Result<Arc<Mutex<Comment>>, ()> {
+        let top_level_index = self.get_reply_index(comment_id);
+        if top_level_index >= 0 {
+            Ok(Arc::clone(
+                self.replies.deref().get(top_level_index as usize).unwrap(),
+            ))
+        } else {
+            let replies: &Vec<Arc<Mutex<Comment>>> = self.replies.deref();
+            for reply_arc in replies {
+                let reply_mutg = reply_arc.lock().unwrap();
+                let reply = reply_mutg.deref();
+                match reply.find_reply_recursive(comment_id) {
+                    Ok(res) => return Ok(Arc::clone(&res)),
+                    Err(_) => {}
+                }
+            }
+
+            Err(())
+        }
+    }
+
     pub fn remove_reply(&mut self, reply_comment_id: u64) -> bool {
         let reply_index = self.get_reply_index(reply_comment_id);
         if reply_index < 0 {
@@ -194,10 +215,26 @@ impl Comment {
         } else {
             let replies: &mut Vec<Arc<Mutex<Comment>>> = self.replies.deref_mut();
             replies.remove(reply_index as usize);
+            self.set_dirty(true);
+            return true;
         }
+    }
 
-        self.set_dirty(true);
-        return true;
+    pub fn remove_reply_recursive(&mut self, reply_comment_id: u64) -> bool {
+        if self.remove_reply(reply_comment_id) {
+            return true;
+        } else {
+            let replies: &Vec<Arc<Mutex<Comment>>> = self.replies.deref();
+            for reply_arc in replies {
+                let mut reply_mutg = reply_arc.lock().unwrap();
+                let reply: &mut Comment = reply_mutg.deref_mut();
+                if reply.remove_reply_recursive(reply_comment_id) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 
     pub fn remove_all_replies(&mut self) {

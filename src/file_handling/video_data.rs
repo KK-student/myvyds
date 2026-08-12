@@ -121,14 +121,62 @@ impl VideoData {
         return false;
     }
 
-    //TODO: Implement this!
-    pub fn get_comment(&self, comment_id: u64) {
-        todo!("Implement this!");
+    pub fn get_comment(&self, comment_id: u64) -> Result<Arc<Mutex<Comment>>, ()> {
+        let top_comment_index = self.get_top_comment_index(comment_id);
+        if top_comment_index >= 0 {
+            Ok(Arc::clone(
+                self.comments
+                    .deref()
+                    .get(top_comment_index as usize)
+                    .unwrap(),
+            ))
+        } else {
+            let comments: &Vec<Arc<Mutex<Comment>>> = self.comments.deref();
+            for comment_arc in comments {
+                let comment_mutg = comment_arc.lock().unwrap();
+                let comment = comment_mutg.deref();
+                match comment.find_reply_recursive(comment_id) {
+                    Ok(res) => return Ok(Arc::clone(&res)),
+                    Err(_) => {}
+                }
+            }
+            Err(())
+        }
     }
 
-    //TODO: Implement this!
-    pub fn remove_comment(&mut self, comment_id: u64) {
-        todo!("Implement this!");
+    fn remove_top_comment(&mut self, comment_id: u64) -> bool {
+        let top_comment_index = self.get_top_comment_index(comment_id);
+        if top_comment_index >= 0 {
+            self.set_dirty(true);
+            self.comments.deref_mut().remove(top_comment_index as usize);
+            return true;
+        }
+
+        return false;
+    }
+
+    fn remove_comment_recursive(&mut self, comment_id: u64) -> bool {
+        let mut result = false;
+        {
+            if self.remove_top_comment(comment_id) {
+                result = true;
+            }
+        }
+        if !result {
+            for comment_arc in self.comments.deref() {
+                let mut comment_mutg = comment_arc.lock().unwrap();
+                let comment: &mut Comment = comment_mutg.deref_mut();
+                if comment.remove_reply_recursive(comment_id) {
+                    result = true;
+                    break;
+                }
+            }
+        }
+        if result {
+            self.set_dirty(true);
+        }
+
+        return result;
     }
 }
 
