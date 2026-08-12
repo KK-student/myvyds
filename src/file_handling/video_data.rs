@@ -25,63 +25,77 @@ pub struct VideoData {
 }
 
 impl VideoData {
+    ///Get video id.
     pub fn get_id(&self) -> u64 {
         self.id
     }
 
+    ///Is the video finished processing?
     pub fn is_finished_processing(&self) -> bool {
         self.finished_processing
     }
 
+    ///Set whether or not if the video is finished processing.
     pub fn set_finished_processing(&mut self, finished_processing: bool) {
         self.finished_processing = finished_processing;
         self.set_dirty(true);
     }
 
+    ///Get the video input file used for processing.
     pub fn get_input_file(&self) -> String {
         self.input_file.clone()
     }
 
+    ///Get the video input file used for processing.
     pub fn set_input_file(&mut self, input_file: &String) {
         self.input_file = input_file.clone();
         self.set_dirty(true);
     }
 
+    ///Get the video name.
     pub fn get_name(&self) -> String {
         self.name.clone()
     }
 
+    ///Set the video name.
     pub fn set_name(&mut self, name: &String) {
         self.name = name.clone();
         self.set_dirty(true);
     }
 
+    ///Get the video description.
     pub fn get_description(&self) -> String {
         self.description.clone()
     }
 
+    ///Set the video description.
     pub fn set_description(&mut self, description: &String) {
         self.description = description.clone();
         self.set_dirty(true);
     }
 
+    ///Get the video author.
     pub fn get_author(&self) -> String {
         self.author.clone()
     }
 
+    ///Set the video author.
     pub fn set_author(&mut self, author: &String) {
         self.author = author.clone();
         self.set_dirty(true);
     }
 
+    ///Get video uploaded time as seconds since epoch.
     pub fn get_uploaded_time(&self) -> u64 {
         self.uploaded_time
     }
 
+    ///Set video uploaded time as seconds since epoch.
     pub fn get_comments(&self) -> Box<Vec<Arc<Mutex<Comment>>>> {
         self.comments.clone()
     }
 
+    ///Add a comment to level 0.
     pub fn add_comment(&mut self, comment_arc: Arc<Mutex<Comment>>) {
         self.comments.push(comment_arc);
         self.set_dirty(true);
@@ -104,6 +118,8 @@ impl VideoData {
         return -1;
     }
 
+    ///Recursively looks for a comment or reply with the given id (comment_id). Returns true if
+    ///found, otherwise false.
     pub fn has_comment(&self, comment_id: u64) -> bool {
         if self.get_top_comment_index(comment_id) >= 0 {
             return true;
@@ -121,6 +137,8 @@ impl VideoData {
         return false;
     }
 
+    ///Recursively looks for a comment or reply with the given id (comment_id). Returns the comment
+    ///object if found, otherwise ().
     pub fn get_comment(&self, comment_id: u64) -> Result<Arc<Mutex<Comment>>, ()> {
         let top_comment_index = self.get_top_comment_index(comment_id);
         if top_comment_index >= 0 {
@@ -155,7 +173,8 @@ impl VideoData {
         return false;
     }
 
-    fn remove_comment_recursive(&mut self, comment_id: u64) -> bool {
+    ///Recursively looks for and removes a comment or reply with the given id (comment_id). Returns true if found, otherwise false.
+    pub fn remove_comment_recursive(&mut self, comment_id: u64) -> bool {
         let mut result = false;
         {
             if self.remove_top_comment(comment_id) {
@@ -211,6 +230,7 @@ impl Likeable for VideoData {
 }
 
 impl VideoData {
+    ///Creates a new VideoData object from the given json data (video_json), video id (video_id), and default message to put in a string variable if value is not known yet (default_message). Also performs a given function for each comment (on_comment(comment_id, comment)).
     pub fn from_json_value<F>(
         video_id: u64,
         video_json: &Value,
@@ -251,7 +271,6 @@ impl VideoData {
                 Comment::get_children(Arc::clone(&comment_rc));
             let replies_map_mutg = replies_map_arc.lock().unwrap();
             for (reply_id, reply_arc) in replies_map_mutg.deref() {
-                // self.comments_by_id.insert(*reply_id, Arc::clone(reply_arc));
                 on_comment(*reply_id, Arc::clone(reply_arc));
             }
         }
