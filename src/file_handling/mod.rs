@@ -70,7 +70,7 @@
 //!
 //!"subscriptions": ["[user_id of another user]", ...],
 //!
-//!"comments": {"[video_id]": [comment_id, ...], ...},
+//!"comments": [comment_id, ...],
 //!
 //!"password_hash": "[hash of user's password]",
 //!
@@ -78,11 +78,11 @@
 //!
 //!"disliked_vids": [video_id, ...],
 //!
-//!"liked_comments": {"[video_id]": [comment_id, ...], ...}
+//!"liked_comments": [comment_id, ...],
 //!
-//!"disliked_comments": {"[video_id]": [comment_id, ...], ...}
+//!"disliked_comments": [comment_id, ...]
 //!
-//!},
+//!}
 //!
 //!}}
 
