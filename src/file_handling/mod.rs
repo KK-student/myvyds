@@ -260,33 +260,53 @@ pub mod file_handling {
                 let user_mutg = user_arc.lock().unwrap();
                 let user = user_mutg.deref();
                 //Set author.
-                for video_id in user.get_videos().deref() {
+                // for video_id in user.get_videos().deref() {
+                //     let video_data_arc: &mut Arc<Mutex<VideoData>> =
+                //         self.videos.get_mut(video_id).unwrap();
+                //     let mut video_data_mutg = video_data_arc.lock().unwrap();
+                //     let video_data: &mut VideoData = video_data_mutg.deref_mut();
+                //     video_data.set_author(user_id);
+                // }
+                user.for_each_video(|video_id: &u64| -> () {
                     let video_data_arc: &mut Arc<Mutex<VideoData>> =
                         self.videos.get_mut(video_id).unwrap();
                     let mut video_data_mutg = video_data_arc.lock().unwrap();
                     let video_data: &mut VideoData = video_data_mutg.deref_mut();
                     video_data.set_author(user_id);
-                }
+                });
 
                 //Set video likes:
-                for video_id in user.get_liked_vids().deref() {
+                // for video_id in user.get_liked_vids().deref() {
+                //     let video_data_arc: &mut Arc<Mutex<VideoData>> =
+                //         self.videos.get_mut(video_id).unwrap();
+                //     let mut video_data_mutg = video_data_arc.lock().unwrap();
+                //     let video_data: &mut VideoData = video_data_mutg.deref_mut();
+                //     video_data.like();
+                // }
+                user.for_each_liked_video(|video_id: &u64| -> () {
                     let video_data_arc: &mut Arc<Mutex<VideoData>> =
                         self.videos.get_mut(video_id).unwrap();
                     let mut video_data_mutg = video_data_arc.lock().unwrap();
                     let video_data: &mut VideoData = video_data_mutg.deref_mut();
-                    // video_data.likes += 1;
                     video_data.like();
-                }
+                });
 
                 //Set video dislikes:
-                for video_id in user.get_disliked_vids().deref() {
+                // for video_id in user.get_disliked_vids().deref() {
+                //     let video_data_arc: &mut Arc<Mutex<VideoData>> =
+                //         self.videos.get_mut(video_id).unwrap();
+                //     let mut video_data_mutg = video_data_arc.lock().unwrap();
+                //     let video_data: &mut VideoData = video_data_mutg.deref_mut();
+                //     // video_data.dislikes += 1;
+                //     video_data.dislike();
+                // }
+                user.for_each_disliked_video(|video_id: &u64| -> () {
                     let video_data_arc: &mut Arc<Mutex<VideoData>> =
                         self.videos.get_mut(video_id).unwrap();
                     let mut video_data_mutg = video_data_arc.lock().unwrap();
                     let video_data: &mut VideoData = video_data_mutg.deref_mut();
-                    // video_data.dislikes += 1;
                     video_data.dislike();
-                }
+                });
 
                 //Set comment likes:
                 for comment_id in user.get_liked_comments().deref() {

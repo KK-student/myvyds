@@ -410,6 +410,41 @@ impl User {
         self.disliked_comments.push(comment_id);
         self.set_dirty(true);
     }
+
+    ///Performs an action for each video.
+    pub fn for_each_video<F: FnMut(&u64)>(&self, mut action: F) {
+        for video_id in self.videos.iter() {
+            action(video_id);
+        }
+    }
+
+    ///Performs an action for each liked video.
+    pub fn for_each_liked_video<F: FnMut(&u64)>(&self, mut action: F) {
+        for video_id in self.liked_vids.iter() {
+            action(video_id);
+        }
+    }
+
+    ///Performs an action for each disliked video.
+    pub fn for_each_disliked_video<F: FnMut(&u64)>(&self, mut action: F) {
+        for video_id in self.disliked_vids.iter() {
+            action(video_id);
+        }
+    }
+
+    ///Performs an action for each liked comment, where the &u64 parameter to the function is the comment id.
+    pub fn for_each_liked_comment<F: FnMut(&u64)>(&self, mut action: F) {
+        for comment_id in self.liked_comments.iter() {
+            action(comment_id);
+        }
+    }
+
+    ///Performs an action for each disliked comment, where the &u64 parameter to the function is the comment id.
+    pub fn for_each_disliked_comment<F: FnMut(&u64)>(&self, mut action: F) {
+        for comment_id in self.disliked_comments.iter() {
+            action(comment_id);
+        }
+    }
 }
 
 impl DirtyData for User {
