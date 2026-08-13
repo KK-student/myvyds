@@ -432,14 +432,21 @@ impl User {
         }
     }
 
-    ///Performs an action for each liked comment, where the &u64 parameter to the function is the comment id.
+    ///Performs an action for each comment, where the &u64 parameter to the action function is the comment id.
+    pub fn for_each_comment<F: FnMut(&u64)>(&self, mut action: F) {
+        for comment_id in self.comments.iter() {
+            action(comment_id);
+        }
+    }
+
+    ///Performs an action for each liked comment, where the &u64 parameter to the action function is the comment id.
     pub fn for_each_liked_comment<F: FnMut(&u64)>(&self, mut action: F) {
         for comment_id in self.liked_comments.iter() {
             action(comment_id);
         }
     }
 
-    ///Performs an action for each disliked comment, where the &u64 parameter to the function is the comment id.
+    ///Performs an action for each disliked comment, where the &u64 parameter to the action function is the comment id.
     pub fn for_each_disliked_comment<F: FnMut(&u64)>(&self, mut action: F) {
         for comment_id in self.disliked_comments.iter() {
             action(comment_id);

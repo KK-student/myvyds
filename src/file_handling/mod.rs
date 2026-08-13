@@ -237,12 +237,12 @@ pub mod file_handling {
             for (video_id_string, video_json) in videos_json_root.as_object().unwrap() {
                 let video_id: u64 = video_id_string.parse::<u64>().unwrap();
 
-                let TODO_MESSAGE: &String = &"[DEFAULT VALUE]".to_string();
+                let default_message: &String = &"[DEFAULT VALUE]".to_string();
 
                 let video_data_arc: Arc<Mutex<VideoData>> = VideoData::from_json_value(
                     video_id,
                     video_json,
-                    TODO_MESSAGE,
+                    default_message,
                     |comment_id_num: u64, comment_arc: Arc<Mutex<Comment>>| -> () {
                         self.comments_by_id.insert(comment_id_num, comment_arc);
                     },
@@ -259,14 +259,7 @@ pub mod file_handling {
                 //Get user.
                 let user_mutg = user_arc.lock().unwrap();
                 let user = user_mutg.deref();
-                //Set author.
-                // for video_id in user.get_videos().deref() {
-                //     let video_data_arc: &mut Arc<Mutex<VideoData>> =
-                //         self.videos.get_mut(video_id).unwrap();
-                //     let mut video_data_mutg = video_data_arc.lock().unwrap();
-                //     let video_data: &mut VideoData = video_data_mutg.deref_mut();
-                //     video_data.set_author(user_id);
-                // }
+                //Set author:
                 user.for_each_video(|video_id: &u64| -> () {
                     let video_data_arc: &mut Arc<Mutex<VideoData>> =
                         self.videos.get_mut(video_id).unwrap();
@@ -276,13 +269,6 @@ pub mod file_handling {
                 });
 
                 //Set video likes:
-                // for video_id in user.get_liked_vids().deref() {
-                //     let video_data_arc: &mut Arc<Mutex<VideoData>> =
-                //         self.videos.get_mut(video_id).unwrap();
-                //     let mut video_data_mutg = video_data_arc.lock().unwrap();
-                //     let video_data: &mut VideoData = video_data_mutg.deref_mut();
-                //     video_data.like();
-                // }
                 user.for_each_liked_video(|video_id: &u64| -> () {
                     let video_data_arc: &mut Arc<Mutex<VideoData>> =
                         self.videos.get_mut(video_id).unwrap();
@@ -292,14 +278,6 @@ pub mod file_handling {
                 });
 
                 //Set video dislikes:
-                // for video_id in user.get_disliked_vids().deref() {
-                //     let video_data_arc: &mut Arc<Mutex<VideoData>> =
-                //         self.videos.get_mut(video_id).unwrap();
-                //     let mut video_data_mutg = video_data_arc.lock().unwrap();
-                //     let video_data: &mut VideoData = video_data_mutg.deref_mut();
-                //     // video_data.dislikes += 1;
-                //     video_data.dislike();
-                // }
                 user.for_each_disliked_video(|video_id: &u64| -> () {
                     let video_data_arc: &mut Arc<Mutex<VideoData>> =
                         self.videos.get_mut(video_id).unwrap();
@@ -309,20 +287,20 @@ pub mod file_handling {
                 });
 
                 //Set comment likes:
-                for comment_id in user.get_liked_comments().deref() {
+                user.for_each_liked_comment(|comment_id: &u64| -> () {
                     let comment_arc = self.comments_by_id.get_mut(comment_id).unwrap();
                     let comment_mutg = &mut comment_arc.lock().unwrap();
                     let comment: &mut Comment = comment_mutg.deref_mut();
                     comment.like();
-                }
+                });
 
                 //Set comment dislikes:
-                for comment_id in user.get_disliked_comments().deref() {
+                user.for_each_disliked_comment(|comment_id: &u64| -> () {
                     let comment_arc = self.comments_by_id.get_mut(comment_id).unwrap();
                     let comment_mutg = &mut comment_arc.lock().unwrap();
                     let comment: &mut Comment = comment_mutg.deref_mut();
                     comment.dislike();
-                }
+                });
             }
         }
     }
