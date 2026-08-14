@@ -3,6 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use serde::Serialize;
 use serde_json::Value;
 
 use crate::file_handling::{comment::Comment, dirty_data::DirtyData};
@@ -16,7 +17,6 @@ pub struct User {
     description: String,
     videos: Box<Vec<u64>>,
     subscriptions: Box<Vec<String>>,
-    // comments: Box<HashMap<u64, Vec<u64>>>,
     comments: Box<Vec<u64>>,
     password_hash: String,
     liked_vids: Box<Vec<u64>>,
@@ -461,5 +461,84 @@ impl DirtyData for User {
 
     fn is_dirty(&self) -> bool {
         self.dirty
+    }
+}
+//x: To serialize
+// pub struct User {
+//     user_id: String,
+//     time_created: u64,
+//     icon_id: u64,
+//     description: String,
+//     videos: Box<Vec<u64>>,
+//     subscriptions: Box<Vec<String>>,
+//     comments: Box<Vec<u64>>,
+//     password_hash: String,
+//     liked_vids: Box<Vec<u64>>,
+//     disliked_vids: Box<Vec<u64>>,
+//     liked_comments: Box<Vec<u64>>,
+//     disliked_comments: Box<Vec<u64>>,
+//
+//     dirty: bool,
+// }
+// impl Serialize for User {
+//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: serde::Serializer,
+//     {
+//         let mut s = serializer.serialize_struct("User", len);
+//     }
+// }
+
+//{"users": {
+//"[user_id]": {
+//"time_created": [time user was created in secs since epoch in u64]
+//"icon_id": [icon_id],
+//"description": "[description]",
+//"videos": [video_id, ...],
+//"subscriptions": ["[user_id of another user]", ...],
+//"comments": [comment_id, ...],
+//"password_hash": "[hash of user's password]",
+//"liked_vids": [video_id, ...],
+//"disliked_vids": [video_id, ...],
+//"liked_comments": [comment_id, ...],
+//"disliked_comments": [comment_id, ...]
+//}
+
+impl User {
+    pub fn to_json_pretty(&self) -> String {
+        let mut videos_list_string = String::from("[");
+        let mut subscriptions_list_string = String::from("[");
+        let mut comments_list_string = String::from("[");
+        let mut liked_vids_string = String::from("[");
+        let mut disliked_vids_string = String::from("[");
+        let mut liked_comments_string = String::from("[");
+        let mut disliked_comments_string = String::from("[");
+        return format!(
+            "\"{}\": {{
+\"time_created\": {},
+\"icon_id\": {},
+\"description\": \"{}\",
+\"videos\": {},
+\"subscriptions\": {},
+\"comments\": {},
+\"password_hash\": {},
+\"liked_vids\": {},
+\"disliked_vids\": {},
+\"liked_comments\": {},
+\"disliked_comments\": {}
+}}",
+            self.user_id,
+            self.time_created,
+            self.icon_id,
+            self.description,
+            videos_list_string,
+            subscriptions_list_string,
+            comments_list_string,
+            self.password_hash,
+            liked_vids_string,
+            disliked_vids_string,
+            liked_comments_string,
+            disliked_comments_string
+        );
     }
 }
