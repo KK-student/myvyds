@@ -4,10 +4,14 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
+use json_escape::escape_str;
 use serde_json::Value;
 
 use crate::file_handling::{
-    comment::Comment, dirty_data::DirtyData, likeable::Likeable, saveable::Saveable,
+    comment::Comment,
+    dirty_data::DirtyData,
+    likeable::Likeable,
+    saveable::{Saveable, make_json_from_saveable_list},
 };
 
 ///Represents a video stored on disk.
@@ -292,19 +296,60 @@ impl VideoData {
         }));
     }
 }
-//###videos.json file:
-//{"[video_id]": {
-//"finished_processing": true/false,
-//"input_file": [file name of input video while not finished processing - must be removed after
-//finished processing],
-//"name": "[video_name]",
-//"description": "[video_description]",
-//"uploaded_time": [time uploaded in secs since epoch in u64 or 0 if not finished processing],
-//"comments": {[comments in the comment data format]}
-//}, ...}
 
 impl Saveable for VideoData {
     fn to_json(&self, pretty: bool) -> String {
-        return if pretty { format!("") } else { format!("") };
+        let comments_json = make_json_from_saveable_list(self.comments.deref());
+        return if pretty {
+            format!(
+                "\"{}\": {{
+\t\"finished_processing\": {},{}
+\t\"name\": \"{}\",
+\t\"description\": \"{}\",
+\t\"uploaded_time\": {},
+\t\"comments\": {}
+}}",
+                self.get_id(),
+                if self.is_finished_processing() {
+                    "true"
+                } else {
+                    "false"
+                },
+                if self.is_finished_processing() {
+                    format!(
+                        "\n\t\"input_file\": \"{}\", ",
+                        escape_str(&self.get_input_file()).collect::<String>()
+                    )
+                } else {
+                    "".to_string()
+                },
+                escape_str(&self.get_name()).collect::<String>(),
+                escape_str(&self.get_description()).collect::<String>(),
+                self.get_uploaded_time(),
+                comments_json
+            )
+        } else {
+            format!(
+                "\"{}\": {{\"finished_processing\": {},{}\"name\": \"{}\",\"description\": \"{}\",\"uploaded_time\": {},\"comments\": {}}}",
+                self.get_id(),
+                if self.is_finished_processing() {
+                    "true"
+                } else {
+                    "false"
+                },
+                if self.is_finished_processing() {
+                    format!(
+                        "\"input_file\": \"{}\", ",
+                        escape_str(&self.get_input_file()).collect::<String>()
+                    )
+                } else {
+                    "".to_string()
+                },
+                escape_str(&self.get_name()).collect::<String>(),
+                escape_str(&self.get_description()).collect::<String>(),
+                self.get_uploaded_time(),
+                comments_json
+            )
+        };
     }
 }
