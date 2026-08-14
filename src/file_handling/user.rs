@@ -8,7 +8,11 @@ use json_escape::escape_str;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::file_handling::{comment::Comment, dirty_data::DirtyData, saveable::Saveable};
+use crate::file_handling::{
+    comment::Comment,
+    dirty_data::DirtyData,
+    saveable::{Saveable, make_json_list_from_strings, make_json_list_from_u64_list},
+};
 
 ///Represents a user.
 #[derive(Debug, Clone)]
@@ -468,15 +472,13 @@ impl DirtyData for User {
 
 impl Saveable for User {
     fn to_json(&self, pretty: bool) -> String {
-        let videos_list_string = Self::make_json_list_from_u64_list(self.videos.deref());
-        let subscriptions_list_string =
-            Self::make_json_list_from_strings(self.subscriptions.deref());
-        let comments_list_string = Self::make_json_list_from_u64_list(self.comments.deref());
-        let liked_vids_string = Self::make_json_list_from_u64_list(self.liked_vids.deref());
-        let disliked_vids_string = Self::make_json_list_from_u64_list(self.disliked_vids.deref());
-        let liked_comments_string = Self::make_json_list_from_u64_list(self.liked_comments.deref());
-        let disliked_comments_string =
-            Self::make_json_list_from_u64_list(self.disliked_comments.deref());
+        let videos_list_string = make_json_list_from_u64_list(self.videos.deref());
+        let subscriptions_list_string = make_json_list_from_strings(self.subscriptions.deref());
+        let comments_list_string = make_json_list_from_u64_list(self.comments.deref());
+        let liked_vids_string = make_json_list_from_u64_list(self.liked_vids.deref());
+        let disliked_vids_string = make_json_list_from_u64_list(self.disliked_vids.deref());
+        let liked_comments_string = make_json_list_from_u64_list(self.liked_comments.deref());
+        let disliked_comments_string = make_json_list_from_u64_list(self.disliked_comments.deref());
 
         let user_id_escaped = escape_str(&self.user_id).collect::<String>();
         let description_escaped = escape_str(&self.description).collect::<String>();

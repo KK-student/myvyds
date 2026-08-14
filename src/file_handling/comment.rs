@@ -4,9 +4,14 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
+use json_escape::escape_str;
 use serde_json::Value;
 
-use crate::file_handling::{dirty_data::DirtyData, likeable::Likeable};
+use crate::file_handling::{
+    dirty_data::DirtyData,
+    likeable::Likeable,
+    saveable::{Saveable, make_json_from_saveable_list},
+};
 
 ///Represents a comment stored on disk.
 #[derive(Debug, Clone)]
@@ -303,5 +308,40 @@ impl Likeable for Comment {
 
     fn get_dislikes(&self) -> u64 {
         self.dislikes
+    }
+}
+
+//"comment_id": {"author": "[authors_user_id]", "text": "[comment text]", "creation_time": [time_uploaded_in_secs_since_epoch_in_u64], "replies": {[replies in the comment data format]}}
+impl Saveable for Comment {
+    fn to_json(&self, pretty: bool) -> String {
+        let author_escaped = escape_str(self.get_author().as_str()).collect::<String>();
+        let text_escaped = escape_str(self.get_text().as_str()).collect::<String>();
+
+        let replies_json_data = make_json_from_saveable_list(self.replies.deref());
+
+        return if pretty {
+            format!(
+                "\"{}\": {{
+\t\"author\": \"{}\", 
+\t\"text\": \"{}\", 
+\t\"creation_time\": {}, 
+\t\"replies\": \"{}\", 
+}}",
+                self.get_id(),
+                author_escaped,
+                text_escaped,
+                self.get_creation_time(),
+                replies_json_data
+            )
+        } else {
+            format!(
+                "\"{}\": {{\"author\": \"{}\", \"text\": \"{}\", \"creation_time\": {}, \"replies\": \"{}\", }}",
+                self.get_id(),
+                author_escaped,
+                text_escaped,
+                self.get_creation_time(),
+                replies_json_data
+            )
+        };
     }
 }
