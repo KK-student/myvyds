@@ -6,7 +6,9 @@ use std::{
 
 use serde_json::Value;
 
-use crate::file_handling::{comment::Comment, dirty_data::DirtyData, likeable::Likeable};
+use crate::file_handling::{
+    comment::Comment, dirty_data::DirtyData, likeable::Likeable, saveable::Saveable,
+};
 
 ///Represents a video stored on disk.
 #[derive(Debug, Clone)]
@@ -288,5 +290,21 @@ impl VideoData {
             dislikes: 0,
             dirty: false,
         }));
+    }
+}
+//###videos.json file:
+//{"[video_id]": {
+//"finished_processing": true/false,
+//"input_file": [file name of input video while not finished processing - must be removed after
+//finished processing],
+//"name": "[video_name]",
+//"description": "[video_description]",
+//"uploaded_time": [time uploaded in secs since epoch in u64 or 0 if not finished processing],
+//"comments": {[comments in the comment data format]}
+//}, ...}
+
+impl Saveable for VideoData {
+    fn to_json(&self, pretty: bool) -> String {
+        return if pretty { format!("") } else { format!("") };
     }
 }
