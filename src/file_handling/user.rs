@@ -465,46 +465,6 @@ impl DirtyData for User {
         self.dirty
     }
 }
-//x: To serialize
-// pub struct User {
-//     user_id: String,
-//     time_created: u64,
-//     icon_id: u64,
-//     description: String,
-//     videos: Box<Vec<u64>>,
-//     subscriptions: Box<Vec<String>>,
-//     comments: Box<Vec<u64>>,
-//     password_hash: String,
-//     liked_vids: Box<Vec<u64>>,
-//     disliked_vids: Box<Vec<u64>>,
-//     liked_comments: Box<Vec<u64>>,
-//     disliked_comments: Box<Vec<u64>>,
-//
-//     dirty: bool,
-// }
-// impl Serialize for User {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: serde::Serializer,
-//     {
-//         let mut s = serializer.serialize_struct("User", len);
-//     }
-// }
-
-//{"users": {
-//"[user_id]": {
-//"time_created": [time user was created in secs since epoch in u64]
-//"icon_id": [icon_id],
-//"description": "[description]",
-//"videos": [video_id, ...],
-//"subscriptions": ["[user_id of another user]", ...],
-//"comments": [comment_id, ...],
-//"password_hash": "[hash of user's password]",
-//"liked_vids": [video_id, ...],
-//"disliked_vids": [video_id, ...],
-//"liked_comments": [comment_id, ...],
-//"disliked_comments": [comment_id, ...]
-//}
 
 impl Saveable for User {
     fn to_json(&self, pretty: bool) -> String {
