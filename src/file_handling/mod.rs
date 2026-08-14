@@ -89,6 +89,7 @@
 mod comment;
 mod dirty_data;
 mod likeable;
+mod saveable;
 mod user;
 mod video_data;
 
@@ -105,7 +106,9 @@ pub mod file_handling {
         sync::{Arc, Mutex, MutexGuard},
     };
 
-    use crate::file_handling::{comment::*, dirty_data::*, likeable::*, user::*, video_data::*};
+    use crate::file_handling::{
+        comment::*, dirty_data::*, likeable::*, saveable::Saveable, user::*, video_data::*,
+    };
 
     use serde_json::Value;
     use tokio::fs::File;
@@ -200,6 +203,24 @@ pub mod file_handling {
         ///Get the current data_path for the database.
         pub fn get_data_path(&self) -> &String {
             &self.data_path
+        }
+
+        ///Get an Arc<Mutex<>> pointer that points to the user in the DataManager.
+        pub fn get_user(&self, user_id: &String) -> Arc<Mutex<User>> {
+            Arc::clone(self.users.get(user_id).unwrap())
+        }
+
+        ///Save the data to the database files and folders.
+        pub fn save_data(&mut self) {
+            let data_path = "./data_test_saving";
+            // let data_path = self.get_data_path();
+            println!("Saving data to \"{}\". ", data_path);
+
+            //Test converting user to json data.
+            let test_user_arc: Arc<Mutex<User>> = self.get_user(&"sample-user-1".to_string());
+            let test_user_mutg = test_user_arc.lock().unwrap();
+            let test_user: &User = test_user_mutg.deref();
+            println!("test_user to JSON (pretty): \n{}", test_user.to_json(true));
         }
 
         ///Load the data from the database.

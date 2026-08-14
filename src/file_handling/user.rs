@@ -1,12 +1,14 @@
 use std::{
+    ops::Deref,
     str::FromStr,
     sync::{Arc, Mutex},
 };
 
+use json_escape::escape_str;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::file_handling::{comment::Comment, dirty_data::DirtyData};
+use crate::file_handling::{comment::Comment, dirty_data::DirtyData, saveable::Saveable};
 
 ///Represents a user.
 #[derive(Debug, Clone)]
@@ -504,41 +506,66 @@ impl DirtyData for User {
 //"disliked_comments": [comment_id, ...]
 //}
 
-impl User {
-    pub fn to_json_pretty(&self) -> String {
-        let mut videos_list_string = String::from("[");
-        let mut subscriptions_list_string = String::from("[");
-        let mut comments_list_string = String::from("[");
-        let mut liked_vids_string = String::from("[");
-        let mut disliked_vids_string = String::from("[");
-        let mut liked_comments_string = String::from("[");
-        let mut disliked_comments_string = String::from("[");
-        return format!(
-            "\"{}\": {{
-\"time_created\": {},
-\"icon_id\": {},
-\"description\": \"{}\",
-\"videos\": {},
-\"subscriptions\": {},
-\"comments\": {},
-\"password_hash\": {},
-\"liked_vids\": {},
-\"disliked_vids\": {},
-\"liked_comments\": {},
-\"disliked_comments\": {}
+impl Saveable for User {
+    fn to_json(&self, pretty: bool) -> String {
+        let videos_list_string = Self::make_json_list_from_u64_list(self.videos.deref());
+        let subscriptions_list_string =
+            Self::make_json_list_from_strings(self.subscriptions.deref());
+        let comments_list_string = Self::make_json_list_from_u64_list(self.comments.deref());
+        let liked_vids_string = Self::make_json_list_from_u64_list(self.liked_vids.deref());
+        let disliked_vids_string = Self::make_json_list_from_u64_list(self.disliked_vids.deref());
+        let liked_comments_string = Self::make_json_list_from_u64_list(self.liked_comments.deref());
+        let disliked_comments_string =
+            Self::make_json_list_from_u64_list(self.disliked_comments.deref());
+
+        let user_id_escaped = escape_str(&self.user_id).collect::<String>();
+        let description_escaped = escape_str(&self.description).collect::<String>();
+        let password_hash_escaped = escape_str(&self.password_hash).collect::<String>();
+
+        return if pretty {
+            format!(
+                "\"{}\": {{
+\t\"time_created\": {},
+\t\"icon_id\": {},
+\t\"description\": \"{}\",
+\t\"videos\": {},
+\t\"subscriptions\": {},
+\t\"comments\": {},
+\t\"password_hash\": \"{}\",
+\t\"liked_vids\": {},
+\t\"disliked_vids\": {},
+\t\"liked_comments\": {},
+\t\"disliked_comments\": {}
 }}",
-            self.user_id,
-            self.time_created,
-            self.icon_id,
-            self.description,
-            videos_list_string,
-            subscriptions_list_string,
-            comments_list_string,
-            self.password_hash,
-            liked_vids_string,
-            disliked_vids_string,
-            liked_comments_string,
-            disliked_comments_string
-        );
+                user_id_escaped,
+                self.time_created,
+                self.icon_id,
+                description_escaped,
+                videos_list_string,
+                subscriptions_list_string,
+                comments_list_string,
+                password_hash_escaped,
+                liked_vids_string,
+                disliked_vids_string,
+                liked_comments_string,
+                disliked_comments_string,
+            )
+        } else {
+            format!(
+                "\"{}\": {{\"time_created\": {},\"icon_id\": {},\"description\": \"{}\",\"videos\": {},\"subscriptions\": {},\"comments\": {},\"password_hash\": \"{}\",\"liked_vids\": {},\"disliked_vids\": {},\"liked_comments\": {},\"disliked_comments\": {}}}",
+                user_id_escaped,
+                self.time_created,
+                self.icon_id,
+                description_escaped,
+                videos_list_string,
+                subscriptions_list_string,
+                comments_list_string,
+                password_hash_escaped,
+                liked_vids_string,
+                disliked_vids_string,
+                liked_comments_string,
+                disliked_comments_string,
+            )
+        };
     }
 }
