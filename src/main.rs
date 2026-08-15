@@ -224,7 +224,7 @@ async fn main() -> std::io::Result<()> {
         let mut data_manager_guard = DATA_MANAGER.lock().await;
         let data_manager: &mut DataManager = data_manager_guard.deref_mut();
         data_manager.load_data();
-        println!("DATA_MANAGER: \n{:#?}\n\n", data_manager);
+        // println!("DATA_MANAGER: \n{:#?}\n\n", data_manager);
         data_manager.save_data();
     }
 

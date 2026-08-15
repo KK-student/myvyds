@@ -325,7 +325,7 @@ impl Saveable for Comment {
 \t\"author\": \"{}\", 
 \t\"text\": \"{}\", 
 \t\"creation_time\": {}, 
-\t\"replies\": \"{}\", 
+\t\"replies\": {}
 }}",
                 self.get_id(),
                 author_escaped,
@@ -335,7 +335,7 @@ impl Saveable for Comment {
             )
         } else {
             format!(
-                "\"{}\": {{\"author\": \"{}\", \"text\": \"{}\", \"creation_time\": {}, \"replies\": \"{}\", }}",
+                "\"{}\": {{\"author\": \"{}\", \"text\": \"{}\", \"creation_time\": {}, \"replies\": {}}}",
                 self.get_id(),
                 author_escaped,
                 text_escaped,

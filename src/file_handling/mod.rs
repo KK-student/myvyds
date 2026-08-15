@@ -216,11 +216,41 @@ pub mod file_handling {
             // let data_path = self.get_data_path();
             println!("Saving data to \"{}\". ", data_path);
 
-            //Test converting user to json data.
-            let test_user_arc: Arc<Mutex<User>> = self.get_user(&"sample-user-1".to_string());
-            let test_user_mutg = test_user_arc.lock().unwrap();
-            let test_user: &User = test_user_mutg.deref();
-            println!("test_user to JSON (pretty): \n{}", test_user.to_json(true));
+            //Convert users to JSON for writing to users.json:
+            let mut users_json_string = String::from_str("{\"users\": {").unwrap();
+            {
+                let mut i = 0;
+                for user_arc in self.users.values() {
+                    if i > 0 {
+                        users_json_string.push_str(", ");
+                    }
+                    let user_mutg = user_arc.lock().unwrap();
+                    let user: &User = user_mutg.deref();
+                    users_json_string.push_str(user.to_json(false).as_str());
+                    i += 1;
+                }
+            }
+            users_json_string.push_str("}}");
+            // println!("Generated users.json: \n{}", users_json_string);
+            // println!("{}", users_json_string);
+
+            //Convert videos and comments to JSON for writing to videos.json:
+            let mut videos_json_string = String::from_str("{").unwrap();
+            {
+                let mut i = 0;
+                for video_arc in self.videos.values() {
+                    if i > 0 {
+                        videos_json_string.push_str(", ");
+                    }
+                    let video_mutg = video_arc.lock().unwrap();
+                    let video: &VideoData = video_mutg.deref();
+                    videos_json_string.push_str(video.to_json(false).as_str());
+
+                    i += 1;
+                }
+            }
+            videos_json_string.push_str("}");
+            // println!("{}", videos_json_string);
         }
 
         ///Load the data from the database.
@@ -323,6 +353,8 @@ pub mod file_handling {
                     comment.dislike();
                 });
             }
+
+            println!("Data loaded. ");
         }
     }
 }
