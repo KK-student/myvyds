@@ -267,6 +267,7 @@ impl VideoData {
                 comment_json,
                 comment_id_num,
                 0,
+                default_message,
             )));
             comments.push(Arc::clone(&comment_rc));
             // self.comments_by_id.insert(comment_id_num, Arc::clone(&comment_rc));

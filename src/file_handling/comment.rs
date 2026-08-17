@@ -31,11 +31,16 @@ pub struct Comment {
 
 impl Comment {
     ///Create a new Comment from json data.
-    pub fn from_json_value(json: &Value, comment_id: u64, level: u64) -> Self {
+    pub fn from_json_value(
+        json: &Value,
+        comment_id: u64,
+        level: u64,
+        default_value: &String,
+    ) -> Self {
         if level > 2 {
             panic!("Comment level > 2")
         }
-        let author: &str = json["author"].as_str().unwrap();
+        // let author: &str = json["author"].as_str().unwrap();
         let text: &str = json["text"].as_str().unwrap();
         let creation_time: u64 = json["creation_time"].as_u64().unwrap();
 
@@ -46,6 +51,7 @@ impl Comment {
                 rc_json,
                 reply_comment_id,
                 level + 1,
+                default_value,
             )));
             replies.push(Arc::clone(&reply_arc));
         }
@@ -53,7 +59,7 @@ impl Comment {
         Comment {
             id: comment_id,
             level: level,
-            author: author.to_string(),
+            author: default_value.clone(),
             text: text.to_string(),
             creation_time: creation_time,
             replies: replies,
@@ -314,7 +320,6 @@ impl Likeable for Comment {
 //"comment_id": {"author": "[authors_user_id]", "text": "[comment text]", "creation_time": [time_uploaded_in_secs_since_epoch_in_u64], "replies": {[replies in the comment data format]}}
 impl Saveable for Comment {
     fn to_json(&self, pretty: bool) -> String {
-        let author_escaped = escape_str(self.get_author().as_str()).collect::<String>();
         let text_escaped = escape_str(self.get_text().as_str()).collect::<String>();
 
         let replies_json_data = make_json_from_saveable_list(self.replies.deref());
@@ -322,22 +327,19 @@ impl Saveable for Comment {
         return if pretty {
             format!(
                 "\"{}\": {{
-\t\"author\": \"{}\", 
 \t\"text\": \"{}\", 
 \t\"creation_time\": {}, 
 \t\"replies\": {}
 }}",
                 self.get_id(),
-                author_escaped,
                 text_escaped,
                 self.get_creation_time(),
                 replies_json_data
             )
         } else {
             format!(
-                "\"{}\": {{\"author\": \"{}\", \"text\": \"{}\", \"creation_time\": {}, \"replies\": {}}}",
+                "\"{}\": {{\"text\": \"{}\", \"creation_time\": {}, \"replies\": {}}}",
                 self.get_id(),
-                author_escaped,
                 text_escaped,
                 self.get_creation_time(),
                 replies_json_data

@@ -40,7 +40,7 @@
 //!
 //!####Comment data format:
 //!
-//!"comment_id": {"author": "[authors_user_id]", "text": "[comment text]", "creation_time": [time_uploaded_in_secs_since_epoch_in_u64], "replies": {[replies in the comment data format]}}
+//!"comment_id": {text": "[comment text]", "creation_time": [time_uploaded_in_secs_since_epoch_in_u64], "replies": {[replies in the comment data format]}}
 //!
 //!###hidden-vids.json file:
 //!
@@ -335,6 +335,14 @@ pub mod file_handling {
                     let mut video_data_mutg = video_data_arc.lock().unwrap();
                     let video_data: &mut VideoData = video_data_mutg.deref_mut();
                     video_data.dislike();
+                });
+
+                //Set comment author:
+                user.for_each_comment(|comment_id: &u64| -> () {
+                    let comment_arc = self.comments_by_id.get_mut(comment_id).unwrap();
+                    let comment_mutg = &mut comment_arc.lock().unwrap();
+                    let comment: &mut Comment = comment_mutg.deref_mut();
+                    comment.set_author(&user.get_user_id());
                 });
 
                 //Set comment likes:
