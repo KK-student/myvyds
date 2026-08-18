@@ -1,3 +1,5 @@
+///This is a video sharing platform website, similar to YouTube.
+
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
