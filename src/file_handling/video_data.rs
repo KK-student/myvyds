@@ -203,6 +203,16 @@ impl VideoData {
 
         return result;
     }
+
+    ///Does an action (on_comment) on each comment (and it's replies) recursively.
+    pub fn for_each_comment_recursive<F: Fn(Arc<Mutex<Comment>>)>(&mut self, on_comment: &F) {
+        for comment_arc in self.comments.deref_mut() {
+            on_comment(Arc::clone(comment_arc));
+            let mut comment_mutg = comment_arc.lock().unwrap();
+            let comment: &mut Comment = comment_mutg.deref_mut();
+            comment.for_each_reply_recursive(on_comment);
+        }
+    }
 }
 
 impl DirtyData for VideoData {

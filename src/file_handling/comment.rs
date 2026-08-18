@@ -285,6 +285,16 @@ impl Comment {
         replies.clear();
         self.set_dirty(true);
     }
+
+    ///Does an action (on_comment) on each reply recursively.
+    pub fn for_each_reply_recursive<F: Fn(Arc<Mutex<Comment>>)>(&mut self, on_comment: &F) {
+        for reply_arc in self.replies.deref_mut() {
+            on_comment(Arc::clone(reply_arc));
+            let mut reply_mutg = reply_arc.lock().unwrap();
+            let reply: &mut Comment = reply_mutg.deref_mut();
+            reply.for_each_reply_recursive(on_comment);
+        }
+    }
 }
 
 impl DirtyData for Comment {

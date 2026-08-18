@@ -99,7 +99,7 @@ pub mod file_handling {
         collections::HashMap,
         ffi::OsString,
         fs::{self, DirEntry, FileType, ReadDir},
-        io::ErrorKind,
+        io::{ErrorKind, Write},
         ops::{Deref, DerefMut},
         rc::Rc,
         str::FromStr,
@@ -212,8 +212,8 @@ pub mod file_handling {
 
         ///Save the data to the database files and folders.
         pub fn save_data(&mut self) {
-            let data_path = "./data_test_saving";
-            // let data_path = self.get_data_path();
+            // let data_path = "./data_test_saving";
+            let data_path = self.get_data_path();
             println!("Saving data to \"{}\". ", data_path);
 
             //Convert users to JSON for writing to users.json:
@@ -224,15 +224,14 @@ pub mod file_handling {
                     if i > 0 {
                         users_json_string.push_str(", ");
                     }
-                    let user_mutg = user_arc.lock().unwrap();
-                    let user: &User = user_mutg.deref();
+                    let mut user_mutg = user_arc.lock().unwrap();
+                    let user: &mut User = user_mutg.deref_mut();
                     users_json_string.push_str(user.to_json(false).as_str());
+                    user.set_dirty(false);
                     i += 1;
                 }
             }
             users_json_string.push_str("}}");
-            // println!("Generated users.json: \n{}", users_json_string);
-            // println!("{}", users_json_string);
 
             //Convert videos and comments to JSON for writing to videos.json:
             let mut videos_json_string = String::from_str("{").unwrap();
@@ -242,22 +241,113 @@ pub mod file_handling {
                     if i > 0 {
                         videos_json_string.push_str(", ");
                     }
-                    let video_mutg = video_arc.lock().unwrap();
-                    let video: &VideoData = video_mutg.deref();
+                    let mut video_mutg = video_arc.lock().unwrap();
+                    let video: &mut VideoData = video_mutg.deref_mut();
                     videos_json_string.push_str(video.to_json(false).as_str());
+                    video.set_dirty(false);
+
+                    let on_comment_func = |comment_arc: Arc<Mutex<Comment>>| -> () {
+                        let mut comment_mutg = comment_arc.lock().unwrap();
+                        let comment: &mut Comment = comment_mutg.deref_mut();
+                        comment.set_dirty(false);
+                    };
+                    video.for_each_comment_recursive(&on_comment_func);
 
                     i += 1;
                 }
             }
             videos_json_string.push_str("}");
-            // println!("{}", videos_json_string);
+
+            //Make directories if they do not exist.
+            if !match fs::exists(data_path) {
+                Ok(r) => r,
+                Err(_) => panic!(
+                    "The existence of the directory \"{}\" can neither be confirmed nor denied. ",
+                    data_path
+                ),
+            } {
+                std::fs::create_dir(data_path).expect(
+                    format!("Error: Could not create the directory \"{}\". ", data_path).as_str(),
+                );
+            }
+            {
+                let user_data_folder = format!("{}/user_data", data_path);
+                if !match fs::exists(user_data_folder.as_str()) {
+                    Ok(r) => r,
+                    Err(_) => panic!(
+                        "The existence of the directory \"{}\" can neither be confirmed nor denied. ",
+                        user_data_folder
+                    ),
+                } {
+                    std::fs::create_dir(&user_data_folder).expect(
+                        format!("Error: Could not create the directory \"{}\". ", data_path)
+                            .as_str(),
+                    );
+                }
+                //Save users.json
+                let users_json_path_string = format!("{}/users.json", user_data_folder);
+                let mut users_json_file =
+                    std::fs::File::create(std::path::Path::new(users_json_path_string.as_str()))
+                        .expect(
+                            format!(
+                                "Error: Could not create or open the file \"{}\" for writing",
+                                users_json_path_string
+                            )
+                            .as_str(),
+                        );
+                users_json_file
+                    .write_all(users_json_string.as_bytes())
+                    .expect(
+                        format!(
+                            "Error: Could not write user data to the file \"{}\". ",
+                            users_json_path_string
+                        )
+                        .as_str(),
+                    );
+            }
+            {
+                let media_data_folder = format!("{}/media", data_path);
+                if !match fs::exists(media_data_folder.as_str()) {
+                    Ok(r) => r,
+                    Err(_) => panic!(
+                        "The existence of the directory \"{}\" can neither be confirmed nor denied. ",
+                        media_data_folder
+                    ),
+                } {
+                    std::fs::create_dir(&media_data_folder).expect(
+                        format!("Error: Could not create the directory \"{}\". ", data_path)
+                            .as_str(),
+                    );
+                }
+                //Save videos.json file:
+                let videos_json_path_string = format!("{}/videos.json", media_data_folder);
+                let mut videos_json_file =
+                    std::fs::File::create(std::path::Path::new(videos_json_path_string.as_str()))
+                        .expect(
+                            format!(
+                                "Error: Could not create or open the file \"{}\" for writing",
+                                videos_json_path_string
+                            )
+                            .as_str(),
+                        );
+                videos_json_file
+                    .write_all(videos_json_string.as_bytes())
+                    .expect(
+                        format!(
+                            "Error: Could not write user data to the file \"{}\". ",
+                            videos_json_path_string
+                        )
+                        .as_str(),
+                    );
+            }
         }
 
         ///Load the data from the database.
         pub fn load_data(&mut self) {
-            println!("Loading data from \"{}\". ", self.data_path);
-
             let data_path = &self.data_path;
+            // let data_path = self.get_data_path();
+            println!("Loading data from \"{}\". ", data_path);
+
             //Load users:
             //Load JSON:
             let users_json_cont =
