@@ -101,3 +101,15 @@
 1. Client sends a GET request to server with path "/user/get_user_icon?user_id=[user_id]". 
 
 2. If user_id is valid, server sends OK response with the body being the requested user's icon as a png file. 
+
+##Logging in: 
+
+1. Client sends a form to the server with the fields "username"=[user's user_id] and "password"=[hash of the user's password] with path "/user/login". 
+
+2. if username and password is valid, server sends OK response with the body being a randomly-generated session id as a u64 value. Otherwise, server sends an error message with the 401 (unauthorized) error code. 
+
+##Signing up: 
+
+1. Client sends a form to the server with the fields "username"=[user's user_id] and "password"=[hash of the user's password] with path "/user/signup".
+
+2. If username is not already taken, server sends OK response with the body being a randomly-generated session id as a u64 value. Otherwise, server sends an error message. TODO: Define specific error code. 
