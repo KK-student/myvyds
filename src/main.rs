@@ -218,7 +218,7 @@ static DATA_PATH: &str = "./data";
 static DATA_MANAGER: std::sync::LazyLock<Mutex<DataManager>> =
     std::sync::LazyLock::new(|| -> Mutex<DataManager> { Mutex::new(DataManager::new(DATA_PATH)) });
 
-//Getting a video:
+///Gets a specific video file, serving the "/video/get_video_file/[video_id]/[video_seg_file]" endpoint. See the "Getting a video" section in the "./docs/SERVER_API.md" for more details.
 #[get("/video/get_video_file/{video_id}/{video_seg_file}")]
 async fn get_video_file(url_params: web::Path<(String, String)>) -> impl Responder {
     //404 response:
