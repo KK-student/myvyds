@@ -87,6 +87,7 @@
 //!}}
 
 pub mod comment;
+pub mod describable;
 mod dirty_data;
 pub mod likeable;
 mod saveable;
@@ -220,6 +221,11 @@ pub mod file_handling {
         //Get an Arc<Mutex<>> pointer that points to the video in the DataManager by it's name.
         pub fn get_video_by_name(&self, name: &String) -> Arc<Mutex<VideoData>> {
             self.get_video(self.videos_by_name.get(name).unwrap())
+        }
+
+        //Get number of videos.
+        pub fn get_num_videos(&self) -> u64 {
+            self.videos.len() as u64
         }
 
         ///Save the data to the database files and folders.

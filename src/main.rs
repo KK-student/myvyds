@@ -9,7 +9,7 @@ use std::{
 use serde::Deserialize;
 
 use actix_web::{
-    App, HttpRequest, HttpResponse, HttpServer, Responder, get,
+    App, HttpRequest, HttpResponse, HttpResponseBuilder, HttpServer, Responder, get,
     http::{StatusCode, header},
     mime,
     web::{self, Query},
@@ -18,6 +18,8 @@ use posix_regex::{PosixRegex, PosixRegexBuilder};
 use tokio_util::io::ReaderStream;
 
 use crate::file_handling::{
+    comment::Comment,
+    describable::{Describable, make_json_from_describable_list},
     file_handling::{DataManager, file_stream_reader, get_mime_type, read_small_file},
     likeable::Likeable,
 };
@@ -293,6 +295,68 @@ async fn get_video_basic_info(url_query: Query<VideoIDQuery>) -> impl Responder 
     return response_404;
 }
 
+#[derive(Deserialize)]
+struct GetCommentsPageQuery {
+    v: u64,
+    page_index: u64,
+}
+///Get video comments page by page ("Getting video comments (page by page)" section).
+#[get("/video/get_comments_page")]
+async fn get_comments_page(url_query: Query<GetCommentsPageQuery>) -> impl Responder {
+    //Get 404 response:
+    let response_404 = HttpResponse::NotFound().finish();
+    {
+        //Get DataManager:
+        let data_manager_mutg = DATA_MANAGER.lock().unwrap();
+        let data_manager: &DataManager = data_manager_mutg.deref();
+
+        //Check video_id:
+        let video_id: &u64 = &url_query.v;
+        let page_index: &u64 = &url_query.page_index;
+        if data_manager.has_video_by_id(video_id) {
+            let video_arc = data_manager.get_video(video_id);
+            let video_mutg = video_arc.lock().unwrap();
+            let video: &VideoData = video_mutg.deref();
+
+            // {
+            // "[comment_id]": {
+            // "author": "[user_id of comment's author]",
+            // "text": "[comment text]",
+            // "creation_time": [time comment was created in seconds since epoch as a u64],
+            // "replies": {[replies in the same JSON format as the comment]}
+            // }
+            // }
+            if (*page_index * 50) < video.get_num_comments() {
+                let mut response_string = String::from("{");
+                let mut i = 0;
+                let on_comment = |comment_arc: Arc<Mutex<Comment>>| -> () {
+                    let mut comment_mutg = comment_arc.lock().unwrap();
+                    let comment: &mut Comment = comment_mutg.deref_mut();
+                    // let replies_string =
+                    //     make_json_from_describable_list(comment.get_replies().deref());
+                    if i > 0 {
+                        response_string.push(',');
+                    }
+                    response_string.push_str(comment.describe().as_str());
+                    i += 1;
+                };
+                video.for_each_comment_range(
+                    *page_index,
+                    video.get_num_comments() * 50 - 1,
+                    on_comment,
+                );
+                response_string.push_str("}");
+
+                return HttpResponse::Ok()
+                    .append_header(header::ContentType(mime::APPLICATION_JSON))
+                    .body(response_string);
+            }
+        }
+    }
+
+    return response_404;
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // let test_params = "v=1203487watch_me&id=+=asdpfoiu";
@@ -322,6 +386,7 @@ async fn main() -> std::io::Result<()> {
             // .route("/watch", web::get().to(watch))
             .service(get_video_file)
             .service(get_video_basic_info)
+            .service(get_comments_page)
     })
     .bind(("127.0.0.1", 6000))?
     .run()

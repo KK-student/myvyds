@@ -62,7 +62,6 @@ Otherwise, server sends error response with error code 404.
         }
       }
     },
-    "more_comments": [True/false: Are there still more comments after this page? ]
   }
   ```
 

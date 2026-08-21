@@ -8,6 +8,7 @@ use json_escape::escape_str;
 use serde_json::Value;
 
 use crate::file_handling::{
+    describable::{Describable, make_json_from_describable_list},
     dirty_data::DirtyData,
     likeable::Likeable,
     saveable::{Saveable, make_json_from_saveable_list},
@@ -355,5 +356,23 @@ impl Saveable for Comment {
                 replies_json_data
             )
         };
+    }
+}
+
+impl Describable for Comment {
+    fn describe(&self) -> String {
+        let text_escaped = escape_str(self.get_text().as_str()).collect::<String>();
+        let author_escaped = escape_str(self.get_author().as_str()).collect::<String>();
+
+        let replies_json_data = make_json_from_describable_list(self.replies.deref());
+
+        return format!(
+            "\"{}\": {{\"author\": \"{}\", \"text\": \"{}\", \"creation_time\": {}, \"replies\": {}}}",
+            self.get_id(),
+            author_escaped,
+            text_escaped,
+            self.get_creation_time(),
+            replies_json_data
+        );
     }
 }

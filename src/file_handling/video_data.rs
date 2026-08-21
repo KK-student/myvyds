@@ -24,7 +24,7 @@ pub struct VideoData {
     description: String,
     author: String,
     uploaded_time: u64,
-    comments: Box<Vec<Arc<Mutex<Comment>>>>,
+    comments: Box<Vec<Arc<Mutex<Comment>>>>, //TODO: Make this into a LinkedList so that adding and deleting would be faster, if memory is not an issue.
     likes: u64,
     dislikes: u64,
     dirty: bool,
@@ -99,6 +99,11 @@ impl VideoData {
     ///Set video uploaded time as seconds since epoch.
     pub fn get_comments(&self) -> Box<Vec<Arc<Mutex<Comment>>>> {
         self.comments.clone()
+    }
+
+    ///Get number of comments.
+    pub fn get_num_comments(&self) -> u64 {
+        self.comments.len() as u64
     }
 
     ///Add a comment to level 0.
@@ -211,6 +216,21 @@ impl VideoData {
             let mut comment_mutg = comment_arc.lock().unwrap();
             let comment: &mut Comment = comment_mutg.deref_mut();
             comment.for_each_reply_recursive(on_comment);
+        }
+    }
+
+    ///Does an action (on_comment) on each comment in the range of indices (inclusive on both ends) non-recursively.
+    pub fn for_each_comment_range<F: FnMut(Arc<Mutex<Comment>>)>(
+        &self,
+        start_inclusive: u64,
+        end_inclusive: u64,
+        mut on_comment: F,
+    ) {
+        let mut i: u64 = start_inclusive;
+        while i <= end_inclusive && i < self.get_num_comments() {
+            let comment_arc: &Arc<Mutex<Comment>> = self.comments.deref().get(i as usize).unwrap();
+            on_comment(Arc::clone(comment_arc));
+            i += 1;
         }
     }
 }
