@@ -86,12 +86,12 @@
 //!
 //!}}
 
-mod comment;
+pub mod comment;
 mod dirty_data;
-mod likeable;
+pub mod likeable;
 mod saveable;
-mod user;
-mod video_data;
+pub mod user;
+pub mod video_data;
 
 ///Module for handling files.
 pub mod file_handling {
@@ -210,6 +210,16 @@ pub mod file_handling {
         ///Get an Arc<Mutex<>> pointer that points to the user in the DataManager.
         pub fn get_user(&self, user_id: &String) -> Arc<Mutex<User>> {
             Arc::clone(self.users.get(user_id).unwrap())
+        }
+
+        //Get an Arc<Mutex<>> pointer that points to the video in the DataManager by it's video_id.
+        pub fn get_video(&self, video_id: &u64) -> Arc<Mutex<VideoData>> {
+            Arc::clone(self.videos.get(video_id).unwrap())
+        }
+
+        //Get an Arc<Mutex<>> pointer that points to the video in the DataManager by it's name.
+        pub fn get_video_by_name(&self, name: &String) -> Arc<Mutex<VideoData>> {
+            self.get_video(self.videos_by_name.get(name).unwrap())
         }
 
         ///Save the data to the database files and folders.

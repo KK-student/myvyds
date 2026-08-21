@@ -2,22 +2,27 @@
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
+    sync::{Arc, Mutex},
 };
 
-use futures::lock::{Mutex, MutexLockFuture};
+// use futures::lock::{Mutex, MutexLockFuture};
 use serde::Deserialize;
 
 use actix_web::{
     App, HttpRequest, HttpResponse, HttpServer, Responder, get,
-    http::StatusCode,
+    http::{StatusCode, header},
+    mime,
     web::{self, Query},
 };
 use posix_regex::{PosixRegex, PosixRegexBuilder};
 use tokio_util::io::ReaderStream;
 
-use crate::file_handling::file_handling::{
-    DataManager, file_stream_reader, get_mime_type, read_small_file,
+use crate::file_handling::{
+    file_handling::{DataManager, file_stream_reader, get_mime_type, read_small_file},
+    likeable::Likeable,
 };
+
+use crate::file_handling::video_data::VideoData;
 
 mod file_handling;
 
@@ -232,7 +237,7 @@ async fn get_video_file(url_params: web::Path<(String, String)>) -> impl Respond
         Err(_) => return response_e404,
     };
     {
-        let data_manager_guard = DATA_MANAGER.lock().await;
+        let data_manager_guard = DATA_MANAGER.lock().unwrap();
         let data_manager: &DataManager = data_manager_guard.deref();
         if !data_manager.has_video_by_id(&video_id) {
             return response_e404;
@@ -250,6 +255,44 @@ async fn get_video_file(url_params: web::Path<(String, String)>) -> impl Respond
     }
 }
 
+#[derive(Deserialize, Debug)]
+struct VideoIDQuery {
+    v: u64,
+}
+#[get("/video/basic_info")]
+async fn get_video_basic_info(url_query: Query<VideoIDQuery>) -> impl Responder {
+    //Prepare 404 response:
+    let response_404: HttpResponse = HttpResponse::NotFound().finish();
+    //Check if video_id is valid:
+    let video_id: &u64 = &url_query.v;
+    {
+        let data_manager_mutg = DATA_MANAGER.lock().unwrap();
+        let data_manager: &DataManager = data_manager_mutg.deref();
+        if data_manager.has_video_by_id(video_id) {
+            //Get video:
+            let video_arc: Arc<Mutex<VideoData>> = data_manager.get_video(video_id);
+            let video_mutg = video_arc.lock().unwrap();
+            let video: &VideoData = video_mutg.deref();
+
+            //Return video data:
+            let result_string = format!(
+                "{{\"name\": \"{}\", \"description\": \"{}\", \"author\": \"{}\", \"uploaded_time\": {}, \"likes\": {}, \"dislikes\": {}}}",
+                video.get_name(),
+                video.get_description(),
+                video.get_author(),
+                video.get_uploaded_time(),
+                video.get_likes(),
+                video.get_dislikes(),
+            );
+            return HttpResponse::Ok()
+                .append_header(header::ContentType(mime::APPLICATION_JSON))
+                .body(result_string);
+        }
+    }
+
+    return response_404;
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // let test_params = "v=1203487watch_me&id=+=asdpfoiu";
@@ -257,7 +300,7 @@ async fn main() -> std::io::Result<()> {
     // let result = parse_url_parameters(test_params);
 
     {
-        let mut data_manager_guard = DATA_MANAGER.lock().await;
+        let mut data_manager_guard = DATA_MANAGER.lock().unwrap();
         let data_manager: &mut DataManager = data_manager_guard.deref_mut();
         data_manager.load_data();
         // println!("DATA_MANAGER: \n{:#?}\n\n", data_manager);
@@ -278,6 +321,7 @@ async fn main() -> std::io::Result<()> {
             // .route("/get_video", web::get().to(get_video))
             // .route("/watch", web::get().to(watch))
             .service(get_video_file)
+            .service(get_video_basic_info)
     })
     .bind(("127.0.0.1", 6000))?
     .run()
