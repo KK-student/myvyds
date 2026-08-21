@@ -298,11 +298,12 @@ async fn get_video_basic_info(url_query: Query<VideoIDQuery>) -> impl Responder 
 #[derive(Deserialize)]
 struct GetCommentsPageQuery {
     v: u64,
-    page_index: u64,
+    page_index: i64,
 }
 ///Get video comments page by page ("Getting video comments (page by page)" section).
 #[get("/video/get_comments_page")]
 async fn get_comments_page(url_query: Query<GetCommentsPageQuery>) -> impl Responder {
+    let page_size: u64 = 50;
     //Get 404 response:
     let response_404 = HttpResponse::NotFound().finish();
     {
@@ -312,7 +313,7 @@ async fn get_comments_page(url_query: Query<GetCommentsPageQuery>) -> impl Respo
 
         //Check video_id:
         let video_id: &u64 = &url_query.v;
-        let page_index: &u64 = &url_query.page_index;
+        let page_index: &i64 = &url_query.page_index;
         if data_manager.has_video_by_id(video_id) {
             let video_arc = data_manager.get_video(video_id);
             let video_mutg = video_arc.lock().unwrap();
@@ -326,25 +327,31 @@ async fn get_comments_page(url_query: Query<GetCommentsPageQuery>) -> impl Respo
             // "replies": {[replies in the same JSON format as the comment]}
             // }
             // }
-            if (*page_index * 50) < video.get_num_comments() {
-                let mut response_string = String::from("{");
-                let mut i = 0;
-                let on_comment = |comment_arc: Arc<Mutex<Comment>>| -> () {
-                    let mut comment_mutg = comment_arc.lock().unwrap();
-                    let comment: &mut Comment = comment_mutg.deref_mut();
-                    // let replies_string =
-                    //     make_json_from_describable_list(comment.get_replies().deref());
-                    if i > 0 {
-                        response_string.push(',');
-                    }
-                    response_string.push_str(comment.describe().as_str());
-                    i += 1;
-                };
-                video.for_each_comment_range(
-                    *page_index,
-                    video.get_num_comments() * 50 - 1,
-                    on_comment,
-                );
+            let mut response_string = String::from("{");
+            let mut i = 0;
+            let on_comment = |comment_arc: Arc<Mutex<Comment>>| -> () {
+                let mut comment_mutg = comment_arc.lock().unwrap();
+                let comment: &mut Comment = comment_mutg.deref_mut();
+                // let replies_string =
+                //     make_json_from_describable_list(comment.get_replies().deref());
+                if i > 0 {
+                    response_string.push(',');
+                }
+                response_string.push_str(comment.describe().as_str());
+                i += 1;
+            };
+            if *page_index >= 0 && ((*page_index as u64) * page_size) < video.get_num_comments() {
+                let start = (*page_index as u64) * page_size;
+                let end = ((*page_index as u64) + 1) * page_size - 1;
+                // println!("start: {}, end: {}", start, end);
+                video.for_each_comment_range(start, end, on_comment);
+                response_string.push_str("}");
+
+                return HttpResponse::Ok()
+                    .append_header(header::ContentType(mime::APPLICATION_JSON))
+                    .body(response_string);
+            } else if *page_index == -2 {
+                video.for_each_comment_range(0, video.get_num_comments() - 1, on_comment);
                 response_string.push_str("}");
 
                 return HttpResponse::Ok()
