@@ -153,6 +153,8 @@ pub mod file_handling {
 
         return Ok(video_stream);
     }
+
+    ///Read a file and returns it's contents as a Vec of bytes if successful. If not, return an error. Do not use on large files as it will use up a lot of RAM!
     pub fn read_small_file(file_path_str: &str) -> Result<Vec<u8>, std::io::Error> {
         let file_path_str = format!("./{}", file_path_str);
         let file_path = std::path::Path::new(&file_path_str);
@@ -453,6 +455,10 @@ pub mod file_handling {
             }
 
             println!("Data loaded. ");
+        }
+
+        pub fn has_video_by_id(&self, video_id: &u64) -> bool {
+            self.videos.contains_key(video_id)
         }
     }
 }

@@ -1,0 +1,2 @@
+ffmpeg -i "$1" -map 0 -c:v:0 libx264 -b:v:0 5000k -s:v:0 1920x1080 -map 0 -c:v:1 libx264 -b:v:1 3000k -s:v:1 1280x720 -map 0 -c:v:2 libx264 -b:v:2 1000k -s:v:2 640x360 -map 0 -c:v:3 libvpx-vp9 -b:v:3 5000k -s:v:3 1920x1080 -map 0 -c:v:4 libvpx-vp9 -b:v:4 3000k -s:v:4 1280x720 -map 0 -c:v:5 libvpx-vp9 -b:v:5 1000k -s:v:5 640x360 -map 0:a:0 -c:a:0 aac -b:a:0 192k -map 0:a:0 -c:a:1 aac -b:a:1 128k -map 0:a:0 -c:a:2 aac -b:a:2  64k -map 0:a:0 -c:a:3 libopus -b:a:3 192k -map 0:a:0 -c:a:4 libopus -b:a:4 128k -map 0:a:0 -c:a:5 libopus -b:a:5  64k -f dash ./output.mpd
+

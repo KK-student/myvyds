@@ -1,5 +1,4 @@
 ///This is a video sharing platform website, similar to YouTube.
-
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
@@ -10,6 +9,7 @@ use serde::Deserialize;
 
 use actix_web::{
     App, HttpRequest, HttpResponse, HttpServer, Responder, get,
+    http::StatusCode,
     web::{self, Query},
 };
 use posix_regex::{PosixRegex, PosixRegexBuilder};
@@ -29,7 +29,7 @@ mod file_handling;
 // async fn manual_hello() -> impl Responder {
 //     HttpResponse::Ok().body("Hey there!")
 // }
-
+//
 // fn parse_url_parameters(query: &str) -> HashMap<&str, &str> {
 //     let mut result: HashMap<&str, &str> = HashMap::new();
 //     let group_regex_builder: PosixRegexBuilder = PosixRegexBuilder::new(
@@ -153,68 +153,102 @@ mod file_handling;
 //     ))
 // }
 
-#[derive(Deserialize, Debug)]
-struct VideoID {
-    id: u64,
-}
-async fn get_video(v_query: Query<VideoID>) -> impl Responder {
-    let video_id = v_query.id;
-    if video_id == 0 {
-        let file_path_str =
-            "./media/coding music synthwave beats to program to-fhL67fnDXcU-av.webm";
-        let reader_stream: ReaderStream<tokio::fs::File> = match file_stream_reader(file_path_str)
-            .await
-        {
-            Ok(r) => r,
-            Err(e) => {
-                return HttpResponse::Ok()
-                .body(format!("<!DOCTYPE html><html><head><title>Error</title></head><body><p>Error: {}</p></body></html>", e.to_string()));
-            }
-        };
-        HttpResponse::Ok()
-            .content_type(get_mime_type(std::path::Path::new(file_path_str)))
-            //.insert_header(ContentDisposition::attachment(String::from(filename)))
-            .streaming(reader_stream)
-    } else {
-        HttpResponse::Ok().body(
-            "<!DOCTYPE html>
-<html>
-    <head>
-        <title>Error</title>
-    </head>
-    <body>
-<p>Could not file video. </p>
-    </body>
-</html>",
-        )
+// #[derive(Deserialize, Debug)]
+// struct VideoID {
+//     id: u64,
+// }
+// async fn get_video(v_query: Query<VideoID>) -> impl Responder {
+//     let video_id = v_query.id;
+//     if video_id == 0 {
+//         let file_path_str =
+//             "./media/coding music synthwave beats to program to-fhL67fnDXcU-av.webm";
+//         let reader_stream: ReaderStream<tokio::fs::File> = match file_stream_reader(file_path_str)
+//             .await
+//         {
+//             Ok(r) => r,
+//             Err(e) => {
+//                 return HttpResponse::Ok()
+//                 .body(format!("<!DOCTYPE html><html><head><title>Error</title></head><body><p>Error: {}</p></body></html>", e.to_string()));
+//             }
+//         };
+//         HttpResponse::Ok()
+//             .content_type(get_mime_type(std::path::Path::new(file_path_str)))
+//             //.insert_header(ContentDisposition::attachment(String::from(filename)))
+//             .streaming(reader_stream)
+//     } else {
+//         HttpResponse::Ok().body(
+//             "<!DOCTYPE html>
+// <html>
+//     <head>
+//         <title>Error</title>
+//     </head>
+//     <body>
+// <p>Could not file video. </p>
+//     </body>
+// </html>",
+//         )
+//     }
+// }
+//
+// fn get_error_page(message: &str) -> String {
+//     format!(
+//         "<!DOCTYPE html>
+// <html>
+// <head><title>Error</title></head>
+// <body>
+// <h1>Error: </h1>
+// <p>{}</p>
+// </body>
+// </html>
+// ",
+//         message
+//     )
+// }
+//
+// async fn watch(v_qid: Query<VideoID>) -> impl Responder {
+//     let watch_js_bytes: Vec<u8> = match read_small_file("./webpage/watch.html") {
+//         Ok(r) => r,
+//         Err(e) => get_error_page(&e.to_string()).as_bytes().to_vec(),
+//     };
+//     HttpResponse::Ok().body(watch_js_bytes)
+// }
+//
+
+static DATA_PATH: &str = "./data";
+static DATA_MANAGER: std::sync::LazyLock<Mutex<DataManager>> =
+    std::sync::LazyLock::new(|| -> Mutex<DataManager> { Mutex::new(DataManager::new(DATA_PATH)) });
+
+//Getting a video:
+#[get("/video/get_video_file/{video_id}/{video_seg_file}")]
+async fn get_video_file(url_params: web::Path<(String, String)>) -> impl Responder {
+    //404 response:
+    let response_e404 = HttpResponse::NotFound().finish();
+    //Extract parameters:
+    let (video_id_string, vid_seg_file_tpath_string) = url_params.into_inner();
+
+    //Check if video_id is valid:
+    let video_id: u64 = match video_id_string.parse::<u64>() {
+        Ok(r) => r,
+        Err(_) => return response_e404,
+    };
+    {
+        let data_manager_guard = DATA_MANAGER.lock().await;
+        let data_manager: &DataManager = data_manager_guard.deref();
+        if !data_manager.has_video_by_id(&video_id) {
+            return response_e404;
+        }
+    }
+
+    //Get video file:
+    let file_path_string = format!(
+        "{}/media/{}/{}",
+        DATA_PATH, video_id, vid_seg_file_tpath_string
+    );
+    match read_small_file(file_path_string.as_str()) {
+        Ok(file_contents) => HttpResponse::Ok().body(file_contents),
+        Err(_) => response_e404,
     }
 }
-
-fn get_error_page(message: &str) -> String {
-    format!(
-        "<!DOCTYPE html>
-<html>
-<head><title>Error</title></head>
-<body>
-<h1>Error: </h1>
-<p>{}</p>
-</body>
-</html>
-",
-        message
-    )
-}
-
-async fn watch(v_qid: Query<VideoID>) -> impl Responder {
-    let watch_js_bytes: Vec<u8> = match read_small_file("./webpage/watch.html") {
-        Ok(r) => r,
-        Err(e) => get_error_page(&e.to_string()).as_bytes().to_vec(),
-    };
-    HttpResponse::Ok().body(watch_js_bytes)
-}
-
-static DATA_MANAGER: std::sync::LazyLock<Mutex<DataManager>> =
-    std::sync::LazyLock::new(|| -> Mutex<DataManager> { Mutex::new(DataManager::new("./data")) });
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -241,8 +275,9 @@ async fn main() -> std::io::Result<()> {
             // .route("/lofi_music", web::get().to(get_lofi_music_html))
             // .route("/url_params", web::get().to(get_url_parameters))
             // .route("/url_params_form", web::get().to(url_parameters_form))
-            .route("/get_video", web::get().to(get_video))
-            .route("/watch", web::get().to(watch))
+            // .route("/get_video", web::get().to(get_video))
+            // .route("/watch", web::get().to(watch))
+            .service(get_video_file)
     })
     .bind(("127.0.0.1", 6000))?
     .run()
