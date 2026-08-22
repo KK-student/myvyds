@@ -9,19 +9,19 @@ use std::{
 use serde::Deserialize;
 
 use actix_web::{
-    App, HttpRequest, HttpResponse, HttpResponseBuilder, HttpServer, Responder, get,
-    http::{StatusCode, header},
+    App, HttpResponse, HttpServer, Responder, get,
+    http::header,
     mime,
     web::{self, Query},
 };
-use posix_regex::{PosixRegex, PosixRegexBuilder};
-use tokio_util::io::ReaderStream;
+use serde_json::Value;
 
 use crate::file_handling::{
     comment::Comment,
-    describable::{Describable, make_json_from_describable_list},
-    file_handling::{DataManager, file_stream_reader, get_mime_type, read_small_file},
+    describable::Describable,
+    file_handling::{DataManager, read_small_file},
     likeable::Likeable,
+    video_processing::{LocalVideoProcessor, VideoProcessor},
 };
 
 use crate::file_handling::video_data::VideoData;
@@ -399,6 +399,18 @@ async fn main() -> std::io::Result<()> {
         data_manager.load_data();
         // println!("DATA_MANAGER: \n{:#?}\n\n", data_manager);
         data_manager.save_data();
+    }
+    {
+        let local_test_processor_config: &str = "";
+        let local_test_processor_config_json: Value =
+            serde_json::from_str(local_test_processor_config).unwrap();
+        let mut local_test_processor: LocalVideoProcessor =
+            LocalVideoProcessor::new(&local_test_processor_config_json);
+        local_test_processor.process(
+            2,
+            "/tmp/rust-process-test/sample-10s.mp4".to_string(),
+            "/tmp/rust-process-test/output-dir/".to_string(),
+        );
     }
 
     HttpServer::new(move || {

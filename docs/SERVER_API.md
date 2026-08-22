@@ -81,7 +81,7 @@ Otherwise, server sends error response with error code 404.
 
 ### Uploading a video: 
 
-1. Client sends a form to the server with the fields "username"=[user's user_id], "session_id"=[user's current session_id], "title"=[title of the video], "description"=[description of the video], and "video_file"=[the video file as multipart data in supported file format with supported codecs] to the endpoint "/video/upload". 
+1. Client sends a form to the server with the fields "username"=[user's user_id], "session_id"=[user's current session_id], "title"=[title of the video], "description"=[description of the video], "video_file"=[the video file as multipart data in supported file format with supported codecs], "thumbnail_video"=[the thumbnail video file as multipart data in supported file format with supported codecs], and "thumbnail_image"=[the thumbnail image file as multipart data in png format] to the endpoint "/video/upload". 
 
 2. 
 - If username and session_id are valid: 

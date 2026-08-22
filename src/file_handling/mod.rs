@@ -94,17 +94,17 @@ mod saveable;
 pub mod user;
 pub mod video_data;
 
+pub mod video_processing;
+
 ///Module for handling files.
 pub mod file_handling {
     use std::{
         collections::HashMap,
-        ffi::OsString,
-        fs::{self, DirEntry, FileType, ReadDir},
+        fs::{self},
         io::{ErrorKind, Write},
         ops::{Deref, DerefMut},
-        rc::Rc,
         str::FromStr,
-        sync::{Arc, Mutex, MutexGuard},
+        sync::{Arc, Mutex},
     };
 
     use crate::file_handling::{
@@ -113,28 +113,28 @@ pub mod file_handling {
 
     use serde_json::Value;
     use tokio::fs::File;
-    use tokio_util::io::{ReaderStream, simplex::new};
+    use tokio_util::io::ReaderStream;
 
-    ///Get the mime type for a file. Supports only a limited set of mime types.
-    pub fn get_mime_type(file_path: &std::path::Path) -> &str {
-        match file_path.extension().and_then(std::ffi::OsStr::to_str) {
-            Some("png") => "image/png",
-            Some("jpg") | Some("jpeg") => "image/jpeg",
-            Some("gif") => "image/gif",
-            Some("html") => "text/html",
-            Some("txt") => "text/plain",
-            Some("json") => "application/json",
-            Some("js") => "text/javascript",
-            Some("jsx") => "text/jsx",
-            Some("css") => "text/css",
-
-            //Video and audio:
-            Some("webm") => "video/webm",
-
-            //Generic:
-            _ => "application/octet-stream", // Default MIME type
-        }
-    }
+    //Get the mime type for a file. Supports only a limited set of mime types.
+    // pub fn get_mime_type(file_path: &std::path::Path) -> &str {
+    //     match file_path.extension().and_then(std::ffi::OsStr::to_str) {
+    //         Some("png") => "image/png",
+    //         Some("jpg") | Some("jpeg") => "image/jpeg",
+    //         Some("gif") => "image/gif",
+    //         Some("html") => "text/html",
+    //         Some("txt") => "text/plain",
+    //         Some("json") => "application/json",
+    //         Some("js") => "text/javascript",
+    //         Some("jsx") => "text/jsx",
+    //         Some("css") => "text/css",
+    //
+    //         //Video and audio:
+    //         Some("webm") => "video/webm",
+    //
+    //         //Generic:
+    //         _ => "application/octet-stream", // Default MIME type
+    //     }
+    // }
 
     ///Read a file from "./" as a stream.
     pub async fn file_stream_reader(
