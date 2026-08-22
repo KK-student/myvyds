@@ -27,6 +27,7 @@ pub trait VideoProcessor {
     fn get_speed(&self) -> u64;
 }
 
+#[derive(Debug)]
 pub struct LocalVideoProcessor {
     ffmpeg_options: Vec<String>, //Ffmpeg options, except for "-f dash -o ./output.mpd"
 
@@ -90,7 +91,6 @@ impl VideoProcessor for LocalVideoProcessor {
         }
         ffmpeg_full_args.push("-f".to_string());
         ffmpeg_full_args.push("dash".to_string());
-        ffmpeg_full_args.push("-o".to_string());
         ffmpeg_full_args.push("./output.mpd".to_string());
 
         //Starting ffmpeg processing thread:
@@ -98,12 +98,13 @@ impl VideoProcessor for LocalVideoProcessor {
         let fp_arc = Arc::clone(&self.finished_processing);
         let failp_arc = Arc::clone(&self.failed_processing);
         let child = thread::spawn(move || -> () {
+            println!("Processor child thread called. ");
             {
                 let mut cp_mutg = cp_arc.lock().unwrap();
                 let cp: &mut HashSet<u64> = cp_mutg.deref_mut();
                 cp.insert(video_id);
             }
-            let output = Command::new("ffmpeg")
+            let output = Command::new("/usr/bin/ffmpeg")
                 .args(ffmpeg_full_args)
                 .current_dir(std::fs::canonicalize(result_directory).unwrap())
                 .output()
