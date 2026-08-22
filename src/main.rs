@@ -295,6 +295,29 @@ async fn get_video_basic_info(url_query: Query<VideoIDQuery>) -> impl Responder 
     return response_404;
 }
 
+#[get("/video/thumbnail_image")]
+async fn get_video_thumbnail_image(url_query: Query<VideoIDQuery>) -> impl Responder {
+    //404 response:
+    let response_404: HttpResponse = HttpResponse::NotFound().finish();
+    //Get and check video_id:
+    let video_id: &u64 = &url_query.v;
+    {
+        let data_manager_mutg = DATA_MANAGER.lock().unwrap();
+        let data_manager: &DataManager = data_manager_mutg.deref();
+        if !data_manager.has_video_by_id(video_id) {
+            return response_404;
+        }
+    }
+    //Get thumbnail image:
+    let thumbnail_image_path: String = format!("{}/media/{}/thumbnail.png", DATA_PATH, video_id);
+    return match read_small_file(thumbnail_image_path.as_str()) {
+        Ok(contents) => HttpResponse::Ok()
+            .append_header(header::ContentType(mime::IMAGE_PNG))
+            .body(contents),
+        Err(_) => response_404,
+    };
+}
+
 #[derive(Deserialize)]
 struct GetCommentsPageQuery {
     v: u64,
@@ -394,6 +417,7 @@ async fn main() -> std::io::Result<()> {
             .service(get_video_file)
             .service(get_video_basic_info)
             .service(get_comments_page)
+            .service(get_video_thumbnail_image)
     })
     .bind(("127.0.0.1", 6000))?
     .run()
