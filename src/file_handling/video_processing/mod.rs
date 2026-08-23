@@ -8,9 +8,12 @@ use std::{
 
 use serde_json::Value;
 
+///A trait for processing videos.
 pub trait VideoProcessor {
+    ///Create a new VideoProcessor (return type depends on struct implementing this trait) from the given JSON configuration data (config_json_data).
     fn new(config_json_data: &Value) -> Self;
 
+    ///Process a video with the specified video id (video_id), input video file path (video_file_path), and output directory (result_directory) into MPEG_DASH format using ffmpeg.
     fn process(
         &mut self,
         video_id: u64,
@@ -18,18 +21,23 @@ pub trait VideoProcessor {
         result_directory: String,
     ) -> JoinHandle<()>;
 
+    ///Is this VideoProcessor currently processing a video with the specified video id (video_id)?
     fn is_processing(&self, video_id: &u64) -> bool;
 
+    ///Has this VideoProcessor finished processing a video with the specified video id (video_id)?
     fn is_finished_processing(&self, video_id: &u64) -> bool;
 
-    fn is_processed_successfully(&self, video_id: &u64) -> bool;
+    ///Has this VideoProcessor finished processing a video with the specified video id (video_id) successfully? If so, returns the ok value (which is null), otherwise it returns the error message(s) of whatever command(s) was/were used.
+    fn is_processed_successfully(&self, video_id: &u64) -> Result<(), String>;
 
+    ///Get this VideoProcessor's speed factor. Could be something like the maximum possible FLOPS of the VideoProcessor's GPU.
     fn get_speed(&self) -> u64;
 }
 
 #[derive(Debug)]
+///A VideoProcessor that processes the videos on the current local server (ie. the same server that contains the MPEG_DASH files and the information about the videos, comments and users).
 pub struct LocalVideoProcessor {
-    ffmpeg_options: Vec<String>, //Ffmpeg options, except for "-f dash -o ./output.mpd"
+    ffmpeg_options: Vec<String>, //Ffmpeg options, except for "-f dash -o ./output.mpd" and "-i [input_file]"
 
     currently_processing: Arc<Mutex<HashSet<u64>>>,
     finished_processing: Arc<Mutex<HashSet<u64>>>,
@@ -39,8 +47,10 @@ pub struct LocalVideoProcessor {
 }
 
 impl VideoProcessor for LocalVideoProcessor {
+    ///Create a new LocalVideoProcessor from the given JSON configuration data (config_json_data). The given JSON data must be in the following format:
+    ///
+    ///{"ffmpeg_options": [list of all of the ffmpeg options needed to convert the input video file into MPEG_DASH format as a list of strings (with no spaces in the items themselves), NOT INCLUDING "-i", the input video file, "-f", "dash", or "./output.mpd"], "max_gpu_tflops": [the maximum amount of tflops the server's GPU could do as a u64]}
     fn new(config_json_data: &Value) -> Self {
-        // let ffmpeg_options: &str = config_json_data["ffmpeg_options"].as_str().unwrap();
         let mut ffmpeg_options: Vec<String> = Vec::new();
         for json_item in config_json_data["ffmpeg_options"].as_array().unwrap() {
             ffmpeg_options.push(json_item.as_str().unwrap().to_string());
@@ -70,10 +80,14 @@ impl VideoProcessor for LocalVideoProcessor {
         fp.contains(video_id)
     }
 
-    fn is_processed_successfully(&self, video_id: &u64) -> bool {
+    fn is_processed_successfully(&self, video_id: &u64) -> Result<(), String> {
         let mut failp_mutg = self.failed_processing.lock().unwrap();
         let failp: &mut HashMap<u64, String> = failp_mutg.deref_mut();
-        !failp.contains_key(video_id)
+        if failp.contains_key(video_id) {
+            Err(failp.get(video_id).unwrap().clone())
+        } else {
+            Ok(())
+        }
     }
 
     fn process(
@@ -98,13 +112,12 @@ impl VideoProcessor for LocalVideoProcessor {
         let fp_arc = Arc::clone(&self.finished_processing);
         let failp_arc = Arc::clone(&self.failed_processing);
         let child = thread::spawn(move || -> () {
-            println!("Processor child thread called. ");
             {
                 let mut cp_mutg = cp_arc.lock().unwrap();
                 let cp: &mut HashSet<u64> = cp_mutg.deref_mut();
                 cp.insert(video_id);
             }
-            let output = Command::new("/usr/bin/ffmpeg")
+            let output = Command::new("ffmpeg")
                 .args(ffmpeg_full_args)
                 .current_dir(std::fs::canonicalize(result_directory).unwrap())
                 .output()

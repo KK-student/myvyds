@@ -6,6 +6,11 @@
 - [x] Getting all video comments
 - [x] Getting video thumbnail image
 - [ ] Uploading a video
+  * [x] Implemented LocalVideoProcessor. 
+  * [ ] Implemented VideoProcessorManager. 
+  * [ ] Implement a console that would allow the admin to view and manage all of the video processors. 
+  * [ ] Implemented SSHVideoProcessor. 
+  * [ ] Implemented the upload video endpoint on the server. 
 - [ ] Checking if a video is still being processed
 - [ ] Editing a video
 - [ ] Removing a video
