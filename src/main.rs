@@ -17,17 +17,21 @@ use actix_web::{
 };
 use serde_json::Value;
 
-use crate::file_handling::{
-    comment::Comment,
-    describable::Describable,
-    file_handling::{DataManager, read_small_file},
-    likeable::Likeable,
-    video_processing::{LocalVideoProcessor, VideoProcessor},
+use crate::{
+    file_handling::{
+        comment::Comment,
+        describable::Describable,
+        file_handling::{DataManager, read_small_file},
+        likeable::Likeable,
+        video_processing::{LocalVideoProcessor, VideoProcessor, VideoProcessorManager},
+    },
+    management_console::ManagementConsole,
 };
 
 use crate::file_handling::video_data::VideoData;
 
 mod file_handling;
+mod management_console;
 
 // #[get("/")]
 // async fn hello() -> impl Responder {
@@ -225,6 +229,9 @@ mod file_handling;
 static DATA_PATH: &str = "./data";
 static DATA_MANAGER: std::sync::LazyLock<Mutex<DataManager>> =
     std::sync::LazyLock::new(|| -> Mutex<DataManager> { Mutex::new(DataManager::new(DATA_PATH)) });
+static PROCESSOR_MANAGER: VideoProcessorManager = VideoProcessorManager::new(DATA_PATH);
+static MANAGEMENT_CONSOLE: ManagementConsole =
+    ManagementConsole::new(&DATA_MANAGER, &PROCESSOR_MANAGER);
 
 ///Gets a specific video file, serving the "/video/get_video_file/[video_id]/[video_seg_file]" endpoint. See the "Getting a video" section in the "./docs/SERVER_API.md" for more details.
 #[get("/video/get_video_file/{video_id}/{video_seg_file}")]
@@ -394,6 +401,12 @@ async fn main() -> std::io::Result<()> {
     // let test_params = "v=1203487watch_me&id=+=asdpfoiu&ui=&hc&&=;lkj";
     // let result = parse_url_parameters(test_params);
 
+    //Initialize PROCESSOR_MANAGER:
+    {
+        PROCESSOR_MANAGER.load_data();
+    }
+
+    //Initialize DATA_MANAGER:
     {
         let mut data_manager_guard = DATA_MANAGER.lock().unwrap();
         let data_manager: &mut DataManager = data_manager_guard.deref_mut();

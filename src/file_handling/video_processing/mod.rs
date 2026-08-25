@@ -9,6 +9,8 @@ use std::{
 
 use serde_json::Value;
 
+use crate::file_handling::file_handling::read_small_file;
+
 ///A trait for processing videos.
 pub trait VideoProcessor {
     ///Create a new VideoProcessor (return type depends on struct implementing this trait) from the given JSON configuration data (config_json_data).
@@ -314,10 +316,11 @@ pub struct VideoProcessorManager {
     finished_processing: LazyLock<Mutex<HashMap<u64, u64>>>,
     failed_processing: LazyLock<Mutex<HashMap<u64, u64>>>,
     // join_handles: Arc<Mutex<HashMap<u64, JoinHandle<()>>>>,
+    data_path: &'static str,
 }
 
 impl VideoProcessorManager {
-    pub const fn new() -> Self {
+    pub const fn new(data_path: &'static str) -> Self {
         Self {
             local_processors: LazyLock::new(
                 || -> Mutex<HashMap<u64, Arc<Mutex<LocalVideoProcessor>>>> {
@@ -336,6 +339,7 @@ impl VideoProcessorManager {
             failed_processing: LazyLock::new(|| -> Mutex<HashMap<u64, u64>> {
                 Mutex::new(HashMap::new())
             }),
+            data_path: data_path,
         }
     }
     // pub fn new_arc(json_data: &serde_json::Value) -> Arc<Mutex<Self>> {
@@ -377,15 +381,25 @@ impl VideoProcessorManager {
     //     return Arc::clone(&manager_arc);
     // }
 
-    pub fn load_data(&'static self, json_data: &serde_json::Value) {
-        //Get basic data:
-        let local_processors_jobj = json_data["local_processors"].as_object().unwrap();
+    pub fn load_data(&'static self) {
+        //Load config file:
+        let config_file_path = std::path::PathBuf::from(self.data_path).join("processors.json");
+        println!(
+            "Loading VideoProcessorManager data from \"{}\". ",
+            config_file_path.to_str().unwrap()
+        );
+        let config_file_contents = read_small_file(config_file_path.to_str().unwrap()).unwrap();
+        let json_data: Value = serde_json::from_slice(config_file_contents.as_slice()).unwrap();
+        //Process JSON data:
+        let local_processors_jlist = json_data["local_processors"].as_array().unwrap();
         //Local processors:
-        for (lp_id_str, lp_jobj) in local_processors_jobj {
-            let lp_id: u64 = lp_id_str.parse::<u64>().unwrap();
-            self.add_local_video_processor(Arc::new(Mutex::new(LocalVideoProcessor::new(
-                lp_id, lp_jobj,
-            ))));
+        for local_processors_jobj in local_processors_jlist {
+            for (lp_id_str, lp_jobj) in local_processors_jobj.as_object().unwrap() {
+                let lp_id: u64 = lp_id_str.parse::<u64>().unwrap();
+                self.add_local_video_processor(Arc::new(Mutex::new(LocalVideoProcessor::new(
+                    lp_id, lp_jobj,
+                ))));
+            }
         }
     }
 
@@ -587,5 +601,3 @@ impl VideoProcessorManager {
         localp.remove(processor_id).unwrap();
     }
 }
-
-static TEST_MANAGER: VideoProcessorManager = VideoProcessorManager::new();

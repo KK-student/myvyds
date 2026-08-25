@@ -7,13 +7,19 @@
 - [x] Getting video thumbnail image
 - [ ] Uploading a video
   * [x] Implemented LocalVideoProcessor. 
-  * [ ] Implemented VideoProcessorManager. 
+  * [ ] Implemented LocalMusicProcessor. 
+  * [x] Implemented VideoProcessorManager. 
   * [ ] Implement a console that would allow the admin to view and manage all of the video processors. 
+  * [ ] Implemented LocalArchiveVideoProcessor. 
+  * [ ] Implemented LocalArchiveMusicProcessor. 
   * [ ] Implemented SSHVideoProcessor. 
+  * [ ] Implemented SSHMusicProcessor. 
   * [ ] Implemented the upload video endpoint on the server. 
+  * [ ] Implemented save_data function for VideoProcessorManager. 
 - [ ] Checking if a video is still being processed
 - [ ] Editing a video
 - [ ] Removing a video
+- [ ] Implemented live streaming using the ez-ffmpeg crate. 
 
 ## [ ] Users: 
 - [ ] Getting publicly-available user information
