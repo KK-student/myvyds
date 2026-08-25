@@ -3,7 +3,7 @@ use std::{
     collections::{HashMap, HashSet, LinkedList},
     ops::{Deref, DerefMut},
     process::{Child, Command},
-    sync::{Arc, Mutex},
+    sync::{Arc, LazyLock, Mutex, mpsc},
     thread::{self, JoinHandle},
 };
 
@@ -20,10 +20,13 @@ pub trait VideoProcessor {
         video_id: u64,
         video_file_path: String,
         result_directory: String,
-    ) -> Result<JoinHandle<()>, std::io::Error>;
+    ) -> Result<mpsc::Receiver<bool>, std::io::Error>;
 
     ///Stop processing a video with the specified video id (video_id).
     fn stop_processing(&mut self, video_id: u64);
+
+    ///Get the list of videos that are currently processing.
+    fn get_currently_processing(&self) -> HashSet<u64>;
 
     ///Is this VideoProcessor currently processing a video with the specified video id (video_id)?
     fn is_processing(&self, video_id: &u64) -> bool;
@@ -60,11 +63,11 @@ pub struct LocalVideoProcessor {
 
     ffmpeg_options: Vec<String>, //Ffmpeg options, except for "-f dash -o ./output.mpd" and "-i [input_file]"
 
-    currently_processing: Arc<Mutex<HashSet<u64>>>,
-    finished_processing: Arc<Mutex<HashSet<u64>>>,
-    failed_processing: Arc<Mutex<HashMap<u64, String>>>,
+    currently_processing: Arc<Mutex<HashSet<u64>>>, //List of videos that are currently processing.
+    finished_processing: Arc<Mutex<HashSet<u64>>>,  //List of videos that have finished processing.
+    failed_processing: Arc<Mutex<HashMap<u64, String>>>, //List of videos that have failed to process with the error messages.
 
-    running_pids: Arc<Mutex<HashMap<u64, u32>>>,
+    running_pids: Arc<Mutex<HashMap<u64, u32>>>, //Map of the pids of the ffmpeg commands used to process the videos.
 
     max_gpu_tflops: u64,
 }
@@ -102,6 +105,12 @@ impl VideoProcessor for LocalVideoProcessor {
         cp.contains(video_id)
     }
 
+    fn get_currently_processing(&self) -> HashSet<u64> {
+        let cp_mutg = self.currently_processing.lock().unwrap();
+        let cp = cp_mutg.deref();
+        return cp.clone();
+    }
+
     fn is_finished_processing(&self, video_id: &u64) -> bool {
         let fp_mutg = self.finished_processing.lock().unwrap();
         let fp: &HashSet<u64> = fp_mutg.deref();
@@ -123,7 +132,7 @@ impl VideoProcessor for LocalVideoProcessor {
         video_id: u64,
         video_file_path: String,
         result_directory: String,
-    ) -> Result<JoinHandle<()>, std::io::Error> {
+    ) -> Result<mpsc::Receiver<bool>, std::io::Error> {
         if !self.is_activated() {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::PermissionDenied,
@@ -149,6 +158,7 @@ impl VideoProcessor for LocalVideoProcessor {
         let fp_arc = Arc::clone(&self.finished_processing);
         let failp_arc = Arc::clone(&self.failed_processing);
         let running_pids_arc = Arc::clone(&self.running_pids);
+        let (tx, rx) = mpsc::channel();
         let child = thread::spawn(move || -> () {
             {
                 let mut cp_mutg = cp_arc.lock().unwrap();
@@ -205,9 +215,23 @@ impl VideoProcessor for LocalVideoProcessor {
                         String::from_utf8(output.stderr).unwrap()
                     ),
                 );
+                //Exec fail action:
+                // let mut on_fail_mutg = on_fail_clone.lock().unwrap();
+                // let on_fail_arc_clone = rx.recv().unwrap();
+                // let mut on_fail_mutg = on_fail_arc_clone.lock().unwrap();
+                // let on_fail_func = on_fail_mutg.deref_mut();
+                // on_fail_func();
+                tx.send(false);
+            } else {
+                //Exec success function:
+                // let mut on_success_mutg = on_success_arc.lock().unwrap();
+                // let on_success_func = on_success_mutg.deref_mut();
+                // on_success_func();
+                tx.send(true);
             }
         });
-        return Ok(child);
+        // return Ok(child);
+        return Ok(rx);
     }
 
     fn stop_processing(&mut self, video_id: u64) {
@@ -249,7 +273,7 @@ impl VideoProcessor for LocalVideoProcessor {
     }
 }
 
-#[cfg(target_os = "unix")]
+#[cfg(target_family = "unix")]
 ///Kills a process on unix systems:
 fn kill_process_by_pid(pid: u32) {
     //Unix systems:
@@ -259,15 +283,15 @@ fn kill_process_by_pid(pid: u32) {
     );
 }
 
-#[cfg(target_os = "linux")]
-///Kills a process on linux systems:
-fn kill_process_by_pid(pid: u32) {
-    //Unix systems:
-    nix::sys::signal::kill(
-        nix::unistd::Pid::from_raw(pid as i32),
-        nix::sys::signal::Signal::SIGKILL,
-    );
-}
+// #[cfg(target_os = "linux")]
+// ///Kills a process on linux systems:
+// fn kill_process_by_pid(pid: u32) {
+//     //Unix systems:
+//     nix::sys::signal::kill(
+//         nix::unistd::Pid::from_raw(pid as i32),
+//         nix::sys::signal::Signal::SIGKILL,
+//     );
+// }
 
 #[cfg(target_os = "windows")]
 ///Kills a process on windows systems:
@@ -282,52 +306,90 @@ fn kill_process_by_pid(pid: u32) {
 #[derive(Debug)]
 pub struct VideoProcessorManager {
     // local_processors: Vec<LocalVideoProcessor>,
-    local_processors: HashMap<u64, Arc<Mutex<LocalVideoProcessor>>>,
+    local_processors: LazyLock<Mutex<HashMap<u64, Arc<Mutex<LocalVideoProcessor>>>>>,
     // fastest_processors: LinkedList<u64>,
-    fastest_processors: Vec<u64>,
+    fastest_processors: LazyLock<Mutex<Vec<u64>>>,
 
-    currently_processing: Arc<Mutex<HashMap<u64, u64>>>,
-    finished_processing: Arc<Mutex<HashMap<u64, u64>>>,
-    failed_processing: Arc<Mutex<HashMap<u64, u64>>>,
-    join_handles: Arc<Mutex<HashMap<u64, JoinHandle<()>>>>,
+    currently_processing: LazyLock<Mutex<HashMap<u64, u64>>>,
+    finished_processing: LazyLock<Mutex<HashMap<u64, u64>>>,
+    failed_processing: LazyLock<Mutex<HashMap<u64, u64>>>,
+    // join_handles: Arc<Mutex<HashMap<u64, JoinHandle<()>>>>,
 }
 
 impl VideoProcessorManager {
-    pub fn new_arc(json_data: &serde_json::Value) -> Arc<Mutex<Self>> {
+    pub const fn new() -> Self {
+        Self {
+            local_processors: LazyLock::new(
+                || -> Mutex<HashMap<u64, Arc<Mutex<LocalVideoProcessor>>>> {
+                    Mutex::new(HashMap::with_capacity(10))
+                },
+            ),
+            fastest_processors: LazyLock::new(|| -> Mutex<Vec<u64>> {
+                Mutex::new(Vec::with_capacity(10))
+            }),
+            currently_processing: LazyLock::new(|| -> Mutex<HashMap<u64, u64>> {
+                Mutex::new(HashMap::new())
+            }),
+            finished_processing: LazyLock::new(|| -> Mutex<HashMap<u64, u64>> {
+                Mutex::new(HashMap::new())
+            }),
+            failed_processing: LazyLock::new(|| -> Mutex<HashMap<u64, u64>> {
+                Mutex::new(HashMap::new())
+            }),
+        }
+    }
+    // pub fn new_arc(json_data: &serde_json::Value) -> Arc<Mutex<Self>> {
+    //     //Get basic data:
+    //     let local_processors_jobj = json_data["local_processors"].as_object().unwrap();
+    //     let num_local_processors = local_processors_jobj.len();
+    //     let capacity = if num_local_processors < 10 {
+    //         10
+    //     } else {
+    //         num_local_processors
+    //     };
+    //     // Create VideoProcessorManager:
+    //     let manager_arc: Arc<Mutex<Self>> = Arc::new(Mutex::new(Self {
+    //         local_processors: Arc::new(Mutex::new(HashMap::with_capacity(capacity))),
+    //         // local_processors: LazyLock::new(
+    //         //     || -> Mutex<HashMap<u64, Arc<Mutex<LocalVideoProcessor>>>> {
+    //         //         Mutex::new(HashMap::with_capacity(10))
+    //         //     },
+    //         // ),
+    //         // fastest_processors: LinkedList::new(),
+    //         fastest_processors: Arc::new(Mutex::new(Vec::with_capacity(capacity))),
+    //         currently_processing: Arc::new(Mutex::new(HashMap::new())),
+    //         finished_processing: Arc::new(Mutex::new(HashMap::new())),
+    //         failed_processing: Arc::new(Mutex::new(HashMap::new())),
+    //         // join_handles: Arc::new(Mutex::new(HashMap::new())),
+    //     }));
+    //     //Populate the video manager:
+    //     {
+    //         let mut manager_mutg = manager_arc.lock().unwrap();
+    //         let video_pmanager: &mut Self = manager_mutg.deref_mut();
+    //         //Local processors:
+    //         for (lp_id_str, lp_jobj) in local_processors_jobj {
+    //             let lp_id: u64 = lp_id_str.parse::<u64>().unwrap();
+    //             video_pmanager.add_local_video_processor(Arc::new(Mutex::new(
+    //                 LocalVideoProcessor::new(lp_id, lp_jobj),
+    //             )));
+    //         }
+    //     }
+    //     return Arc::clone(&manager_arc);
+    // }
+
+    pub fn load_data(&'static self, json_data: &serde_json::Value) {
         //Get basic data:
         let local_processors_jobj = json_data["local_processors"].as_object().unwrap();
-        let num_local_processors = local_processors_jobj.len();
-        let capacity = if num_local_processors < 10 {
-            10
-        } else {
-            num_local_processors
-        };
-        // Create VideoProcessorManager:
-        let manager_arc: Arc<Mutex<Self>> = Arc::new(Mutex::new(Self {
-            local_processors: HashMap::with_capacity(capacity),
-            // fastest_processors: LinkedList::new(),
-            fastest_processors: Vec::with_capacity(capacity),
-            currently_processing: Arc::new(Mutex::new(HashMap::new())),
-            finished_processing: Arc::new(Mutex::new(HashMap::new())),
-            failed_processing: Arc::new(Mutex::new(HashMap::new())),
-            join_handles: Arc::new(Mutex::new(HashMap::new())),
-        }));
-        //Populate the video manager:
-        {
-            let mut manager_mutg = manager_arc.lock().unwrap();
-            let video_pmanager: &mut Self = manager_mutg.deref_mut();
-            //Local processors:
-            for (lp_id_str, lp_jobj) in local_processors_jobj {
-                let lp_id: u64 = lp_id_str.parse::<u64>().unwrap();
-                video_pmanager.add_local_video_processor(Arc::new(Mutex::new(
-                    LocalVideoProcessor::new(lp_id, lp_jobj),
-                )));
-            }
+        //Local processors:
+        for (lp_id_str, lp_jobj) in local_processors_jobj {
+            let lp_id: u64 = lp_id_str.parse::<u64>().unwrap();
+            self.add_local_video_processor(Arc::new(Mutex::new(LocalVideoProcessor::new(
+                lp_id, lp_jobj,
+            ))));
         }
-        return Arc::clone(&manager_arc);
     }
 
-    fn new_processor_sort(&mut self, new_processor_arc: Arc<Mutex<LocalVideoProcessor>>) {
+    fn new_processor_sort(&'static self, new_processor_arc: Arc<Mutex<LocalVideoProcessor>>) {
         let new_processor_mutg = new_processor_arc.lock().unwrap();
         let new_processor: &LocalVideoProcessor = new_processor_mutg.deref();
         let new_id = new_processor.get_id();
@@ -335,7 +397,9 @@ impl VideoProcessorManager {
         let mut insert_index = 0;
         {
             let mut i = 0;
-            for current_id in self.fastest_processors.iter() {
+            let fastp_mutg = self.fastest_processors.lock().unwrap();
+            let fastp = fastp_mutg.deref();
+            for current_id in fastp.iter() {
                 let current_processor_arc = self.get_processor(current_id).unwrap();
                 let current_processor_mutg = current_processor_arc.lock().unwrap();
                 let current_processor = current_processor_mutg.deref();
@@ -347,45 +411,85 @@ impl VideoProcessorManager {
             }
         }
         {
-            self.fastest_processors.insert(insert_index, new_id);
+            let mut fastp_mutg = self.fastest_processors.lock().unwrap();
+            let fastp = fastp_mutg.deref_mut();
+            fastp.insert(insert_index, new_id);
         }
     }
 
-    pub fn get_processor(&self, processor_id: &u64) -> Option<Arc<Mutex<impl VideoProcessor>>> {
-        return if self.local_processors.contains_key(processor_id) {
-            Some(Arc::clone(self.local_processors.get(processor_id).unwrap()))
+    pub fn get_processor(
+        &'static self,
+        processor_id: &u64,
+    ) -> Option<Arc<Mutex<impl VideoProcessor>>> {
+        let localp_mutg = self.local_processors.lock().unwrap();
+        let localp = localp_mutg.deref();
+        return if localp.contains_key(processor_id) {
+            Some(Arc::clone(localp.get(processor_id).unwrap()))
         } else {
             None
         };
     }
-    pub fn add_local_video_processor(&mut self, processor_arc: Arc<Mutex<LocalVideoProcessor>>) {
+    pub fn add_local_video_processor(
+        &'static self,
+        processor_arc: Arc<Mutex<LocalVideoProcessor>>,
+    ) {
         {
             let processor_mutg = processor_arc.lock().unwrap();
             let processor: &LocalVideoProcessor = processor_mutg.deref();
-            self.local_processors
-                .insert(processor.get_id(), Arc::clone(&processor_arc));
+            let mut localp_mutg = self.local_processors.lock().unwrap();
+            let localp = localp_mutg.deref_mut();
+            localp.insert(processor.get_id(), Arc::clone(&processor_arc));
         }
         {
             self.new_processor_sort(processor_arc);
         }
     }
 
-    pub fn activate_processor(&mut self, processor_id: u64) {
+    pub fn activate_processor(&'static self, processor_id: u64) {
         let processor_arc = self.get_processor(&processor_id).unwrap();
         let mut processor_mutg = processor_arc.lock().unwrap();
         let processor = processor_mutg.deref_mut();
         processor.activate();
     }
 
-    pub fn deactivate_processor(&mut self, processor_id: u64) {
-        let processor_arc = self.get_processor(&processor_id).unwrap();
-        let mut processor_mutg = processor_arc.lock().unwrap();
-        let processor = processor_mutg.deref_mut();
-        processor.activate();
+    pub fn deactivate_processor(
+        &'static self,
+        processor_id: &u64,
+    ) -> Option<Arc<Mutex<impl VideoProcessor>>> {
+        // let processor_arc = self.get_processor(&processor_id).unwrap();
+        // let mut processor_mutg = processor_arc.lock().unwrap();
+        // let processor = processor_mutg.deref_mut();
+        // processor.activate();
+        return match self.get_processor(processor_id) {
+            Some(pr_arc) => {
+                let mut pr_mutg = pr_arc.lock().unwrap();
+                let pr = pr_mutg.deref_mut();
+                let pr_cp = pr.get_currently_processing();
+                pr.deactivate();
+
+                let mut cp_mutg = self.currently_processing.lock().unwrap();
+                let cp = cp_mutg.deref_mut();
+                let mut failp_mutg = self.failed_processing.lock().unwrap();
+                let failp = failp_mutg.deref_mut();
+                for video_id in pr_cp {
+                    cp.remove(&video_id);
+                    failp.insert(video_id, *processor_id);
+                }
+                Some(Arc::clone(&pr_arc))
+            }
+            None => None,
+        };
     }
 
-    pub fn process(&self, video_id: u64, video_file_path: &String, result_directory: &String) {
-        for pr_id in self.fastest_processors.iter() {
+    pub fn process(
+        &'static self,
+        video_id: u64,
+        video_file_path: &String,
+        result_directory: &String,
+    ) {
+        let fastp_mutg = self.fastest_processors.lock().unwrap();
+        let fastp = fastp_mutg.deref();
+        for pr_id in fastp.iter() {
             let max_allowed_jobs = 2;
             let pr_arc = self.get_processor(&pr_id).unwrap();
             let mut pr_mutg = pr_arc.lock().unwrap();
@@ -398,21 +502,42 @@ impl VideoProcessorManager {
                     let cp: &mut HashMap<u64, u64> = cp_mutg.deref_mut();
                     cp.insert(video_id, pr.get_id());
                 }
-                {
-                    //Process video:
-                    let mut jh_mutg = self.join_handles.lock().unwrap();
-                    let jh: &mut HashMap<u64, JoinHandle<()>> = jh_mutg.deref_mut();
-                    jh.insert(
-                        video_id,
-                        pr.process(video_id, video_file_path.clone(), result_directory.clone())
-                            .unwrap(),
-                    );
-                }
+                // {
+                //     //Process video:
+                //     let mut jh_mutg = self.join_handles.lock().unwrap();
+                //     let jh: &mut HashMap<u64, JoinHandle<()>> = jh_mutg.deref_mut();
+                //     jh.insert(
+                //         video_id,
+                //         pr.process(video_id, video_file_path.clone(), result_directory.clone())
+                //             .unwrap(),
+                //     );
+                // }
+                let rx = pr
+                    .process(video_id, video_file_path.clone(), result_directory.clone())
+                    .unwrap();
+                // let pr_arc_clone = Arc::clone(&pr_arc);
+                // let fp_arc_clone = LazyLock::clone(&self.finished_processing);
+                // let failp_arc_clone = LazyLock::clone(&self.failed_processing);
+                let pr_id_copy: u64 = *pr_id;
+                thread::spawn(move || {
+                    let result = rx.recv().unwrap();
+                    println!("Received data from ffmpeg process!");
+                    if result {
+                        let mut fp_arc_clone_mutg = self.finished_processing.lock().unwrap();
+                        // fp_arc_clone_mutg.insert(video_id, *pr_id);
+                        let fp_clone = fp_arc_clone_mutg.deref_mut();
+                        fp_clone.insert(video_id, pr_id_copy);
+                    } else {
+                        let mut fail_arc_clone_mutg = self.failed_processing.lock().unwrap();
+                        let failp_clone = fail_arc_clone_mutg.deref_mut();
+                        failp_clone.insert(video_id, pr_id_copy);
+                    }
+                });
             }
         }
     }
 
-    pub fn stop_processing(&self, video_id: u64) {
+    pub fn stop_processing(&'static self, video_id: u64) {
         let mut cp_mutg = self.currently_processing.lock().unwrap();
         let cp = cp_mutg.deref_mut();
         let pr_id = match cp.remove(&video_id) {
@@ -425,7 +550,7 @@ impl VideoProcessorManager {
         pr.stop_processing(video_id);
     }
 
-    pub fn get_currently_processing_videos(&self) -> Vec<u64> {
+    pub fn get_currently_processing_videos(&'static self) -> Vec<u64> {
         let cp_mutg = self.currently_processing.lock().unwrap();
         let cp = cp_mutg.deref();
         let mut result: Vec<u64> = Vec::new();
@@ -435,7 +560,7 @@ impl VideoProcessorManager {
         return result;
     }
 
-    pub fn get_finished_processing_videos(&self) -> Vec<u64> {
+    pub fn get_finished_processing_videos(&'static self) -> Vec<u64> {
         let fp_mutg = self.finished_processing.lock().unwrap();
         let fp = fp_mutg.deref();
         let mut result: Vec<u64> = Vec::new();
@@ -445,7 +570,7 @@ impl VideoProcessorManager {
         return result;
     }
 
-    pub fn get_failed_processing_videos(&self) -> Vec<u64> {
+    pub fn get_failed_processing_videos(&'static self) -> Vec<u64> {
         let failp_mutg = self.failed_processing.lock().unwrap();
         let failp = failp_mutg.deref();
         let mut result: Vec<u64> = Vec::new();
@@ -454,4 +579,13 @@ impl VideoProcessorManager {
         }
         return result;
     }
+
+    pub fn remove_processor(&'static self, processor_id: &u64) {
+        self.deactivate_processor(processor_id);
+        let mut localp_mutg = self.local_processors.lock().unwrap();
+        let localp = localp_mutg.deref_mut();
+        localp.remove(processor_id).unwrap();
+    }
 }
+
+static TEST_MANAGER: VideoProcessorManager = VideoProcessorManager::new();
