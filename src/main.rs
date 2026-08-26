@@ -431,6 +431,9 @@ async fn main() -> std::io::Result<()> {
     //     println!("{:#?}", local_test_processor);
     // }
 
+    //Start ManagementConsole:
+    MANAGEMENT_CONSOLE.launch();
+
     HttpServer::new(move || {
         App::new()
             // .service(hello)

@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::{sync::Mutex, thread};
 
 use crate::file_handling::{file_handling::DataManager, video_processing::VideoProcessorManager};
 
@@ -16,5 +16,14 @@ impl ManagementConsole {
             data_manager,
             processor_manager,
         };
+    }
+
+    pub fn launch(&'static self) {
+        thread::spawn(|| {
+            println!(
+                "Myvids v{} management console: ",
+                std::env::var("CARGO_PKG_VERSION").unwrap()
+            );
+        });
     }
 }
