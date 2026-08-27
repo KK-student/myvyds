@@ -1,6 +1,7 @@
 ///This is a video sharing platform website, similar to YouTube.
 use std::{
     collections::HashMap,
+    io,
     ops::{Deref, DerefMut},
     sync::{Arc, Mutex},
     thread, time,
@@ -25,7 +26,7 @@ use crate::{
         likeable::Likeable,
         video_processing::{LocalVideoProcessor, VideoProcessor, VideoProcessorManager},
     },
-    management_console::ManagementConsole,
+    management_console::{ManagementConsole, TextBasedManagementConsole},
 };
 
 use crate::file_handling::video_data::VideoData;
@@ -230,8 +231,8 @@ static DATA_PATH: &str = "./data";
 static DATA_MANAGER: std::sync::LazyLock<Mutex<DataManager>> =
     std::sync::LazyLock::new(|| -> Mutex<DataManager> { Mutex::new(DataManager::new(DATA_PATH)) });
 static PROCESSOR_MANAGER: VideoProcessorManager = VideoProcessorManager::new(DATA_PATH);
-static MANAGEMENT_CONSOLE: ManagementConsole =
-    ManagementConsole::new(&DATA_MANAGER, &PROCESSOR_MANAGER);
+static MANAGEMENT_CONSOLE: TextBasedManagementConsole =
+    TextBasedManagementConsole::new(&DATA_MANAGER, &PROCESSOR_MANAGER);
 
 ///Gets a specific video file, serving the "/video/get_video_file/[video_id]/[video_seg_file]" endpoint. See the "Getting a video" section in the "./docs/SERVER_API.md" for more details.
 #[get("/video/get_video_file/{video_id}/{video_seg_file}")]
@@ -432,9 +433,14 @@ async fn main() -> std::io::Result<()> {
     // }
 
     //Start ManagementConsole:
-    MANAGEMENT_CONSOLE.launch();
+    MANAGEMENT_CONSOLE.launch(std::env::var("CARGO_PKG_VERSION").unwrap());
 
-    HttpServer::new(move || {
+    //Test user input:
+    // let mut test_input: String = String::new();
+    // let _ = io::stdin().read_line(&mut test_input);
+    // println!("You typed: \"{test_input}\". ");
+
+    match HttpServer::new(move || {
         App::new()
             // .service(hello)
             // .route("/hey", web::get().to(manual_hello))
@@ -452,7 +458,14 @@ async fn main() -> std::io::Result<()> {
             .service(get_comments_page)
             .service(get_video_thumbnail_image)
     })
-    .bind(("127.0.0.1", 6000))?
+    .bind(("127.0.0.1", 7000))
+    {
+        Ok(res) => res,
+        Err(e) => {
+            println!("Caught error from HttpServer.bind() function: {:#?}", e);
+            panic!("Caught error. ");
+        }
+    }
     .run()
     .await
 }

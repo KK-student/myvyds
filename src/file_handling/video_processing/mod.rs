@@ -57,7 +57,7 @@ pub trait VideoProcessor {
     fn get_num_active_jobs(&self) -> u64;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 ///A VideoProcessor that processes the videos on the current local server (ie. the same server that contains the MPEG_DASH files and the information about the videos, comments and users).
 pub struct LocalVideoProcessor {
     id: u64,
@@ -272,6 +272,32 @@ impl VideoProcessor for LocalVideoProcessor {
         let cp_mutg = self.currently_processing.lock().unwrap();
         let cp: &HashSet<u64> = cp_mutg.deref();
         return cp.len() as u64;
+    }
+}
+
+impl Clone for LocalVideoProcessor {
+    fn clone(&self) -> Self {
+        let cp_mutg = self.currently_processing.lock().unwrap();
+        let cp_clone = cp_mutg.deref().clone();
+
+        let fp_mutg = self.finished_processing.lock().unwrap();
+        let fp_clone = fp_mutg.deref().clone();
+
+        let failp_mutg = self.failed_processing.lock().unwrap();
+        let failp_clone = failp_mutg.deref().clone();
+
+        let r_mutg = self.running_pids.lock().unwrap();
+        let r_clone = r_mutg.deref().clone();
+        Self {
+            id: self.get_id(),
+            active: self.is_activated(),
+            ffmpeg_options: self.ffmpeg_options.clone(),
+            currently_processing: Arc::new(Mutex::new(cp_clone)),
+            finished_processing: Arc::new(Mutex::new(fp_clone)),
+            failed_processing: Arc::new(Mutex::new(failp_clone)),
+            running_pids: Arc::new(Mutex::new(r_clone)),
+            max_gpu_tflops: self.get_speed(),
+        }
     }
 }
 
@@ -599,5 +625,16 @@ impl VideoProcessorManager {
         let mut localp_mutg = self.local_processors.lock().unwrap();
         let localp = localp_mutg.deref_mut();
         localp.remove(processor_id).unwrap();
+    }
+
+    pub fn get_processors_clone(&'static self) -> HashMap<u64, LocalVideoProcessor> {
+        let lps_mutg = self.local_processors.lock().unwrap();
+        let lps = lps_mutg.deref();
+        let mut result: HashMap<u64, LocalVideoProcessor> = HashMap::new();
+        for (pr_id, vp_arc) in lps {
+            let vp_mutg = vp_arc.lock().unwrap();
+            result.insert(*pr_id, vp_mutg.deref().clone());
+        }
+        return result;
     }
 }
