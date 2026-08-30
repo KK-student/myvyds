@@ -637,4 +637,15 @@ impl VideoProcessorManager {
         }
         return result;
     }
+
+    pub fn is_activated(&'static self, processor_id: &u64) -> bool {
+        return match self.get_processor(processor_id) {
+            Some(proc_arc) => {
+                let proc_mutg = proc_arc.lock().unwrap();
+                let proc = proc_mutg.deref();
+                proc.is_activated()
+            }
+            None => false
+        };
+    }
 }

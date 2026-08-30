@@ -10,6 +10,10 @@ use crate::file_handling::{
     video_processing::{VideoProcessor, VideoProcessorManager},
 };
 
+mod string_input;
+
+use string_input::*;
+
 pub trait ManagementConsole {
     fn launch(&'static self, pkg_version: String);
 }
@@ -28,14 +32,6 @@ impl TextBasedManagementConsole {
             data_manager,
             processor_manager,
         };
-    }
-
-    fn get_input() -> String {
-        let _ = io::stdout().flush();
-        let mut input_string: String = String::new();
-        let _ = io::stdin().read_line(&mut input_string);
-        let result: &str = input_string.trim_end();
-        return result.to_string();
     }
 }
 
@@ -57,7 +53,7 @@ To quit, press Ctrl+C. ";
                     first_exec = false;
                 }
                 print!("Enter a command: ");
-                let mut input = Self::get_input();
+                let mut input = get_input();
                 println!("You typed: \"{input}\". ");
                 input = input.to_lowercase();
 
@@ -66,9 +62,11 @@ To quit, press Ctrl+C. ";
                     speed: u64,
                     num_active_jobs: u64,
                     currently_processing: &HashSet<u64>,
+                    is_activated: bool,
                 ) {
                     println!(
                         "id {id}: 
+\tactivated: {is_activated}
 \tspeed: {}
 \tnumber of active jobs: {}
 \tvideos currently processing (by id): {:?}",
@@ -81,6 +79,7 @@ To quit, press Ctrl+C. ";
                         vproc.get_speed(),
                         vproc.get_num_active_jobs(),
                         &vproc.get_currently_processing(),
+                        vproc.is_activated()
                     );
                 }
                 match input.as_str() {
@@ -94,31 +93,28 @@ To quit, press Ctrl+C. ";
                                 pr.get_speed(),
                                 pr.get_num_active_jobs(),
                                 &pr.get_currently_processing(),
+                                pr.is_activated()
                             );
                         }
                     }
                     "vproc" => {
                         let procs = self.processor_manager.get_processors_clone();
-                        let id: u64 = loop {
-                            break match {
-                                print!("Enter processor id: ");
-                                Self::get_input().parse::<u64>()
-                            } {
-                                Ok(num) => {
-                                    if !procs.contains_key(&num) {
-                                        println!("Invalid input. ");
-                                        continue;
-                                    } else {
-                                        num
-                                    }
-                                }
-                                Err(_) => {
-                                    println!("Invalid input. ");
-                                    continue;
-                                }
-                            };
-                        };
+                        let id: u64 = get_number_in_set(&procs, "Enter processor id");
                         view_proc_obj(procs.get(&id).unwrap());
+                    }
+                    "enable_proc" => {
+                        let procs = self.processor_manager.get_processors_clone();
+                        let id: u64 = get_number_in_set(&procs, "Enter processor id");
+                        if !self.processor_manager.is_activated(&id) {
+                            self.processor_manager.activate_processor(id);
+                        }
+                    }
+                    "disable_proc" => {
+                        let procs = self.processor_manager.get_processors_clone();
+                        let id: u64 = get_number_in_set(&procs, "Enter processor id");
+                        if self.processor_manager.is_activated(&id) {
+                            self.processor_manager.activate_processor(id);
+                        }
                     }
                     &_ => println!("Error: \"{input}\" is not a valid command. "),
                 };
