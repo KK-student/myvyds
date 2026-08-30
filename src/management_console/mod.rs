@@ -41,6 +41,10 @@ impl ManagementConsole for TextBasedManagementConsole {
             let help_text = "h -> Show this help message. 
 vprocs -> Show a list of all processors. 
 vproc -> Show the basic information for a processor. 
+activate_proc-> Enable a processor. 
+deactivate_proc-> Disable a processor. 
+activate_all_procs -> Activate all processors. 
+deactivate_all_procs -> Deactivate all processors. 
 To quit, press Ctrl+C. ";
             println!(
                 "Myvids v{} text-based management console: ",
@@ -53,9 +57,7 @@ To quit, press Ctrl+C. ";
                     first_exec = false;
                 }
                 print!("Enter a command: ");
-                let mut input = get_input();
-                println!("You typed: \"{input}\". ");
-                input = input.to_lowercase();
+                let input = get_input().to_lowercase();
 
                 fn view_proc(
                     id: u64,
@@ -102,19 +104,25 @@ To quit, press Ctrl+C. ";
                         let id: u64 = get_number_in_set(&procs, "Enter processor id");
                         view_proc_obj(procs.get(&id).unwrap());
                     }
-                    "enable_proc" => {
+                    "activate_proc" => {
                         let procs = self.processor_manager.get_processors_clone();
                         let id: u64 = get_number_in_set(&procs, "Enter processor id");
                         if !self.processor_manager.is_activated(&id) {
                             self.processor_manager.activate_processor(id);
                         }
                     }
-                    "disable_proc" => {
+                    "deactivate_proc" => {
                         let procs = self.processor_manager.get_processors_clone();
                         let id: u64 = get_number_in_set(&procs, "Enter processor id");
                         if self.processor_manager.is_activated(&id) {
                             self.processor_manager.activate_processor(id);
                         }
+                    }
+                    "activate_all_procs" => {
+                        self.processor_manager.activate_all_procs();
+                    }
+                    "deactivate_all_procs" => {
+                        self.processor_manager.deactivate_all_procs();
                     }
                     &_ => println!("Error: \"{input}\" is not a valid command. "),
                 };

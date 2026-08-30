@@ -14,7 +14,7 @@ use crate::file_handling::file_handling::read_small_file;
 ///A trait for processing videos.
 pub trait VideoProcessor {
     ///Create a new VideoProcessor (return type depends on struct implementing this trait) from the given JSON configuration data (config_json_data).
-    fn new(id: u64, config_json_data: &Value) -> Self;
+    fn new(id: u64, config_json_data: &Value) -> Self where Self: Sized;
 
     ///Process a video with the specified video id (video_id), input video file path (video_file_path), and output directory (result_directory) into MPEG_DASH format using ffmpeg.
     fn process(
@@ -58,10 +58,31 @@ pub trait VideoProcessor {
 }
 
 #[derive(Debug)]
+struct BoolBox {
+    value: bool,
+}
+
+impl BoolBox {
+    fn new(value: bool) -> Self {
+        Self {
+            value: value
+        }
+    }
+
+    fn get(&self) -> bool {
+        self.value
+    }
+
+    fn set(&mut self, value: bool) {
+        self.value = value;
+    }
+}
+
+#[derive(Debug)]
 ///A VideoProcessor that processes the videos on the current local server (ie. the same server that contains the MPEG_DASH files and the information about the videos, comments and users).
 pub struct LocalVideoProcessor {
     id: u64,
-    active: bool,
+    active: Arc<Mutex<BoolBox>>,
 
     ffmpeg_options: Vec<String>, //Ffmpeg options, except for "-f dash -o ./output.mpd" and "-i [input_file]"
 
@@ -78,7 +99,7 @@ impl VideoProcessor for LocalVideoProcessor {
     ///Create a new LocalVideoProcessor with the given id (id) and from the given JSON configuration data (config_json_data). The given JSON data must be in the following format:
     ///
     ///{"ffmpeg_options": [list of all of the ffmpeg options needed to convert the input video file into MPEG_DASH format as a list of strings (with no spaces in the items themselves), NOT INCLUDING "-i", the input video file, "-f", "dash", or "./output.mpd"], "max_gpu_tflops": [the maximum amount of tflops the server's GPU could do as a u64]}
-    fn new(id: u64, config_json_data: &Value) -> Self {
+    fn new(id: u64, config_json_data: &Value) -> Self where Self: Sized {
         let mut ffmpeg_options: Vec<String> = Vec::new();
         for json_item in config_json_data["ffmpeg_options"].as_array().unwrap() {
             ffmpeg_options.push(json_item.as_str().unwrap().to_string());
@@ -86,7 +107,7 @@ impl VideoProcessor for LocalVideoProcessor {
 
         return Self {
             id: id,
-            active: true,
+            active: Arc::new(Mutex::new(BoolBox::new(true))),
             ffmpeg_options: ffmpeg_options,
             currently_processing: Arc::new(Mutex::new(HashSet::new())),
             finished_processing: Arc::new(Mutex::new(HashSet::new())),
@@ -250,11 +271,16 @@ impl VideoProcessor for LocalVideoProcessor {
     }
 
     fn activate(&mut self) {
-        self.active = true;
+        let mut active_mutg = self.active.lock().unwrap();
+        let active_obj = active_mutg.deref_mut();
+        active_obj.set(false);
     }
 
     fn deactivate(&mut self) {
-        self.active = false;
+        //self.active = false;
+        let mut active_mutg = self.active.lock().unwrap();
+        let active_obj = active_mutg.deref_mut();
+        active_obj.set(false);
         //Kill all active ffmpeg processes:
         let mut running_pids_mutg = self.running_pids.lock().unwrap();
         let running_pids: &mut HashMap<u64, u32> = running_pids_mutg.deref_mut();
@@ -265,7 +291,9 @@ impl VideoProcessor for LocalVideoProcessor {
     }
 
     fn is_activated(&self) -> bool {
-        self.active
+        let active_mutg = self.active.lock().unwrap();
+        let active_obj = active_mutg.deref();
+        active_obj.get()
     }
 
     fn get_num_active_jobs(&self) -> u64 {
@@ -290,7 +318,7 @@ impl Clone for LocalVideoProcessor {
         let r_clone = r_mutg.deref().clone();
         Self {
             id: self.get_id(),
-            active: self.is_activated(),
+            active: Arc::new(Mutex::new(BoolBox::new(self.is_activated()))),
             ffmpeg_options: self.ffmpeg_options.clone(),
             currently_processing: Arc::new(Mutex::new(cp_clone)),
             finished_processing: Arc::new(Mutex::new(fp_clone)),
@@ -647,5 +675,36 @@ impl VideoProcessorManager {
             }
             None => false
         };
+    }
+
+    pub fn for_all_procs<F: Fn(Box<dyn VideoProcessor>)>(&'static self, action: &F) {
+        let lps_mutg = self.local_processors.lock().unwrap();
+        let lps = lps_mutg.deref();
+        for vp_arc in lps.values() {
+            action({
+                || {
+                    let vp_mutg = vp_arc.lock().unwrap();
+                    Box::new(vp_mutg.deref().clone())
+                }
+                }());
+        }
+    }
+
+    pub fn activate_all_procs(&'static self) {
+        let lps_mutg = self.local_processors.lock().unwrap();
+        let lps = lps_mutg.deref();
+        for vp_arc in lps.values() {
+            let mut vp_mutg = vp_arc.lock().unwrap();
+            let vp = vp_mutg.deref_mut();
+            vp.activate();
+        }
+    }
+
+    pub fn deactivate_all_procs(&'static self) {
+        let lps_mutg = self.local_processors.lock().unwrap();
+        let lps = lps_mutg.deref();
+        for vp_id in lps.keys() {
+            self.deactivate_processor(vp_id);
+        }
     }
 }
