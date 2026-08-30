@@ -1,10 +1,7 @@
 ///This is a video sharing platform website, similar to YouTube.
 use std::{
-    collections::HashMap,
-    io,
     ops::{Deref, DerefMut},
     sync::{Arc, Mutex},
-    thread, time,
 };
 
 // use futures::lock::{Mutex, MutexLockFuture};
@@ -16,7 +13,6 @@ use actix_web::{
     mime,
     web::{self, Query},
 };
-use serde_json::Value;
 
 use crate::{
     file_handling::{
@@ -24,7 +20,7 @@ use crate::{
         describable::Describable,
         file_handling::{DataManager, read_small_file},
         likeable::Likeable,
-        video_processing::{LocalVideoProcessor, VideoProcessor, VideoProcessorManager},
+        video_processing::{VideoProcessor, VideoProcessorManager},
     },
     management_console::{ManagementConsole, TextBasedManagementConsole},
 };

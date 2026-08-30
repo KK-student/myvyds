@@ -1,10 +1,9 @@
 use std::{
-    any::{Any, TypeId},
-    collections::{HashMap, HashSet, LinkedList},
+    collections::{HashMap, HashSet},
     ops::{Deref, DerefMut},
-    process::{Child, Command},
+    process::Command,
     sync::{Arc, LazyLock, Mutex, mpsc},
-    thread::{self, JoinHandle},
+    thread::{self},
 };
 
 use serde_json::Value;
@@ -182,7 +181,7 @@ impl VideoProcessor for LocalVideoProcessor {
         let failp_arc = Arc::clone(&self.failed_processing);
         let running_pids_arc = Arc::clone(&self.running_pids);
         let (tx, rx) = mpsc::channel();
-        let child = thread::spawn(move || -> () {
+        let _child = thread::spawn(move || -> () {
             {
                 let mut cp_mutg = cp_arc.lock().unwrap();
                 let cp: &mut HashSet<u64> = cp_mutg.deref_mut();
@@ -244,13 +243,13 @@ impl VideoProcessor for LocalVideoProcessor {
                 // let mut on_fail_mutg = on_fail_arc_clone.lock().unwrap();
                 // let on_fail_func = on_fail_mutg.deref_mut();
                 // on_fail_func();
-                tx.send(false);
+                let _ = tx.send(false);
             } else {
                 //Exec success function:
                 // let mut on_success_mutg = on_success_arc.lock().unwrap();
                 // let on_success_func = on_success_mutg.deref_mut();
                 // on_success_func();
-                tx.send(true);
+                let _ = tx.send(true);
             }
         });
         // return Ok(child);
@@ -333,7 +332,7 @@ impl Clone for LocalVideoProcessor {
 ///Kills a process on unix systems:
 fn kill_process_by_pid(pid: u32) {
     //Unix systems:
-    nix::sys::signal::kill(
+    let _ = nix::sys::signal::kill(
         nix::unistd::Pid::from_raw(pid as i32),
         nix::sys::signal::Signal::SIGKILL,
     );

@@ -5,7 +5,6 @@ use std::{
 };
 
 use json_escape::escape_str;
-use serde::Serialize;
 use serde_json::Value;
 
 use crate::file_handling::{

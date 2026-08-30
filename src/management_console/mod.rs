@@ -1,6 +1,5 @@
 use std::{
     collections::HashSet,
-    io::{self, Write},
     sync::Mutex,
     thread,
 };

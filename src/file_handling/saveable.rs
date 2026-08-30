@@ -1,6 +1,6 @@
 use std::{
     ops::Deref,
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, Mutex},
 };
 
 use json_escape::escape_str;
