@@ -1,12 +1,12 @@
 use std::{
     collections::HashSet,
-    sync::Mutex,
+    sync::{Arc, Mutex},
     thread,
 };
 
 use crate::file_handling::{
     file_handling::DataManager,
-    video_processing::{VideoProcessor, VideoProcessorManager},
+    video_processing::{LocalVideoProcessor, VideoProcessor, VideoProcessorManager},
 };
 
 mod string_input;
@@ -80,7 +80,7 @@ To quit, press Ctrl+C. ";
                         vproc.get_speed(),
                         vproc.get_num_active_jobs(),
                         &vproc.get_currently_processing(),
-                        vproc.is_activated()
+                        vproc.is_activated(),
                     );
                 }
                 match input.as_str() {
@@ -94,7 +94,7 @@ To quit, press Ctrl+C. ";
                                 pr.get_speed(),
                                 pr.get_num_active_jobs(),
                                 &pr.get_currently_processing(),
-                                pr.is_activated()
+                                pr.is_activated(),
                             );
                         }
                     }
@@ -122,6 +122,66 @@ To quit, press Ctrl+C. ";
                     }
                     "deactivate_all_procs" => {
                         self.processor_manager.deactivate_all_procs();
+                    }
+                    "add_processor" => {
+                        //Get processor type:
+                        let menu_options: [&str; 1] = [
+                            "LOCAL_VIDEO -> Processes videos locally on this computer's cpu, graphics card, and audio processor (if available)",
+                        ];
+                        let item_index = get_menu_item(
+                            Some("Processor types"),
+                            "Enter processor type",
+                            &menu_options,
+                            1,
+                        );
+                        match item_index {
+                            0 => {
+                                //Get ffmpeg options:
+                                let mut ffmpeg_opts: Vec<String> = Vec::new();
+                                let default_ffmpeg_opts: &str = "-map 0 -c:v:0 libx264 -b:v:0 5000k -s:v:0 1920x1080 -map 0 -c:v:1 libx264 -b:v:1 3000k -s:v:1 1280x720 -map 0 -c:v:2 libx264 -b:v:2 1000k -s:v:2 640x360 -map 0 -c:v:3 libvpx-vp9 -b:v:3 5000k -s:v:3 1920x1080 -map 0 -c:v:4 libvpx-vp9 -b:v:4 3000k -s:v:4 1280x720 -map 0 -c:v:5 libvpx-vp9 -b:v:5 1000k -s:v:5 640x360 -map 0:a:0 -c:a:0 aac -b:a:0 192k -map 0:a:0 -c:a:1 aac -b:a:1 128k -map 0:a:0 -c:a:2 aac -b:a:2  64k -map 0:a:0 -c:a:3 libopus -b:a:3 192k -map 0:a:0 -c:a:4 libopus -b:a:4 128k -map 0:a:0 -c:a:5 libopus -b:a:5  64k";
+                                let use_default_ffmpeg_opts =
+                                    get_yes_or_no(format!("The default command line options for ffmpeg, which is used to convert the input video file into MPEG_DASH format, are the following \"{default_ffmpeg_opts}\". Do you want to use them?").as_str());
+                                if use_default_ffmpeg_opts {
+                                    for part in default_ffmpeg_opts.split_whitespace() {
+                                        ffmpeg_opts.push(part.to_string());
+                                    }
+                                } else {
+                                    // todo!("Implement this!");
+                                    loop {
+                                        let _ois = get_input();
+                                        let opts_input = _ois.as_str();
+                                        for part in opts_input.split_whitespace() {
+                                            ffmpeg_opts.push(part.to_string());
+                                        }
+                                        if get_yes_or_no(format!("You entered the following ffmpeg options: {:?}. Do you want to enter different ones?", ffmpeg_opts).as_str()) {
+                                            ffmpeg_opts.clear();
+                                            continue;
+                                        } else {
+                                            break;
+                                        }
+                                    }
+                                }
+                                //Get ID:
+                                let id: u64 = get_number::<u64>("Enter processor id");
+                                //Get max_gpu_tflops:
+                                let max_gpu_tflops: u64 = get_number::<u64>(
+                                    "Enter the maximum amount of tflops your GPU can do in a second",
+                                );
+                                //Create LocalVideoProcessor:
+                                self.processor_manager.add_local_video_processor(Arc::new(
+                                    Mutex::new(LocalVideoProcessor::new_with_opts(
+                                        id,
+                                        &ffmpeg_opts,
+                                        max_gpu_tflops,
+                                    )),
+                                ));
+                            }
+                            _ => {
+                                panic!(
+                                    "{item_index} is not a valid option! get_menu_item function failed!"
+                                )
+                            }
+                        }
                     }
                     &_ => println!("Error: \"{input}\" is not a valid command. "),
                 };

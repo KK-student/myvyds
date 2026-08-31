@@ -3,7 +3,7 @@ use std::io::Write;
 
 use num_traits::Num;
 
-use std::collections::{HashSet, LinkedList, HashMap};
+use std::collections::{HashMap, HashSet, LinkedList};
 use std::hash::Hash;
 
 pub trait Container<T: Eq + Hash> {
@@ -42,7 +42,11 @@ pub fn get_input() -> String {
     return result.to_string();
 }
 
-pub fn get_number_in_range<T: Num + std::str::FromStr + std::cmp::PartialOrd>(min: T, max: T, prompt: &str) -> T {
+pub fn get_number_in_range<T: Num + std::str::FromStr + std::cmp::PartialOrd>(
+    min: T,
+    max: T,
+    prompt: &str,
+) -> T {
     return loop {
         break match {
             print!("{prompt}: ");
@@ -64,7 +68,10 @@ pub fn get_number_in_range<T: Num + std::str::FromStr + std::cmp::PartialOrd>(mi
     };
 }
 
-pub fn get_number_in_set<T: Num + std::str::FromStr + Eq + Hash>(list: &impl Container<T>, prompt: &str) -> T {
+pub fn get_number_in_set<T: Num + std::str::FromStr + Eq + Hash>(
+    list: &impl Container<T>,
+    prompt: &str,
+) -> T {
     return loop {
         break match {
             print!("{prompt}: ");
@@ -99,4 +106,68 @@ pub fn get_number<T: Num + std::str::FromStr>(prompt: &str) -> T {
             }
         };
     };
+}
+
+#[cfg(target_family = "unix")]
+pub const NEWLINE_SEQUENCE: &'static str = "\n";
+
+#[cfg(target_os = "windows")]
+pub const NEWLINE_SEQUENCE: &'static str = "\r\n";
+
+pub fn get_menu_item(
+    before_message: Option<&str>,
+    prompt: &str,
+    menu_items: &[&str],
+    num_indents: u8,
+) -> usize {
+    match before_message {
+        Some(val) => println!("{val}"),
+        None => (),
+    };
+    {
+        let mut i = 0;
+        while i < menu_items.len() {
+            {
+                let mut i2 = 0;
+                while i2 < num_indents {
+                    print!("\t");
+                    i2 += 1;
+                }
+            }
+            println!("[{i}]: {}", menu_items[i]);
+            i += 1;
+        }
+    }
+
+    return get_number_in_range(0, menu_items.len(), prompt);
+}
+
+pub fn get_yes_or_no(prompt: &str) -> bool {
+    let full_prompt = format!(
+        "{prompt}{}Enter your answer (y/n): ",
+        if prompt.len() == 0 {
+            let prompt_last_char = prompt.chars().last().unwrap();
+            if prompt_last_char == '?' || prompt_last_char == '.' {
+                " "
+            } else if prompt_last_char != ' ' {
+                ". "
+            } else {
+                ""
+            }
+        } else {
+            ""
+        }
+    );
+    loop {
+        print!("{full_prompt}");
+        let input = get_input().to_lowercase();
+        if input == "y" || input == "yes" {
+            break true;
+        } else if input == "n" || input == "no" {
+            break false;
+        } else {
+            println!("Error: Invalid input: \"{input}\". ");
+            continue;
+        }
+    }
 }

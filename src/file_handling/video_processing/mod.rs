@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    mem,
     ops::{Deref, DerefMut},
     process::Command,
     sync::{Arc, LazyLock, Mutex, mpsc},
@@ -10,10 +11,41 @@ use serde_json::Value;
 
 use crate::file_handling::file_handling::read_small_file;
 
+#[derive(Debug, PartialEq)]
+pub enum VideoProcessorType {
+    LOCAL_VIDEO,
+}
+
+fn cast_video_processor_arc<R: VideoProcessor, F: VideoProcessor>(
+    processor_arc: Arc<Mutex<F>>,
+) -> Arc<Mutex<R>> {
+    //Check if processor_arc is being casted to the corrent type:
+    {
+        let processor_mutg = processor_arc.lock().unwrap();
+        if R::get_type_trait() != F::get_type_trait() {
+            panic!(
+                "Cannot cast from {:?} to {:?} VideoProcessor types!",
+                F::get_type_trait(),
+                R::get_type_trait()
+            );
+        }
+    }
+
+    //Cast:
+    let vp_arc_casted: Arc<Mutex<R>>;
+    unsafe {
+        vp_arc_casted = mem::transmute::<Arc<Mutex<F>>, Arc<Mutex<R>>>(processor_arc);
+    }
+
+    return Arc::clone(&vp_arc_casted);
+}
+
 ///A trait for processing videos.
 pub trait VideoProcessor {
     ///Create a new VideoProcessor (return type depends on struct implementing this trait) from the given JSON configuration data (config_json_data).
-    fn new(id: u64, config_json_data: &Value) -> Self where Self: Sized;
+    fn new(id: u64, config_json_data: &Value) -> Self
+    where
+        Self: Sized;
 
     ///Process a video with the specified video id (video_id), input video file path (video_file_path), and output directory (result_directory) into MPEG_DASH format using ffmpeg.
     fn process(
@@ -53,7 +85,16 @@ pub trait VideoProcessor {
     ///Is this VideoProcessor currently activated?
     fn is_activated(&self) -> bool;
 
+    ///Get number of currently active jobs:
     fn get_num_active_jobs(&self) -> u64;
+
+    ///Get the type of the VideoProcessor:
+    fn get_type_trait() -> VideoProcessorType
+    where
+        Self: Sized;
+
+    ///Same as get_type_trait, but for trait objects:
+    fn get_type(&self) -> VideoProcessorType;
 }
 
 #[derive(Debug)]
@@ -63,9 +104,7 @@ struct BoolBox {
 
 impl BoolBox {
     fn new(value: bool) -> Self {
-        Self {
-            value: value
-        }
+        Self { value: value }
     }
 
     fn get(&self) -> bool {
@@ -94,26 +133,54 @@ pub struct LocalVideoProcessor {
     max_gpu_tflops: u64,
 }
 
+impl LocalVideoProcessor {
+    pub fn new_with_opts(id: u64, ffmpeg_opts: &Vec<String>, max_gpu_tflops: u64) -> Self
+    where
+        Self: Sized,
+    {
+        return Self {
+            id: id,
+            active: Arc::new(Mutex::new(BoolBox::new(true))),
+            ffmpeg_options: ffmpeg_opts.clone(),
+            currently_processing: Arc::new(Mutex::new(HashSet::new())),
+            finished_processing: Arc::new(Mutex::new(HashSet::new())),
+            failed_processing: Arc::new(Mutex::new(HashMap::new())),
+            running_pids: Arc::new(Mutex::new(HashMap::new())),
+
+            max_gpu_tflops: max_gpu_tflops,
+        };
+    }
+}
+
 impl VideoProcessor for LocalVideoProcessor {
     ///Create a new LocalVideoProcessor with the given id (id) and from the given JSON configuration data (config_json_data). The given JSON data must be in the following format:
     ///
     ///{"ffmpeg_options": [list of all of the ffmpeg options needed to convert the input video file into MPEG_DASH format as a list of strings (with no spaces in the items themselves), NOT INCLUDING "-i", the input video file, "-f", "dash", or "./output.mpd"], "max_gpu_tflops": [the maximum amount of tflops the server's GPU could do as a u64]}
-    fn new(id: u64, config_json_data: &Value) -> Self where Self: Sized {
+    fn new(id: u64, config_json_data: &Value) -> Self
+    where
+        Self: Sized,
+    {
         let mut ffmpeg_options: Vec<String> = Vec::new();
         for json_item in config_json_data["ffmpeg_options"].as_array().unwrap() {
             ffmpeg_options.push(json_item.as_str().unwrap().to_string());
         }
 
-        return Self {
-            id: id,
-            active: Arc::new(Mutex::new(BoolBox::new(true))),
-            ffmpeg_options: ffmpeg_options,
-            currently_processing: Arc::new(Mutex::new(HashSet::new())),
-            finished_processing: Arc::new(Mutex::new(HashSet::new())),
-            failed_processing: Arc::new(Mutex::new(HashMap::new())),
-            max_gpu_tflops: config_json_data["max_gpu_tflops"].as_u64().unwrap(),
-            running_pids: Arc::new(Mutex::new(HashMap::new())),
-        };
+        return Self::new_with_opts(
+            id,
+            &ffmpeg_options,
+            config_json_data["max_gpu_tflops"].as_u64().unwrap(),
+        );
+
+        // return Self {
+        //     id: id,
+        //     active: Arc::new(Mutex::new(BoolBox::new(true))),
+        //     ffmpeg_options: ffmpeg_options,
+        //     currently_processing: Arc::new(Mutex::new(HashSet::new())),
+        //     finished_processing: Arc::new(Mutex::new(HashSet::new())),
+        //     failed_processing: Arc::new(Mutex::new(HashMap::new())),
+        //     max_gpu_tflops: config_json_data["max_gpu_tflops"].as_u64().unwrap(),
+        //     running_pids: Arc::new(Mutex::new(HashMap::new())),
+        // };
     }
 
     fn get_id(&self) -> u64 {
@@ -300,6 +367,14 @@ impl VideoProcessor for LocalVideoProcessor {
         let cp: &HashSet<u64> = cp_mutg.deref();
         return cp.len() as u64;
     }
+
+    fn get_type_trait() -> VideoProcessorType {
+        VideoProcessorType::LOCAL_VIDEO
+    }
+
+    fn get_type(&self) -> VideoProcessorType {
+        VideoProcessorType::LOCAL_VIDEO
+    }
 }
 
 impl Clone for LocalVideoProcessor {
@@ -337,16 +412,6 @@ fn kill_process_by_pid(pid: u32) {
         nix::sys::signal::Signal::SIGKILL,
     );
 }
-
-// #[cfg(target_os = "linux")]
-// ///Kills a process on linux systems:
-// fn kill_process_by_pid(pid: u32) {
-//     //Unix systems:
-//     nix::sys::signal::kill(
-//         nix::unistd::Pid::from_raw(pid as i32),
-//         nix::sys::signal::Signal::SIGKILL,
-//     );
-// }
 
 #[cfg(target_os = "windows")]
 ///Kills a process on windows systems:
@@ -395,44 +460,6 @@ impl VideoProcessorManager {
             data_path: data_path,
         }
     }
-    // pub fn new_arc(json_data: &serde_json::Value) -> Arc<Mutex<Self>> {
-    //     //Get basic data:
-    //     let local_processors_jobj = json_data["local_processors"].as_object().unwrap();
-    //     let num_local_processors = local_processors_jobj.len();
-    //     let capacity = if num_local_processors < 10 {
-    //         10
-    //     } else {
-    //         num_local_processors
-    //     };
-    //     // Create VideoProcessorManager:
-    //     let manager_arc: Arc<Mutex<Self>> = Arc::new(Mutex::new(Self {
-    //         local_processors: Arc::new(Mutex::new(HashMap::with_capacity(capacity))),
-    //         // local_processors: LazyLock::new(
-    //         //     || -> Mutex<HashMap<u64, Arc<Mutex<LocalVideoProcessor>>>> {
-    //         //         Mutex::new(HashMap::with_capacity(10))
-    //         //     },
-    //         // ),
-    //         // fastest_processors: LinkedList::new(),
-    //         fastest_processors: Arc::new(Mutex::new(Vec::with_capacity(capacity))),
-    //         currently_processing: Arc::new(Mutex::new(HashMap::new())),
-    //         finished_processing: Arc::new(Mutex::new(HashMap::new())),
-    //         failed_processing: Arc::new(Mutex::new(HashMap::new())),
-    //         // join_handles: Arc::new(Mutex::new(HashMap::new())),
-    //     }));
-    //     //Populate the video manager:
-    //     {
-    //         let mut manager_mutg = manager_arc.lock().unwrap();
-    //         let video_pmanager: &mut Self = manager_mutg.deref_mut();
-    //         //Local processors:
-    //         for (lp_id_str, lp_jobj) in local_processors_jobj {
-    //             let lp_id: u64 = lp_id_str.parse::<u64>().unwrap();
-    //             video_pmanager.add_local_video_processor(Arc::new(Mutex::new(
-    //                 LocalVideoProcessor::new(lp_id, lp_jobj),
-    //             )));
-    //         }
-    //     }
-    //     return Arc::clone(&manager_arc);
-    // }
 
     pub fn load_data(&'static self) {
         //Load config file:
@@ -496,6 +523,7 @@ impl VideoProcessorManager {
             None
         };
     }
+
     pub fn add_local_video_processor(
         &'static self,
         processor_arc: Arc<Mutex<LocalVideoProcessor>>,
@@ -510,6 +538,24 @@ impl VideoProcessorManager {
         {
             self.new_processor_sort(processor_arc);
         }
+    }
+
+    pub fn add_video_processor<F: VideoProcessor>(&'static self, processor_arc: Arc<Mutex<F>>) {
+        //Determine type:
+        let vp_type: VideoProcessorType;
+        {
+            let processor_mutg = processor_arc.lock().unwrap();
+            let processor: &dyn VideoProcessor = processor_mutg.deref();
+            vp_type = processor.get_type();
+        }
+        match vp_type {
+            VideoProcessorType::LOCAL_VIDEO => {
+                // self.add_local_video_processor(processor_arc as Arc<Mutex<LocalVideoProcessor>>)
+                self.add_local_video_processor(cast_video_processor_arc::<LocalVideoProcessor, F>(
+                    processor_arc,
+                ));
+            }
+        };
     }
 
     pub fn activate_processor(&'static self, processor_id: u64) {
@@ -672,7 +718,7 @@ impl VideoProcessorManager {
                 let proc = proc_mutg.deref();
                 proc.is_activated()
             }
-            None => false
+            None => false,
         };
     }
 
@@ -685,7 +731,7 @@ impl VideoProcessorManager {
                     let vp_mutg = vp_arc.lock().unwrap();
                     Box::new(vp_mutg.deref().clone())
                 }
-                }());
+            }());
         }
     }
 
