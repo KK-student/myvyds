@@ -44,6 +44,7 @@ activate_proc-> Enable a processor.
 deactivate_proc-> Disable a processor. 
 activate_all_procs -> Activate all processors. 
 deactivate_all_procs -> Deactivate all processors. 
+add_processor -> Add a new processor. 
 To quit, press Ctrl+C. ";
             println!(
                 "Myvids v{} text-based management console: ",
