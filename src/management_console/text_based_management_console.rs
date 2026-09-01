@@ -7,7 +7,10 @@ use std::{
 use crate::{
     file_handling::{
         file_handling::DataManager,
-        video_processing::{LocalVideoProcessor, VideoProcessor, VideoProcessorManager},
+        video_processing::{
+            VideoProcessorManager, local_video_processor::LocalVideoProcessor,
+            video_processor::VideoProcessor,
+        },
     },
     management_console::{ManagementConsole, string_input::*},
 };

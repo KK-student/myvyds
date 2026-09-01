@@ -1,6 +1,5 @@
 use std::{
     collections::{HashMap, HashSet},
-    mem,
     ops::{Deref, DerefMut},
     process::Command,
     sync::{Arc, LazyLock, Mutex, mpsc},
@@ -9,435 +8,28 @@ use std::{
 
 use serde_json::Value;
 
-use crate::file_handling::file_handling::read_small_file;
+use crate::file_handling::{
+    file_handling::read_small_file,
+    video_processing::{local_video_processor::LocalVideoProcessor, video_processor::*},
+};
 
-#[derive(Debug, PartialEq)]
-pub enum VideoProcessorType {
-    LOCAL_VIDEO,
-}
-
-fn cast_video_processor_arc<R: VideoProcessor, F: VideoProcessor>(
-    processor_arc: Arc<Mutex<F>>,
-) -> Arc<Mutex<R>> {
-    //Check if processor_arc is being casted to the corrent type:
-    {
-        let processor_mutg = processor_arc.lock().unwrap();
-        if R::get_type_trait() != F::get_type_trait() {
-            panic!(
-                "Cannot cast from {:?} to {:?} VideoProcessor types!",
-                F::get_type_trait(),
-                R::get_type_trait()
-            );
-        }
-    }
-
-    //Cast:
-    let vp_arc_casted: Arc<Mutex<R>>;
-    unsafe {
-        vp_arc_casted = mem::transmute::<Arc<Mutex<F>>, Arc<Mutex<R>>>(processor_arc);
-    }
-
-    return Arc::clone(&vp_arc_casted);
-}
-
-///A trait for processing videos.
-pub trait VideoProcessor {
-    ///Create a new VideoProcessor (return type depends on struct implementing this trait) from the given JSON configuration data (config_json_data).
-    fn new(id: u64, config_json_data: &Value) -> Self
-    where
-        Self: Sized;
-
-    ///Process a video with the specified video id (video_id), input video file path (video_file_path), and output directory (result_directory) into MPEG_DASH format using ffmpeg.
-    fn process(
-        &mut self,
-        video_id: u64,
-        video_file_path: String,
-        result_directory: String,
-    ) -> Result<mpsc::Receiver<bool>, std::io::Error>;
-
-    ///Stop processing a video with the specified video id (video_id).
-    fn stop_processing(&mut self, video_id: u64);
-
-    ///Get the list of videos that are currently processing.
-    fn get_currently_processing(&self) -> HashSet<u64>;
-
-    ///Is this VideoProcessor currently processing a video with the specified video id (video_id)?
-    fn is_processing(&self, video_id: &u64) -> bool;
-
-    ///Has this VideoProcessor finished processing a video with the specified video id (video_id)?
-    fn is_finished_processing(&self, video_id: &u64) -> bool;
-
-    ///Has this VideoProcessor finished processing a video with the specified video id (video_id) successfully? If so, returns the ok value (which is null), otherwise it returns the error message(s) of whatever command(s) was/were used.
-    fn is_processed_successfully(&self, video_id: &u64) -> Result<(), String>;
-
-    ///Get this VideoProcessor's speed factor. Could be something like the maximum possible FLOPS of the VideoProcessor's GPU.
-    fn get_speed(&self) -> u64;
-
-    ///Get this VideoProcessor's id.
-    fn get_id(&self) -> u64;
-
-    ///Activate this VideoProcessor.
-    fn activate(&mut self);
-
-    ///Deactivate this VideoProcessor. Will not be able to process anything until activated again.
-    fn deactivate(&mut self);
-
-    ///Is this VideoProcessor currently activated?
-    fn is_activated(&self) -> bool;
-
-    ///Get number of currently active jobs:
-    fn get_num_active_jobs(&self) -> u64;
-
-    ///Get the type of the VideoProcessor:
-    fn get_type_trait() -> VideoProcessorType
-    where
-        Self: Sized;
-
-    ///Same as get_type_trait, but for trait objects:
-    fn get_type(&self) -> VideoProcessorType;
-}
+pub mod local_video_processor;
+pub mod video_processor;
 
 #[derive(Debug)]
-struct BoolBox {
-    value: bool,
-}
-
-impl BoolBox {
-    fn new(value: bool) -> Self {
-        Self { value: value }
-    }
-
-    fn get(&self) -> bool {
-        self.value
-    }
-
-    fn set(&mut self, value: bool) {
-        self.value = value;
-    }
-}
-
-#[derive(Debug)]
-///A VideoProcessor that processes the videos on the current local server (ie. the same server that contains the MPEG_DASH files and the information about the videos, comments and users).
-pub struct LocalVideoProcessor {
-    id: u64,
-    active: Arc<Mutex<BoolBox>>,
-
-    ffmpeg_options: Vec<String>, //Ffmpeg options, except for "-f dash -o ./output.mpd" and "-i [input_file]"
-
-    currently_processing: Arc<Mutex<HashSet<u64>>>, //List of videos that are currently processing.
-    finished_processing: Arc<Mutex<HashSet<u64>>>,  //List of videos that have finished processing.
-    failed_processing: Arc<Mutex<HashMap<u64, String>>>, //List of videos that have failed to process with the error messages.
-
-    running_pids: Arc<Mutex<HashMap<u64, u32>>>, //Map of the pids of the ffmpeg commands used to process the videos.
-
-    max_gpu_tflops: u64,
-}
-
-impl LocalVideoProcessor {
-    pub fn new_with_opts(id: u64, ffmpeg_opts: &Vec<String>, max_gpu_tflops: u64) -> Self
-    where
-        Self: Sized,
-    {
-        return Self {
-            id: id,
-            active: Arc::new(Mutex::new(BoolBox::new(true))),
-            ffmpeg_options: ffmpeg_opts.clone(),
-            currently_processing: Arc::new(Mutex::new(HashSet::new())),
-            finished_processing: Arc::new(Mutex::new(HashSet::new())),
-            failed_processing: Arc::new(Mutex::new(HashMap::new())),
-            running_pids: Arc::new(Mutex::new(HashMap::new())),
-
-            max_gpu_tflops: max_gpu_tflops,
-        };
-    }
-}
-
-impl VideoProcessor for LocalVideoProcessor {
-    ///Create a new LocalVideoProcessor with the given id (id) and from the given JSON configuration data (config_json_data). The given JSON data must be in the following format:
-    ///
-    ///{"ffmpeg_options": [list of all of the ffmpeg options needed to convert the input video file into MPEG_DASH format as a list of strings (with no spaces in the items themselves), NOT INCLUDING "-i", the input video file, "-f", "dash", or "./output.mpd"], "max_gpu_tflops": [the maximum amount of tflops the server's GPU could do as a u64]}
-    fn new(id: u64, config_json_data: &Value) -> Self
-    where
-        Self: Sized,
-    {
-        let mut ffmpeg_options: Vec<String> = Vec::new();
-        for json_item in config_json_data["ffmpeg_options"].as_array().unwrap() {
-            ffmpeg_options.push(json_item.as_str().unwrap().to_string());
-        }
-
-        return Self::new_with_opts(
-            id,
-            &ffmpeg_options,
-            config_json_data["max_gpu_tflops"].as_u64().unwrap(),
-        );
-
-        // return Self {
-        //     id: id,
-        //     active: Arc::new(Mutex::new(BoolBox::new(true))),
-        //     ffmpeg_options: ffmpeg_options,
-        //     currently_processing: Arc::new(Mutex::new(HashSet::new())),
-        //     finished_processing: Arc::new(Mutex::new(HashSet::new())),
-        //     failed_processing: Arc::new(Mutex::new(HashMap::new())),
-        //     max_gpu_tflops: config_json_data["max_gpu_tflops"].as_u64().unwrap(),
-        //     running_pids: Arc::new(Mutex::new(HashMap::new())),
-        // };
-    }
-
-    fn get_id(&self) -> u64 {
-        self.id
-    }
-
-    fn is_processing(&self, video_id: &u64) -> bool {
-        // self.currently_processing.contains(video_id)
-        let cp_mutg = self.currently_processing.lock().unwrap();
-        let cp: &HashSet<u64> = cp_mutg.deref();
-        cp.contains(video_id)
-    }
-
-    fn get_currently_processing(&self) -> HashSet<u64> {
-        let cp_mutg = self.currently_processing.lock().unwrap();
-        let cp = cp_mutg.deref();
-        return cp.clone();
-    }
-
-    fn is_finished_processing(&self, video_id: &u64) -> bool {
-        let fp_mutg = self.finished_processing.lock().unwrap();
-        let fp: &HashSet<u64> = fp_mutg.deref();
-        fp.contains(video_id)
-    }
-
-    fn is_processed_successfully(&self, video_id: &u64) -> Result<(), String> {
-        let mut failp_mutg = self.failed_processing.lock().unwrap();
-        let failp: &mut HashMap<u64, String> = failp_mutg.deref_mut();
-        if failp.contains_key(video_id) {
-            Err(failp.get(video_id).unwrap().clone())
-        } else {
-            Ok(())
-        }
-    }
-
-    fn process(
-        &mut self,
-        video_id: u64,
-        video_file_path: String,
-        result_directory: String,
-    ) -> Result<mpsc::Receiver<bool>, std::io::Error> {
-        if !self.is_activated() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::PermissionDenied,
-                format!(
-                    "This LocalVideoProcessor(id = {}) is currently deactivated and cannot process anything until activated again",
-                    self.get_id()
-                ),
-            ));
-        }
-        //Constructing ffmpeg arguments:
-        let mut ffmpeg_full_args: Vec<String> = Vec::new();
-        ffmpeg_full_args.push("-i".to_string());
-        ffmpeg_full_args.push(video_file_path);
-        for arg in self.ffmpeg_options.iter() {
-            ffmpeg_full_args.push(arg.clone());
-        }
-        ffmpeg_full_args.push("-f".to_string());
-        ffmpeg_full_args.push("dash".to_string());
-        ffmpeg_full_args.push("./output.mpd".to_string());
-
-        //Starting ffmpeg processing thread:
-        let cp_arc = Arc::clone(&self.currently_processing);
-        let fp_arc = Arc::clone(&self.finished_processing);
-        let failp_arc = Arc::clone(&self.failed_processing);
-        let running_pids_arc = Arc::clone(&self.running_pids);
-        let (tx, rx) = mpsc::channel();
-        let _child = thread::spawn(move || -> () {
-            {
-                let mut cp_mutg = cp_arc.lock().unwrap();
-                let cp: &mut HashSet<u64> = cp_mutg.deref_mut();
-                cp.insert(video_id);
-            }
-            // let output = Command::new("ffmpeg")
-            //     .args(ffmpeg_full_args)
-            //     .current_dir(std::fs::canonicalize(result_directory).unwrap())
-            //     .output()
-            //     .expect("Ffmpeg failed. ");
-            //Construct ffmpeg command:
-            let result_dir_path = std::fs::canonicalize(result_directory).unwrap();
-            let mut new_cmd = Command::new("ffmpeg");
-            let ffmpeg_command_obj = new_cmd.args(ffmpeg_full_args).current_dir(result_dir_path);
-
-            //Spawn ffmpeg command and capture it's pid and output:
-            let child_process = ffmpeg_command_obj.spawn().unwrap();
-            {
-                let ffmpeg_pid = child_process.id();
-                let mut running_pids_mutg = running_pids_arc.lock().unwrap();
-                let running_pids: &mut HashMap<u64, u32> = running_pids_mutg.deref_mut();
-                running_pids.insert(video_id, ffmpeg_pid as u32);
-            }
-            let output = child_process
-                .wait_with_output()
-                .expect("Failed to wait on ffmpeg. ");
-
-            //Remove ffmpeg's pid:
-            {
-                let mut running_pids_mutg = running_pids_arc.lock().unwrap();
-                let running_pids: &mut HashMap<u64, u32> = running_pids_mutg.deref_mut();
-                running_pids.remove(&video_id);
-            }
-
-            //Remove from self.currently_processing and add to self.finished_processing:
-            let mut cp_mutg = cp_arc.lock().unwrap();
-            let cp: &mut HashSet<u64> = cp_mutg.deref_mut();
-            cp.remove(&video_id);
-
-            let mut fp_mutg = fp_arc.lock().unwrap();
-            let fp: &mut HashSet<u64> = fp_mutg.deref_mut();
-            fp.insert(video_id);
-
-            //If failed, add to self.failed_processing:
-            if !output.status.success() {
-                let mut failp_mutg = failp_arc.lock().unwrap();
-                let failp: &mut HashMap<u64, String> = failp_mutg.deref_mut();
-                failp.insert(
-                    video_id,
-                    format!(
-                        "Stdout: \n{}\nStderr: \n{}",
-                        String::from_utf8(output.stdout).unwrap(),
-                        String::from_utf8(output.stderr).unwrap()
-                    ),
-                );
-                //Exec fail action:
-                // let mut on_fail_mutg = on_fail_clone.lock().unwrap();
-                // let on_fail_arc_clone = rx.recv().unwrap();
-                // let mut on_fail_mutg = on_fail_arc_clone.lock().unwrap();
-                // let on_fail_func = on_fail_mutg.deref_mut();
-                // on_fail_func();
-                let _ = tx.send(false);
-            } else {
-                //Exec success function:
-                // let mut on_success_mutg = on_success_arc.lock().unwrap();
-                // let on_success_func = on_success_mutg.deref_mut();
-                // on_success_func();
-                let _ = tx.send(true);
-            }
-        });
-        // return Ok(child);
-        return Ok(rx);
-    }
-
-    fn stop_processing(&mut self, video_id: u64) {
-        let mut running_pids_mutg = self.running_pids.lock().unwrap();
-        let running_pids: &mut HashMap<u64, u32> = running_pids_mutg.deref_mut();
-        match running_pids.get(&video_id) {
-            Some(pid) => kill_process_by_pid(*pid),
-            None => (),
-        };
-    }
-
-    fn get_speed(&self) -> u64 {
-        self.max_gpu_tflops
-    }
-
-    fn activate(&mut self) {
-        let mut active_mutg = self.active.lock().unwrap();
-        let active_obj = active_mutg.deref_mut();
-        active_obj.set(false);
-    }
-
-    fn deactivate(&mut self) {
-        //self.active = false;
-        let mut active_mutg = self.active.lock().unwrap();
-        let active_obj = active_mutg.deref_mut();
-        active_obj.set(false);
-        //Kill all active ffmpeg processes:
-        let mut running_pids_mutg = self.running_pids.lock().unwrap();
-        let running_pids: &mut HashMap<u64, u32> = running_pids_mutg.deref_mut();
-        for pid in running_pids.values() {
-            kill_process_by_pid(*pid);
-        }
-        running_pids.clear();
-    }
-
-    fn is_activated(&self) -> bool {
-        let active_mutg = self.active.lock().unwrap();
-        let active_obj = active_mutg.deref();
-        active_obj.get()
-    }
-
-    fn get_num_active_jobs(&self) -> u64 {
-        let cp_mutg = self.currently_processing.lock().unwrap();
-        let cp: &HashSet<u64> = cp_mutg.deref();
-        return cp.len() as u64;
-    }
-
-    fn get_type_trait() -> VideoProcessorType {
-        VideoProcessorType::LOCAL_VIDEO
-    }
-
-    fn get_type(&self) -> VideoProcessorType {
-        VideoProcessorType::LOCAL_VIDEO
-    }
-}
-
-impl Clone for LocalVideoProcessor {
-    fn clone(&self) -> Self {
-        let cp_mutg = self.currently_processing.lock().unwrap();
-        let cp_clone = cp_mutg.deref().clone();
-
-        let fp_mutg = self.finished_processing.lock().unwrap();
-        let fp_clone = fp_mutg.deref().clone();
-
-        let failp_mutg = self.failed_processing.lock().unwrap();
-        let failp_clone = failp_mutg.deref().clone();
-
-        let r_mutg = self.running_pids.lock().unwrap();
-        let r_clone = r_mutg.deref().clone();
-        Self {
-            id: self.get_id(),
-            active: Arc::new(Mutex::new(BoolBox::new(self.is_activated()))),
-            ffmpeg_options: self.ffmpeg_options.clone(),
-            currently_processing: Arc::new(Mutex::new(cp_clone)),
-            finished_processing: Arc::new(Mutex::new(fp_clone)),
-            failed_processing: Arc::new(Mutex::new(failp_clone)),
-            running_pids: Arc::new(Mutex::new(r_clone)),
-            max_gpu_tflops: self.get_speed(),
-        }
-    }
-}
-
-#[cfg(target_family = "unix")]
-///Kills a process on unix systems:
-fn kill_process_by_pid(pid: u32) {
-    //Unix systems:
-    let _ = nix::sys::signal::kill(
-        nix::unistd::Pid::from_raw(pid as i32),
-        nix::sys::signal::Signal::SIGKILL,
-    );
-}
-
-#[cfg(target_os = "windows")]
-///Kills a process on windows systems:
-fn kill_process_by_pid(pid: u32) {
-    //Windows:
-    Command::new("taskkill")
-        .args(["/F", "/PID", pid.to_string().as_str()])
-        .output()
-        .expect("failed to execute process");
-}
-
-#[derive(Debug)]
+///A struct that manages all of the video processors. All instances of this struct MUST have a 'static lifetime!
 pub struct VideoProcessorManager {
-    // local_processors: Vec<LocalVideoProcessor>,
     local_processors: LazyLock<Mutex<HashMap<u64, Arc<Mutex<LocalVideoProcessor>>>>>,
-    // fastest_processors: LinkedList<u64>,
     fastest_processors: LazyLock<Mutex<Vec<u64>>>,
 
     currently_processing: LazyLock<Mutex<HashMap<u64, u64>>>,
     finished_processing: LazyLock<Mutex<HashMap<u64, u64>>>,
     failed_processing: LazyLock<Mutex<HashMap<u64, u64>>>,
-    // join_handles: Arc<Mutex<HashMap<u64, JoinHandle<()>>>>,
     data_path: &'static str,
 }
 
 impl VideoProcessorManager {
+    ///Creates a new VideoProcessorManager with the specified data directory (data_path).
     pub const fn new(data_path: &'static str) -> Self {
         Self {
             local_processors: LazyLock::new(
@@ -461,6 +53,9 @@ impl VideoProcessorManager {
         }
     }
 
+    ///Load the VideoProcessorManager's configuration data from "{data_path}/processors.json", which must be in the following JSON format:
+    ///
+    ///{"local_processors": [[local video processor JSON data (see the documentation for the LocalVideoProcessor struct)], ...]}
     pub fn load_data(&'static self) {
         //Load config file:
         let config_file_path = std::path::PathBuf::from(self.data_path).join("processors.json");
@@ -483,6 +78,8 @@ impl VideoProcessorManager {
         }
     }
 
+    ///Adds the given processor (new_processor_arc) to the appropriate location in self.fastest_processors.
+    //TODO: Need to either rename or make this function accept not just LocalVideoProcessors, but also other VideoProcessor types.
     fn new_processor_sort(&'static self, new_processor_arc: Arc<Mutex<LocalVideoProcessor>>) {
         let new_processor_mutg = new_processor_arc.lock().unwrap();
         let new_processor: &LocalVideoProcessor = new_processor_mutg.deref();
@@ -511,6 +108,7 @@ impl VideoProcessorManager {
         }
     }
 
+    ///Get a video processor by it's id (processor_id). Returns None if the processor with the specified id was not found.
     pub fn get_processor(
         &'static self,
         processor_id: &u64,
@@ -524,6 +122,7 @@ impl VideoProcessorManager {
         };
     }
 
+    ///Adds a new LocalVideoProcessor (processor_arc).
     pub fn add_local_video_processor(
         &'static self,
         processor_arc: Arc<Mutex<LocalVideoProcessor>>,
@@ -540,6 +139,7 @@ impl VideoProcessorManager {
         }
     }
 
+    ///Adds a new VideoProcessor (processor_arc). Warning: This function may be unsafe to use because it forcefully casts the processor_arc parameter into Arc<Mutex<F>>, where F is the type of the VideoProcessor. MUST make sure that the VideoProcessor has the correct VideoProcessorType enum, otherwise program could panic or have memory corruption issues or other undefined behaviour!
     pub fn add_video_processor<F: VideoProcessor>(&'static self, processor_arc: Arc<Mutex<F>>) {
         //Determine type:
         let vp_type: VideoProcessorType;
@@ -550,14 +150,19 @@ impl VideoProcessorManager {
         }
         match vp_type {
             VideoProcessorType::LOCAL_VIDEO => {
-                // self.add_local_video_processor(processor_arc as Arc<Mutex<LocalVideoProcessor>>)
                 self.add_local_video_processor(cast_video_processor_arc::<LocalVideoProcessor, F>(
                     processor_arc,
                 ));
-            }
+            } // _ => {
+              //     todo!(
+              //         "The VideoProcessorManager::add_video_processor function has not been implemented for the VideoProcessor of the type \"{:?}\"",
+              //         vp_type
+              //     );
+              // }
         };
     }
 
+    ///Activates the VideoProcessor with the specified id (processor_id).
     pub fn activate_processor(&'static self, processor_id: u64) {
         let processor_arc = self.get_processor(&processor_id).unwrap();
         let mut processor_mutg = processor_arc.lock().unwrap();
@@ -565,6 +170,7 @@ impl VideoProcessorManager {
         processor.activate();
     }
 
+    ///Deactivates the VideoProcessor with the specified id (processor_id).
     pub fn deactivate_processor(
         &'static self,
         processor_id: &u64,
@@ -594,6 +200,7 @@ impl VideoProcessorManager {
         };
     }
 
+    ///Processes a video, converting it into the MPEG_DASH format, with the specified video id (video_id) and file path of the video (video_file_path) (corresponding to the video id), and ouputs the result into the specified directory (result_directory).
     pub fn process(
         &'static self,
         video_id: u64,
@@ -615,29 +222,15 @@ impl VideoProcessorManager {
                     let cp: &mut HashMap<u64, u64> = cp_mutg.deref_mut();
                     cp.insert(video_id, pr.get_id());
                 }
-                // {
-                //     //Process video:
-                //     let mut jh_mutg = self.join_handles.lock().unwrap();
-                //     let jh: &mut HashMap<u64, JoinHandle<()>> = jh_mutg.deref_mut();
-                //     jh.insert(
-                //         video_id,
-                //         pr.process(video_id, video_file_path.clone(), result_directory.clone())
-                //             .unwrap(),
-                //     );
-                // }
                 let rx = pr
                     .process(video_id, video_file_path.clone(), result_directory.clone())
                     .unwrap();
-                // let pr_arc_clone = Arc::clone(&pr_arc);
-                // let fp_arc_clone = LazyLock::clone(&self.finished_processing);
-                // let failp_arc_clone = LazyLock::clone(&self.failed_processing);
                 let pr_id_copy: u64 = *pr_id;
                 thread::spawn(move || {
                     let result = rx.recv().unwrap();
                     println!("Received data from ffmpeg process!");
                     if result {
                         let mut fp_arc_clone_mutg = self.finished_processing.lock().unwrap();
-                        // fp_arc_clone_mutg.insert(video_id, *pr_id);
                         let fp_clone = fp_arc_clone_mutg.deref_mut();
                         fp_clone.insert(video_id, pr_id_copy);
                     } else {
@@ -650,6 +243,7 @@ impl VideoProcessorManager {
         }
     }
 
+    ///Stops the processing of a video with the given video_id (video_id).
     pub fn stop_processing(&'static self, video_id: u64) {
         let mut cp_mutg = self.currently_processing.lock().unwrap();
         let cp = cp_mutg.deref_mut();
@@ -663,6 +257,7 @@ impl VideoProcessorManager {
         pr.stop_processing(video_id);
     }
 
+    ///Get a COPY of the list of videos that are currently processing.
     pub fn get_currently_processing_videos(&'static self) -> Vec<u64> {
         let cp_mutg = self.currently_processing.lock().unwrap();
         let cp = cp_mutg.deref();
@@ -673,6 +268,7 @@ impl VideoProcessorManager {
         return result;
     }
 
+    ///Get a COPY of the list of videos that have SUCCESSFULLY finished processing.
     pub fn get_finished_processing_videos(&'static self) -> Vec<u64> {
         let fp_mutg = self.finished_processing.lock().unwrap();
         let fp = fp_mutg.deref();
@@ -683,6 +279,7 @@ impl VideoProcessorManager {
         return result;
     }
 
+    ///Get a COPY of the list of videos that have failed to process.
     pub fn get_failed_processing_videos(&'static self) -> Vec<u64> {
         let failp_mutg = self.failed_processing.lock().unwrap();
         let failp = failp_mutg.deref();
@@ -693,13 +290,25 @@ impl VideoProcessorManager {
         return result;
     }
 
+    ///Deactivates and removes the processor with the specified id (processor_id), if it exists.
     pub fn remove_processor(&'static self, processor_id: &u64) {
-        self.deactivate_processor(processor_id);
-        let mut localp_mutg = self.local_processors.lock().unwrap();
-        let localp = localp_mutg.deref_mut();
-        localp.remove(processor_id).unwrap();
+        if self.has_processor(processor_id) {
+            self.deactivate_processor(processor_id);
+            let mut localp_mutg = self.local_processors.lock().unwrap();
+            let localp = localp_mutg.deref_mut();
+            localp.remove(processor_id).unwrap();
+        }
     }
 
+    ///Returns whether or not if the VideoProcessor with the specified id (processor_id) exists.
+    pub fn has_processor(&'static self, processor_id: &u64) -> bool {
+        return match self.get_processor(processor_id) {
+            Some(_) => true,
+            None => false,
+        };
+    }
+
+    ///Gets a COPY of the HashMap of all of the video processors.
     pub fn get_processors_clone(&'static self) -> HashMap<u64, LocalVideoProcessor> {
         let lps_mutg = self.local_processors.lock().unwrap();
         let lps = lps_mutg.deref();
@@ -711,6 +320,7 @@ impl VideoProcessorManager {
         return result;
     }
 
+    ///Returns whether or not if the VideoProcessor with the given processor id (processor_id) exists and is activated.
     pub fn is_activated(&'static self, processor_id: &u64) -> bool {
         return match self.get_processor(processor_id) {
             Some(proc_arc) => {
@@ -722,6 +332,7 @@ impl VideoProcessorManager {
         };
     }
 
+    ///Performs a given function (action parameter) on a DEEP COPY of all of the video processors. It should be noted that changes made to the VideoProcessor given to the action parameter function will NOT affect the actual VideoProcessor in the VideoProcessorManager.
     pub fn for_all_procs<F: Fn(Box<dyn VideoProcessor>)>(&'static self, action: &F) {
         let lps_mutg = self.local_processors.lock().unwrap();
         let lps = lps_mutg.deref();
@@ -735,6 +346,8 @@ impl VideoProcessorManager {
         }
     }
 
+    ///Activates all of the video processors.
+    //TODO: Need to make sure this function works with not only just LocalVideoProcessors, but also other types of VideoProcessors.
     pub fn activate_all_procs(&'static self) {
         let lps_mutg = self.local_processors.lock().unwrap();
         let lps = lps_mutg.deref();
@@ -745,6 +358,8 @@ impl VideoProcessorManager {
         }
     }
 
+    ///Deactivates all of the video processors.
+    //TODO: Need to make sure this function works with not only just LocalVideoProcessors, but also other types of VideoProcessors.
     pub fn deactivate_all_procs(&'static self) {
         let lps_mutg = self.local_processors.lock().unwrap();
         let lps = lps_mutg.deref();

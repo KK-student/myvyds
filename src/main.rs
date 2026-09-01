@@ -20,7 +20,7 @@ use crate::{
         describable::Describable,
         file_handling::{DataManager, read_small_file},
         likeable::Likeable,
-        video_processing::{VideoProcessor, VideoProcessorManager},
+        video_processing::VideoProcessorManager,
     },
     management_console::{
         ManagementConsole, text_based_management_console::TextBasedManagementConsole,
