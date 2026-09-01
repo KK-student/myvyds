@@ -6,6 +6,7 @@ use num_traits::Num;
 use std::collections::{HashMap, HashSet, LinkedList};
 use std::hash::Hash;
 
+///Represents a set that can be used for the get_number_in_set function.
 pub trait Container<T: Eq + Hash> {
     fn contains_generic(&self, value: &T) -> bool;
 }
@@ -34,6 +35,7 @@ impl<T: Eq + Hash, V> Container<T> for HashMap<T, V> {
     }
 }
 
+///Get a single line of user input from stdin.
 pub fn get_input() -> String {
     let _ = io::stdout().flush();
     let mut input_string: String = String::new();
@@ -42,6 +44,7 @@ pub fn get_input() -> String {
     return result.to_string();
 }
 
+///Prompts a single user for a number within a specified range. Min, max, and the resulting number can be of any type covered by the Num trait and must also implement the std::str::FromStr trait.
 pub fn get_number_in_range<T: Num + std::str::FromStr + std::cmp::PartialOrd>(
     min: T,
     max: T,
@@ -68,6 +71,7 @@ pub fn get_number_in_range<T: Num + std::str::FromStr + std::cmp::PartialOrd>(
     };
 }
 
+///Prompts a single user for a number that is in the specified set (list). Min, max, and the resulting number can be of any type covered by the Num trait and must also implement the std::str::FromStr trait.
 pub fn get_number_in_set<T: Num + std::str::FromStr + Eq + Hash>(
     list: &impl Container<T>,
     prompt: &str,
@@ -93,6 +97,7 @@ pub fn get_number_in_set<T: Num + std::str::FromStr + Eq + Hash>(
     };
 }
 
+///Prompts the user for a number.
 pub fn get_number<T: Num + std::str::FromStr>(prompt: &str) -> T {
     return loop {
         break match {
@@ -108,6 +113,7 @@ pub fn get_number<T: Num + std::str::FromStr>(prompt: &str) -> T {
     };
 }
 
+///Displays a menu (menu_items) with a specified message to be printed before the menu (before_message), the prompt text (prompt), and number of '\t' characters to be printed at the beginning of each line of the menu (num_indents).
 pub fn get_menu_item(
     before_message: Option<&str>,
     prompt: &str,
@@ -136,8 +142,9 @@ pub fn get_menu_item(
     return get_number_in_range(0, menu_items.len(), prompt);
 }
 
+///Prompts the user for either a yes or no answer.
 pub fn get_yes_or_no(prompt: &str) -> bool {
-    //TODO: Will have to find out why there is no space after '?' at the end of {prompt} of prompt if the last character in prompt variable is '?'. 
+    //TODO: Will have to find out why there is no space after '?' at the end of {prompt} of prompt if the last character in prompt variable is '?'.
     let full_prompt = format!(
         "{prompt}{}Enter your answer (y/n): ",
         if prompt.len() == 0 {
