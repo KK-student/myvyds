@@ -108,12 +108,6 @@ pub fn get_number<T: Num + std::str::FromStr>(prompt: &str) -> T {
     };
 }
 
-#[cfg(target_family = "unix")]
-pub const NEWLINE_SEQUENCE: &'static str = "\n";
-
-#[cfg(target_os = "windows")]
-pub const NEWLINE_SEQUENCE: &'static str = "\r\n";
-
 pub fn get_menu_item(
     before_message: Option<&str>,
     prompt: &str,
@@ -121,7 +115,7 @@ pub fn get_menu_item(
     num_indents: u8,
 ) -> usize {
     match before_message {
-        Some(val) => println!("{val}"),
+        Some(val) => println!("{val}: "),
         None => (),
     };
     {
@@ -143,6 +137,7 @@ pub fn get_menu_item(
 }
 
 pub fn get_yes_or_no(prompt: &str) -> bool {
+    //TODO: Will have to find out why there is no space after '?' at the end of {prompt} of prompt if the last character in prompt variable is '?'. 
     let full_prompt = format!(
         "{prompt}{}Enter your answer (y/n): ",
         if prompt.len() == 0 {
