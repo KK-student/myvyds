@@ -22,7 +22,9 @@ use crate::{
         likeable::Likeable,
         video_processing::{VideoProcessor, VideoProcessorManager},
     },
-    management_console::{ManagementConsole, TextBasedManagementConsole},
+    management_console::{
+        ManagementConsole, text_based_management_console::TextBasedManagementConsole,
+    },
 };
 
 use crate::file_handling::video_data::VideoData;
