@@ -44,6 +44,10 @@ deactivate_proc-> Disable a processor.
 activate_all_procs -> Activate all processors. 
 deactivate_all_procs -> Deactivate all processors. 
 add_processor -> Add a new processor. 
+remove_processor -> Deactivate and remove a processor. 
+save_processor_data -> Save all of the video processor data. 
+save_video_user_data -> Save all of the user and video data. 
+save_all_data -> Save all of the data, including all of the user, video, and video processor data. 
 To quit, press Ctrl+C. ";
             println!(
                 "Myvids v{} text-based management console: ",
@@ -182,6 +186,21 @@ To quit, press Ctrl+C. ";
                                 )
                             }
                         }
+                    }
+                    "remove_processor" => {
+                        //Deactivate and remove a processor.
+                        let procs = self.processor_manager.get_processors_clone();
+                        let id: u64 = get_number_in_set(&procs, "Enter processor id");
+                        self.processor_manager.remove_processor(&id);
+                    }
+                    "save_processor_data" => {
+                        todo!("Implement \"save_processor_data\"!");
+                    }
+                    "save_video_user_data" => {
+                        todo!("Implement \"save_video_user_data\"!");
+                    }
+                    "save_all_data" => {
+                        todo!("Implement \"save_all_data\"!");
                     }
                     &_ => println!("Error: \"{input}\" is not a valid command. "),
                 };
