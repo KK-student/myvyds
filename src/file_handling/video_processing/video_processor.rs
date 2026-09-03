@@ -13,6 +13,9 @@ use serde_json::Value;
 pub enum VideoProcessorType {
     ///Represents the LocalVideoProcessor type.
     LOCAL_VIDEO,
+
+    ///Represents the LocalMusicProcessor type.
+    LOCAL_MUSIC,
 }
 
 ///Forcefully casts a Arc Mutex VideoProcessor of type Arc<Mutex<F>> to Arc<Mutex<R>> using the std::mem::transmute function, where F is the inferred type of the VideoProcessor and R is the type of VideoProcessor to cast to.
@@ -94,4 +97,47 @@ pub trait VideoProcessor {
 
     ///Same as get_type_trait, but for trait objects:
     fn get_type(&self) -> VideoProcessorType;
+}
+
+#[derive(Debug)]
+///A struct that holds a single boolean value.
+pub struct BoolBox {
+    value: bool,
+}
+
+impl BoolBox {
+    ///Creates a new BoolBox with the given value (value).
+    pub fn new(value: bool) -> Self {
+        Self { value: value }
+    }
+
+    ///Gets the boolean value of the BoolBox.
+    pub fn get(&self) -> bool {
+        self.value
+    }
+
+    ///Sets the boolean value of the BoolBox to the value of the "value" parameter.
+    pub fn set(&mut self, value: bool) {
+        self.value = value;
+    }
+}
+
+#[cfg(target_family = "unix")]
+///Kills a process on unix systems:
+pub fn kill_process_by_pid(pid: u32) {
+    //Unix systems:
+    let _ = nix::sys::signal::kill(
+        nix::unistd::Pid::from_raw(pid as i32),
+        nix::sys::signal::Signal::SIGKILL,
+    );
+}
+
+#[cfg(target_os = "windows")]
+///Kills a process on windows systems:
+pub fn kill_process_by_pid(pid: u32) {
+    //Windows:
+    Command::new("taskkill")
+        .args(["/F", "/PID", pid.to_string().as_str()])
+        .output()
+        .expect("failed to execute process");
 }

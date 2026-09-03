@@ -8,30 +8,9 @@ use std::{
 
 use serde_json::Value;
 
-use crate::file_handling::video_processing::video_processor::{VideoProcessor, VideoProcessorType};
-
-#[derive(Debug)]
-///A struct that holds a single boolean value.
-struct BoolBox {
-    value: bool,
-}
-
-impl BoolBox {
-    ///Creates a new BoolBox with the given value (value).
-    fn new(value: bool) -> Self {
-        Self { value: value }
-    }
-
-    ///Gets the boolean value of the BoolBox.
-    fn get(&self) -> bool {
-        self.value
-    }
-
-    ///Sets the boolean value of the BoolBox to the value of the "value" parameter.
-    fn set(&mut self, value: bool) {
-        self.value = value;
-    }
-}
+use crate::file_handling::video_processing::video_processor::{
+    BoolBox, VideoProcessor, VideoProcessorType, kill_process_by_pid,
+};
 
 #[derive(Debug)]
 ///A VideoProcessor that processes the videos on the current local server (ie. the same server that contains the MPEG_DASH files and the information about the videos, comments and users).
@@ -232,7 +211,7 @@ impl VideoProcessor for LocalVideoProcessor {
     fn activate(&mut self) {
         let mut active_mutg = self.active.lock().unwrap();
         let active_obj = active_mutg.deref_mut();
-        active_obj.set(false);
+        active_obj.set(true);
     }
 
     fn deactivate(&mut self) {
@@ -294,24 +273,4 @@ impl Clone for LocalVideoProcessor {
             max_gpu_tflops: self.get_speed(),
         }
     }
-}
-
-#[cfg(target_family = "unix")]
-///Kills a process on unix systems:
-fn kill_process_by_pid(pid: u32) {
-    //Unix systems:
-    let _ = nix::sys::signal::kill(
-        nix::unistd::Pid::from_raw(pid as i32),
-        nix::sys::signal::Signal::SIGKILL,
-    );
-}
-
-#[cfg(target_os = "windows")]
-///Kills a process on windows systems:
-fn kill_process_by_pid(pid: u32) {
-    //Windows:
-    Command::new("taskkill")
-        .args(["/F", "/PID", pid.to_string().as_str()])
-        .output()
-        .expect("failed to execute process");
 }

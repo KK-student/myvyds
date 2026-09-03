@@ -1,5 +1,6 @@
 use std::{
     collections::HashSet,
+    ops::Deref,
     sync::{Arc, Mutex},
     thread,
 };
@@ -8,17 +9,30 @@ use crate::{
     file_handling::{
         file_handling::DataManager,
         video_processing::{
-            VideoProcessorManager, local_video_processor::LocalVideoProcessor,
-            video_processor::VideoProcessor,
+            VideoProcessorManager,
+            local_music_processor::LocalMusicProcessor,
+            local_video_processor::LocalVideoProcessor,
+            video_processor::{VideoProcessor, VideoProcessorType},
         },
     },
     management_console::{ManagementConsole, string_input::*},
 };
 
+struct VideoProcessorManagerContainer {
+    vpm: &'static VideoProcessorManager,
+}
+
+impl Container<u64> for VideoProcessorManagerContainer {
+    fn contains_generic(&self, value: &u64) -> bool {
+        self.vpm.has_processor(value)
+    }
+}
+
 ///A ManagementConsole that runs directly on the server and talks to the user via the server's terminal.
 pub struct TextBasedManagementConsole {
     data_manager: &'static std::sync::LazyLock<Mutex<DataManager>>,
     processor_manager: &'static VideoProcessorManager,
+    processor_manager_container: VideoProcessorManagerContainer,
 }
 
 impl TextBasedManagementConsole {
@@ -29,6 +43,9 @@ impl TextBasedManagementConsole {
         return Self {
             data_manager,
             processor_manager,
+            processor_manager_container: VideoProcessorManagerContainer {
+                vpm: processor_manager,
+            },
         };
     }
 }
@@ -64,6 +81,7 @@ To quit, press Ctrl+C. ";
 
                 fn view_proc(
                     id: u64,
+                    vp_type: VideoProcessorType,
                     speed: u64,
                     num_active_jobs: u64,
                     currently_processing: &HashSet<u64>,
@@ -71,16 +89,18 @@ To quit, press Ctrl+C. ";
                 ) {
                     println!(
                         "id {id}: 
+\ttype: {:?}
 \tactivated: {is_activated}
 \tspeed: {}
 \tnumber of active jobs: {}
 \tvideos currently processing (by id): {:?}",
-                        speed, num_active_jobs, currently_processing
+                        vp_type, speed, num_active_jobs, currently_processing
                     );
                 }
-                fn view_proc_obj<T: VideoProcessor>(vproc: &T) {
+                fn view_proc_obj(vproc: &dyn VideoProcessor) {
                     view_proc(
                         vproc.get_id(),
+                        vproc.get_type(),
                         vproc.get_speed(),
                         vproc.get_num_active_jobs(),
                         &vproc.get_currently_processing(),
@@ -91,10 +111,14 @@ To quit, press Ctrl+C. ";
                     "h" => println!("{help_text}"),
                     "vprocs" => {
                         println!("List of processors: ");
-                        let procs = self.processor_manager.get_processors_clone();
-                        for (pr_id, pr) in procs {
+                        let procs_ids = self.processor_manager.get_all_proc_ids();
+                        for pr_id in procs_ids {
+                            let pr_arc = self.processor_manager.get_processor(&pr_id).unwrap();
+                            let pr_mutg = pr_arc.lock().unwrap();
+                            let pr = pr_mutg.deref();
                             view_proc(
                                 pr_id,
+                                pr.get_type(),
                                 pr.get_speed(),
                                 pr.get_num_active_jobs(),
                                 &pr.get_currently_processing(),
@@ -103,22 +127,33 @@ To quit, press Ctrl+C. ";
                         }
                     }
                     "vproc" => {
-                        let procs = self.processor_manager.get_processors_clone();
-                        let id: u64 = get_number_in_set(&procs, "Enter processor id");
-                        view_proc_obj(procs.get(&id).unwrap());
+                        // let procs = self.processor_manager.get_processors_clone();
+                        // let id: u64 = get_number_in_set(&procs, "Enter processor id");
+                        let id: u64 = get_number_in_set(
+                            &self.processor_manager_container,
+                            "Enter processor id",
+                        );
+                        let vp_arc: Arc<Mutex<dyn VideoProcessor>> =
+                            self.processor_manager.get_processor(&id).unwrap();
+                        let vp_mutg = vp_arc.lock().unwrap();
+                        view_proc_obj(vp_mutg.deref());
                     }
                     "activate_proc" => {
-                        let procs = self.processor_manager.get_processors_clone();
-                        let id: u64 = get_number_in_set(&procs, "Enter processor id");
+                        let id: u64 = get_number_in_set(
+                            &self.processor_manager_container,
+                            "Enter processor id",
+                        );
                         if !self.processor_manager.is_activated(&id) {
                             self.processor_manager.activate_processor(id);
                         }
                     }
                     "deactivate_proc" => {
-                        let procs = self.processor_manager.get_processors_clone();
-                        let id: u64 = get_number_in_set(&procs, "Enter processor id");
+                        let id: u64 = get_number_in_set(
+                            &self.processor_manager_container,
+                            "Enter processor id",
+                        );
                         if self.processor_manager.is_activated(&id) {
-                            self.processor_manager.activate_processor(id);
+                            self.processor_manager.deactivate_processor(&id);
                         }
                     }
                     "activate_all_procs" => {
@@ -129,8 +164,9 @@ To quit, press Ctrl+C. ";
                     }
                     "add_processor" => {
                         //Get processor type:
-                        let menu_options: [&str; 1] = [
+                        let menu_options: [&str; 2] = [
                             "LOCAL_VIDEO -> Processes videos locally on this computer's cpu, graphics card, and audio processor (if available)",
+                            "LOCAL_MUSIC -> Processes audio files locally on this computer's cpu or audio processor (if audio processor is available)",
                         ];
                         let item_index = get_menu_item(
                             Some("Processor types"),
@@ -180,6 +216,46 @@ To quit, press Ctrl+C. ";
                                     )),
                                 ));
                             }
+                            1 => {
+                                //Get ffmpeg options:
+                                let mut ffmpeg_opts: Vec<String> = Vec::new();
+                                let default_ffmpeg_opts: &str = "-strict experimental -c:v copy -map 0:a:0 -c:a:0 flac -b:a:0 192k -map 0:a:0 -c:a:1 flac -b:a:1 128k -map 0:a:0 -c:a:2 flac -b:a:2  64k -map_metadata 0";
+                                let use_default_ffmpeg_opts =
+                                    get_yes_or_no(format!("The default command line options for ffmpeg, which is used to convert the input video file into MPEG_DASH format, are the following \"{default_ffmpeg_opts}\". Do you want to use them?").as_str());
+                                if use_default_ffmpeg_opts {
+                                    for part in default_ffmpeg_opts.split_whitespace() {
+                                        ffmpeg_opts.push(part.to_string());
+                                    }
+                                } else {
+                                    // todo!("Implement this!");
+                                    loop {
+                                        let _ois = get_input();
+                                        let opts_input = _ois.as_str();
+                                        for part in opts_input.split_whitespace() {
+                                            ffmpeg_opts.push(part.to_string());
+                                        }
+                                        if get_yes_or_no(format!("You entered the following ffmpeg options: {:?}. Do you want to enter different ones?", ffmpeg_opts).as_str()) {
+                                            ffmpeg_opts.clear();
+                                            continue;
+                                        } else {
+                                            break;
+                                        }
+                                    }
+                                }
+                                //Get ID:
+                                let id: u64 = get_number::<u64>("Enter processor id");
+                                //Get max_gpu_tflops:
+                                let max_gpu_tflops: u64 =
+                                    get_number::<u64>("Enter the speed of your music processor");
+                                //Create LocalVideoProcessor:
+                                self.processor_manager.add_local_music_processor(Arc::new(
+                                    Mutex::new(LocalMusicProcessor::new_with_opts(
+                                        id,
+                                        &ffmpeg_opts,
+                                        max_gpu_tflops,
+                                    )),
+                                ));
+                            }
                             _ => {
                                 panic!(
                                     "{item_index} is not a valid option! get_menu_item function failed!"
@@ -189,8 +265,10 @@ To quit, press Ctrl+C. ";
                     }
                     "remove_processor" => {
                         //Deactivate and remove a processor.
-                        let procs = self.processor_manager.get_processors_clone();
-                        let id: u64 = get_number_in_set(&procs, "Enter processor id");
+                        let id: u64 = get_number_in_set(
+                            &self.processor_manager_container,
+                            "Enter processor id",
+                        );
                         self.processor_manager.remove_processor(&id);
                     }
                     "save_processor_data" => {

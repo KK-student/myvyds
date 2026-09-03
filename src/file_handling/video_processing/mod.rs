@@ -1,8 +1,7 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     ops::{Deref, DerefMut},
-    process::Command,
-    sync::{Arc, LazyLock, Mutex, mpsc},
+    sync::{Arc, LazyLock, Mutex},
     thread::{self},
 };
 
@@ -10,17 +9,36 @@ use serde_json::Value;
 
 use crate::file_handling::{
     file_handling::read_small_file,
-    video_processing::{local_video_processor::LocalVideoProcessor, video_processor::*},
+    video_processing::{
+        local_music_processor::LocalMusicProcessor, local_video_processor::LocalVideoProcessor,
+        video_processor::*,
+    },
 };
 
+pub mod local_music_processor;
 pub mod local_video_processor;
 pub mod video_processor;
+
+// ///Safely gets a VideoProcessor from a VideoProcessorManager (self parameter) by it's id (processor_id parameter). It is to be used like this: get_processor_safe!(self, processor_id);
+// macro_rules! get_processor_safe {
+//     ($self:expr, $processor_id:expr) => {
+//         match $self.get_local_video_processor(&$processor_id) {
+//             Some(vp_arc) => Some(vp_arc),
+//             None => match $self.get_local_music_processor(&$processor_id) {
+//                 Some(vp_arc) => Some(vp_arc),
+//                 None => None,
+//             },
+//         }
+//     };
+// }
 
 #[derive(Debug)]
 ///A struct that manages all of the video processors. All instances of this struct MUST have a 'static lifetime!
 pub struct VideoProcessorManager {
-    local_processors: LazyLock<Mutex<HashMap<u64, Arc<Mutex<LocalVideoProcessor>>>>>,
-    fastest_processors: LazyLock<Mutex<Vec<u64>>>,
+    local_video_processors: LazyLock<Mutex<HashMap<u64, Arc<Mutex<LocalVideoProcessor>>>>>,
+    local_music_processors: LazyLock<Mutex<HashMap<u64, Arc<Mutex<LocalMusicProcessor>>>>>,
+    fastest_local_video_processors: LazyLock<Mutex<Vec<u64>>>,
+    fastest_local_music_processors: LazyLock<Mutex<Vec<u64>>>,
 
     currently_processing: LazyLock<Mutex<HashMap<u64, u64>>>,
     finished_processing: LazyLock<Mutex<HashMap<u64, u64>>>,
@@ -32,12 +50,20 @@ impl VideoProcessorManager {
     ///Creates a new VideoProcessorManager with the specified data directory (data_path).
     pub const fn new(data_path: &'static str) -> Self {
         Self {
-            local_processors: LazyLock::new(
+            local_video_processors: LazyLock::new(
                 || -> Mutex<HashMap<u64, Arc<Mutex<LocalVideoProcessor>>>> {
                     Mutex::new(HashMap::with_capacity(10))
                 },
             ),
-            fastest_processors: LazyLock::new(|| -> Mutex<Vec<u64>> {
+            local_music_processors: LazyLock::new(
+                || -> Mutex<HashMap<u64, Arc<Mutex<LocalMusicProcessor>>>> {
+                    Mutex::new(HashMap::with_capacity(10))
+                },
+            ),
+            fastest_local_video_processors: LazyLock::new(|| -> Mutex<Vec<u64>> {
+                Mutex::new(Vec::with_capacity(10))
+            }),
+            fastest_local_music_processors: LazyLock::new(|| -> Mutex<Vec<u64>> {
                 Mutex::new(Vec::with_capacity(10))
             }),
             currently_processing: LazyLock::new(|| -> Mutex<HashMap<u64, u64>> {
@@ -66,21 +92,33 @@ impl VideoProcessorManager {
         let config_file_contents = read_small_file(config_file_path.to_str().unwrap()).unwrap();
         let json_data: Value = serde_json::from_slice(config_file_contents.as_slice()).unwrap();
         //Process JSON data:
-        let local_processors_jlist = json_data["local_processors"].as_array().unwrap();
-        //Local processors:
-        for local_processors_jobj in local_processors_jlist {
-            for (lp_id_str, lp_jobj) in local_processors_jobj.as_object().unwrap() {
-                let lp_id: u64 = lp_id_str.parse::<u64>().unwrap();
+        //Local video processors:
+        let local_video_processors_jlist = json_data["local_video_processors"].as_array().unwrap();
+        for local_video_processors_jobj in local_video_processors_jlist {
+            for (lvp_id_str, lvp_jobj) in local_video_processors_jobj.as_object().unwrap() {
+                let lvp_id: u64 = lvp_id_str.parse::<u64>().unwrap();
                 self.add_local_video_processor(Arc::new(Mutex::new(LocalVideoProcessor::new(
-                    lp_id, lp_jobj,
+                    lvp_id, lvp_jobj,
+                ))));
+            }
+        }
+        //Local video processors:
+        let local_music_processors_jlist = json_data["local_music_processors"].as_array().unwrap();
+        for local_music_processors_jobj in local_music_processors_jlist {
+            for (lmp_id_str, lmp_jobj) in local_music_processors_jobj.as_object().unwrap() {
+                let lmp_id: u64 = lmp_id_str.parse::<u64>().unwrap();
+                self.add_local_video_processor(Arc::new(Mutex::new(LocalVideoProcessor::new(
+                    lmp_id, lmp_jobj,
                 ))));
             }
         }
     }
 
-    ///Adds the given processor (new_processor_arc) to the appropriate location in self.fastest_processors.
-    //TODO: Need to either rename or make this function accept not just LocalVideoProcessors, but also other VideoProcessor types.
-    fn new_processor_sort(&'static self, new_processor_arc: Arc<Mutex<LocalVideoProcessor>>) {
+    ///Adds the given LocalVideoProcessor (new_processor_arc) to the appropriate location in self.fastest_local_video_processors.
+    fn new_local_video_processor_sort(
+        &'static self,
+        new_processor_arc: Arc<Mutex<LocalVideoProcessor>>,
+    ) {
         let new_processor_mutg = new_processor_arc.lock().unwrap();
         let new_processor: &LocalVideoProcessor = new_processor_mutg.deref();
         let new_id = new_processor.get_id();
@@ -88,10 +126,44 @@ impl VideoProcessorManager {
         let mut insert_index = 0;
         {
             let mut i = 0;
-            let fastp_mutg = self.fastest_processors.lock().unwrap();
+            let fastp_mutg = self.fastest_local_video_processors.lock().unwrap();
             let fastp = fastp_mutg.deref();
             for current_id in fastp.iter() {
-                let current_processor_arc = self.get_processor(current_id).unwrap();
+                let current_processor_arc: Arc<Mutex<LocalVideoProcessor>> =
+                    self.get_local_video_processor(current_id).unwrap();
+                let current_processor_mutg: std::sync::MutexGuard<'_, _> =
+                    current_processor_arc.lock().unwrap();
+                let current_processor = current_processor_mutg.deref();
+                if new_speed <= current_processor.get_speed() {
+                    insert_index = i;
+                    break;
+                }
+                i += 1;
+            }
+        }
+        {
+            let mut fastp_mutg = self.fastest_local_video_processors.lock().unwrap();
+            let fastp = fastp_mutg.deref_mut();
+            fastp.insert(insert_index, new_id);
+        }
+    }
+
+    ///Adds the given LocalMusicProcessor (new_processor_arc) to the appropriate location in self.fastest_local_music_processors.
+    fn new_local_music_processor_sort(
+        &'static self,
+        new_processor_arc: Arc<Mutex<LocalMusicProcessor>>,
+    ) {
+        let new_processor_mutg = new_processor_arc.lock().unwrap();
+        let new_processor: &LocalMusicProcessor = new_processor_mutg.deref();
+        let new_id = new_processor.get_id();
+        let new_speed = new_processor.get_speed();
+        let mut insert_index = 0;
+        {
+            let mut i = 0;
+            let fastp_mutg = self.fastest_local_music_processors.lock().unwrap();
+            let fastp = fastp_mutg.deref();
+            for current_id in fastp.iter() {
+                let current_processor_arc = self.get_local_music_processor(current_id).unwrap();
                 let current_processor_mutg = current_processor_arc.lock().unwrap();
                 let current_processor = current_processor_mutg.deref();
                 if new_speed <= current_processor.get_speed() {
@@ -102,9 +174,29 @@ impl VideoProcessorManager {
             }
         }
         {
-            let mut fastp_mutg = self.fastest_processors.lock().unwrap();
+            let mut fastp_mutg = self.fastest_local_music_processors.lock().unwrap();
             let fastp = fastp_mutg.deref_mut();
             fastp.insert(insert_index, new_id);
+        }
+    }
+
+    fn new_any_processor_sort<T: VideoProcessor>(&'static self, new_processor_arc: Arc<Mutex<T>>) {
+        let vp_type: VideoProcessorType;
+        {
+            let vp_mutg = new_processor_arc.lock().unwrap();
+            vp_type = vp_mutg.deref().get_type();
+        }
+        match vp_type {
+            VideoProcessorType::LOCAL_VIDEO => {
+                let vp_casted_arc: Arc<Mutex<LocalVideoProcessor>> =
+                    cast_video_processor_arc::<LocalVideoProcessor, T>(new_processor_arc);
+                self.new_local_video_processor_sort(vp_casted_arc);
+            }
+            VideoProcessorType::LOCAL_MUSIC => {
+                let vp_casted_arc: Arc<Mutex<LocalMusicProcessor>> =
+                    cast_video_processor_arc::<LocalMusicProcessor, T>(new_processor_arc);
+                self.new_local_music_processor_sort(vp_casted_arc);
+            }
         }
     }
 
@@ -112,11 +204,39 @@ impl VideoProcessorManager {
     pub fn get_processor(
         &'static self,
         processor_id: &u64,
-    ) -> Option<Arc<Mutex<impl VideoProcessor>>> {
-        let localp_mutg = self.local_processors.lock().unwrap();
-        let localp = localp_mutg.deref();
-        return if localp.contains_key(processor_id) {
-            Some(Arc::clone(localp.get(processor_id).unwrap()))
+    ) -> Option<Arc<Mutex<dyn VideoProcessor>>> {
+        let processor_arc_option: Option<Arc<Mutex<dyn VideoProcessor>>> =
+            match self.get_local_video_processor(&processor_id) {
+                Some(vp_arc) => Some(vp_arc),
+                None => match self.get_local_music_processor(&processor_id) {
+                    Some(vp_arc) => Some(vp_arc),
+                    None => None,
+                },
+            };
+        return processor_arc_option;
+    }
+
+    pub fn get_local_video_processor(
+        &'static self,
+        processor_id: &u64,
+    ) -> Option<Arc<Mutex<LocalVideoProcessor>>> {
+        let localvp_mutg = self.local_video_processors.lock().unwrap();
+        let localvp = localvp_mutg.deref();
+        return if localvp.contains_key(processor_id) {
+            Some(Arc::clone(localvp.get(processor_id).unwrap()))
+        } else {
+            None
+        };
+    }
+
+    pub fn get_local_music_processor(
+        &'static self,
+        processor_id: &u64,
+    ) -> Option<Arc<Mutex<LocalMusicProcessor>>> {
+        let localmp_mutg = self.local_music_processors.lock().unwrap();
+        let localmp = localmp_mutg.deref();
+        return if localmp.contains_key(processor_id) {
+            Some(Arc::clone(localmp.get(processor_id).unwrap()))
         } else {
             None
         };
@@ -130,12 +250,29 @@ impl VideoProcessorManager {
         {
             let processor_mutg = processor_arc.lock().unwrap();
             let processor: &LocalVideoProcessor = processor_mutg.deref();
-            let mut localp_mutg = self.local_processors.lock().unwrap();
+            let mut localp_mutg = self.local_video_processors.lock().unwrap();
             let localp = localp_mutg.deref_mut();
             localp.insert(processor.get_id(), Arc::clone(&processor_arc));
         }
         {
-            self.new_processor_sort(processor_arc);
+            self.new_local_video_processor_sort(processor_arc);
+        }
+    }
+
+    ///Adds a new LocalMusicProcessor (processor_arc).
+    pub fn add_local_music_processor(
+        &'static self,
+        processor_arc: Arc<Mutex<LocalMusicProcessor>>,
+    ) {
+        {
+            let processor_mutg = processor_arc.lock().unwrap();
+            let processor: &LocalMusicProcessor = processor_mutg.deref();
+            let mut localp_mutg = self.local_music_processors.lock().unwrap();
+            let localp = localp_mutg.deref_mut();
+            localp.insert(processor.get_id(), Arc::clone(&processor_arc));
+        }
+        {
+            self.new_local_music_processor_sort(processor_arc);
         }
     }
 
@@ -153,32 +290,33 @@ impl VideoProcessorManager {
                 self.add_local_video_processor(cast_video_processor_arc::<LocalVideoProcessor, F>(
                     processor_arc,
                 ));
-            } // _ => {
-              //     todo!(
-              //         "The VideoProcessorManager::add_video_processor function has not been implemented for the VideoProcessor of the type \"{:?}\"",
-              //         vp_type
-              //     );
-              // }
+            }
+            VideoProcessorType::LOCAL_MUSIC => {
+                self.add_local_music_processor(cast_video_processor_arc::<LocalMusicProcessor, F>(
+                    processor_arc,
+                ));
+            }
         };
     }
 
-    ///Activates the VideoProcessor with the specified id (processor_id).
+    ///Activates the VideoProcessor with the specified id (processor_id). Does nothing if the processor with the given id was not found.
     pub fn activate_processor(&'static self, processor_id: u64) {
-        let processor_arc = self.get_processor(&processor_id).unwrap();
-        let mut processor_mutg = processor_arc.lock().unwrap();
-        let processor = processor_mutg.deref_mut();
-        processor.activate();
+        let processor_arc_option = self.get_processor(&processor_id);
+        match processor_arc_option {
+            Some(processor_arc) => {
+                let mut processor_mutg = processor_arc.lock().unwrap();
+                let processor = processor_mutg.deref_mut();
+                processor.activate();
+            }
+            None => {}
+        };
     }
 
     ///Deactivates the VideoProcessor with the specified id (processor_id).
     pub fn deactivate_processor(
         &'static self,
         processor_id: &u64,
-    ) -> Option<Arc<Mutex<impl VideoProcessor>>> {
-        // let processor_arc = self.get_processor(&processor_id).unwrap();
-        // let mut processor_mutg = processor_arc.lock().unwrap();
-        // let processor = processor_mutg.deref_mut();
-        // processor.activate();
+    ) -> Option<Arc<Mutex<dyn VideoProcessor>>> {
         return match self.get_processor(processor_id) {
             Some(pr_arc) => {
                 let mut pr_mutg = pr_arc.lock().unwrap();
@@ -200,6 +338,81 @@ impl VideoProcessorManager {
         };
     }
 
+    ///Get fastest available VideoProcessor. Returns the processor_id of the fastest available VideoProcessor.
+    fn get_optimal_available_vp(&'static self, max_alllowed_jobs: u64) -> Option<u64> {
+        let fastlvps_mutg = self.fastest_local_video_processors.lock().unwrap();
+        let fastlvps = fastlvps_mutg.deref();
+        let fastlmps_mutg = self.fastest_local_music_processors.lock().unwrap();
+        let fastlmps = fastlmps_mutg.deref();
+
+        if fastlvps.len() == 0 && fastlmps.len() == 0 {
+            return None;
+        }
+
+        let mut ids_by_speed: HashMap<u64, u64> = HashMap::new();
+        let mut fastest_speeds: Vec<u64> = Vec::new();
+        // fastest_speeds.sort();
+
+        //Find fastest available LocalVideoProcessor:
+        // let mut fastest_lvp_id: u64;
+        // let mut fastest_lvp_speed: u64;
+        // if fastlvps.len() > 0 {
+        //     let first_lvp_arc = self.get_processor(fastlvps.get(0).unwrap()).unwrap();
+        //     let first_lvp_mutg = first_lvp_arc.lock().unwrap();
+        //     let first_lvp = first_lvp_mutg.deref();
+        //     fastest_lvp_id = first_lvp.get_id();
+        //     fastest_lvp_speed = first_lvp.get_speed();
+        // }
+        for lvp_id in fastlvps {
+            let lvp_arc = self.get_processor(&lvp_id).unwrap();
+            let lvp_mutg = lvp_arc.lock().unwrap();
+            let lvp = lvp_mutg.deref();
+            if lvp.is_activated() && lvp.get_num_active_jobs() < max_alllowed_jobs {
+                // fastest_lvp_id = lvp.get_id();
+                // fastest_lvp_speed = lvp.get_speed();
+                let speed = lvp.get_speed();
+                fastest_speeds.push(speed);
+                ids_by_speed.insert(speed, lvp.get_id());
+                break;
+            }
+        }
+
+        //Find fastest available LocalMusicProcessor:
+        // let mut fastest_lmp_id: u64;
+        // let mut fastest_lmp_speed: u64;
+        // if fastlmps.len() > 0 {
+        //     let first_lmp_arc = self.get_processor(fastlmps.get(0).unwrap()).unwrap();
+        //     let first_lmp_mutg = first_lmp_arc.lock().unwrap();
+        //     let first_lmp = first_lmp_mutg.deref();
+        //     fastest_lmp_id = first_lmp.get_id();
+        //     fastest_lmp_speed = first_lmp.get_speed();
+        // }
+        for lmp_id in fastlmps {
+            let lmp_arc = self.get_processor(&lmp_id).unwrap();
+            let lmp_mutg = lmp_arc.lock().unwrap();
+            let lmp = lmp_mutg.deref();
+            if lmp.is_activated() && lmp.get_num_active_jobs() < max_alllowed_jobs {
+                // fastest_lmp_id = lmp.get_id();
+                // fastest_lmp_speed = lmp.get_speed();
+                let speed = lmp.get_speed();
+                fastest_speeds.push(speed);
+                ids_by_speed.insert(speed, lmp.get_id());
+                break;
+            }
+        }
+
+        //Compare VideoProcessors and return the fastest.
+        if fastest_speeds.len() == 0 {
+            return None;
+        }
+        fastest_speeds.sort();
+        return Some(
+            *ids_by_speed
+                .get(fastest_speeds.get(fastest_speeds.len() - 1).unwrap())
+                .unwrap(),
+        );
+    }
+
     ///Processes a video, converting it into the MPEG_DASH format, with the specified video id (video_id) and file path of the video (video_file_path) (corresponding to the video id), and ouputs the result into the specified directory (result_directory).
     pub fn process(
         &'static self,
@@ -207,14 +420,16 @@ impl VideoProcessorManager {
         video_file_path: &String,
         result_directory: &String,
     ) {
-        let fastp_mutg = self.fastest_processors.lock().unwrap();
-        let fastp = fastp_mutg.deref();
-        for pr_id in fastp.iter() {
-            let max_allowed_jobs = 2;
+        {
+            let pr_id_opt = self.get_optimal_available_vp(2);
+            let pr_id: &u64 = match pr_id_opt {
+                Some(id) => &id.clone(),
+                None => return,
+            };
             let pr_arc = self.get_processor(&pr_id).unwrap();
             let mut pr_mutg = pr_arc.lock().unwrap();
             let pr = pr_mutg.deref_mut();
-            if pr.is_activated() && pr.get_num_active_jobs() < max_allowed_jobs {
+            {
                 //Process the video.
                 {
                     //Add to list of currently processing videos:
@@ -293,10 +508,59 @@ impl VideoProcessorManager {
     ///Deactivates and removes the processor with the specified id (processor_id), if it exists.
     pub fn remove_processor(&'static self, processor_id: &u64) {
         if self.has_processor(processor_id) {
+            //Deactivate processor:
             self.deactivate_processor(processor_id);
-            let mut localp_mutg = self.local_processors.lock().unwrap();
-            let localp = localp_mutg.deref_mut();
-            localp.remove(processor_id).unwrap();
+
+            //Remove processor:
+            let mut localvp_mutg = self.local_video_processors.lock().unwrap();
+            let localvp = localvp_mutg.deref_mut();
+            let mut localmp_mutg = self.local_music_processors.lock().unwrap();
+            let localmp = localmp_mutg.deref_mut();
+            if localvp.contains_key(processor_id) {
+                localvp.remove(processor_id).unwrap();
+            } else if localmp.contains_key(processor_id) {
+                localmp.remove(processor_id).unwrap();
+            } else {
+                todo!(
+                    "VideoProcessorManager.has_processor(processor_id) returned true, but was not found in either VideoProcessorManager.local_video_processors or VideoProcessorManager.local_music_processors!"
+                );
+            }
+
+            //Remove from fastest_local_video_processors:
+            let mut fast_lvps_mutg = self.fastest_local_video_processors.lock().unwrap();
+            let fast_lvps = fast_lvps_mutg.deref_mut();
+            let mut flvps_index: isize = -1;
+            {
+                let mut i = 0;
+                while i < fast_lvps.len() {
+                    if *processor_id == *fast_lvps.get(i).unwrap() {
+                        flvps_index = i as isize;
+                        break;
+                    }
+                    i += 1;
+                }
+            }
+            if flvps_index >= 0 {
+                fast_lvps.remove(flvps_index as usize);
+            }
+
+            //Remove from fastest_local_music_processors:
+            let mut fast_lmps_mutg = self.fastest_local_music_processors.lock().unwrap();
+            let fast_lmps = fast_lmps_mutg.deref_mut();
+            let mut flmps_index: isize = -1;
+            {
+                let mut i = 0;
+                while i < fast_lmps.len() {
+                    if *processor_id == *fast_lmps.get(i).unwrap() {
+                        flmps_index = i as isize;
+                        break;
+                    }
+                    i += 1;
+                }
+            }
+            if flmps_index >= 0 {
+                fast_lmps.remove(flmps_index as usize);
+            }
         }
     }
 
@@ -308,17 +572,16 @@ impl VideoProcessorManager {
         };
     }
 
-    ///Gets a COPY of the HashMap of all of the video processors.
-    pub fn get_processors_clone(&'static self) -> HashMap<u64, LocalVideoProcessor> {
-        let lps_mutg = self.local_processors.lock().unwrap();
-        let lps = lps_mutg.deref();
-        let mut result: HashMap<u64, LocalVideoProcessor> = HashMap::new();
-        for (pr_id, vp_arc) in lps {
-            let vp_mutg = vp_arc.lock().unwrap();
-            result.insert(*pr_id, vp_mutg.deref().clone());
-        }
-        return result;
-    }
+    // ///Gets a DEEP COPY of the HashMap of all of the video processors.
+    // pub fn get_processors_clone(&'static self) -> HashMap<u64, Box<dyn VideoProcessor>> {
+    //     let mut result: HashMap<u64, Box<dyn VideoProcessor>> = HashMap::new();
+    //     for vp_id in self.get_all_proc_ids() {
+    //         let vp_arc = self.get_processor(&vp_id).unwrap();
+    //         let vp_mutg = vp_arc.lock().unwrap();
+    //         result.insert(vp_id, Box::new(vp_mutg.deref().clone()));
+    //     }
+    //     return result;
+    // }
 
     ///Returns whether or not if the VideoProcessor with the given processor id (processor_id) exists and is activated.
     pub fn is_activated(&'static self, processor_id: &u64) -> bool {
@@ -332,39 +595,47 @@ impl VideoProcessorManager {
         };
     }
 
-    ///Performs a given function (action parameter) on a DEEP COPY of all of the video processors. It should be noted that changes made to the VideoProcessor given to the action parameter function will NOT affect the actual VideoProcessor in the VideoProcessorManager.
-    pub fn for_all_procs<F: Fn(Box<dyn VideoProcessor>)>(&'static self, action: &F) {
-        let lps_mutg = self.local_processors.lock().unwrap();
-        let lps = lps_mutg.deref();
-        for vp_arc in lps.values() {
-            action({
-                || {
-                    let vp_mutg = vp_arc.lock().unwrap();
-                    Box::new(vp_mutg.deref().clone())
-                }
-            }());
+    ///Activates all of the video processors.
+    pub fn activate_all_procs(&'static self) {
+        let lvps_mutg = self.local_video_processors.lock().unwrap();
+        let lvps = lvps_mutg.deref();
+        let lmps_mutg = self.local_music_processors.lock().unwrap();
+        let lmps = lmps_mutg.deref();
+        for lvp_arc in lvps.values() {
+            let mut lvp_mutg = lvp_arc.lock().unwrap();
+            let lvp = lvp_mutg.deref_mut();
+            lvp.activate();
+        }
+        for lmp_arc in lmps.values() {
+            let mut lmp_mutg = lmp_arc.lock().unwrap();
+            let lmp = lmp_mutg.deref_mut();
+            lmp.activate();
         }
     }
 
-    ///Activates all of the video processors.
-    //TODO: Need to make sure this function works with not only just LocalVideoProcessors, but also other types of VideoProcessors.
-    pub fn activate_all_procs(&'static self) {
-        let lps_mutg = self.local_processors.lock().unwrap();
-        let lps = lps_mutg.deref();
-        for vp_arc in lps.values() {
-            let mut vp_mutg = vp_arc.lock().unwrap();
-            let vp = vp_mutg.deref_mut();
-            vp.activate();
+    pub fn get_all_proc_ids(&'static self) -> Vec<u64> {
+        let mut result: Vec<u64> = Vec::new();
+        let lvps_mutg = self.local_video_processors.lock().unwrap();
+        let lvps = lvps_mutg.deref();
+        let lmps_mutg = self.local_music_processors.lock().unwrap();
+        let lmps = lmps_mutg.deref();
+
+        //Add LocalVideoProcessors:
+        for lvp_id in lvps.keys() {
+            result.push(*lvp_id);
         }
+        //Add LocalMusicProcessors:
+        for lmp_id in lmps.keys() {
+            result.push(*lmp_id);
+        }
+
+        return result;
     }
 
     ///Deactivates all of the video processors.
-    //TODO: Need to make sure this function works with not only just LocalVideoProcessors, but also other types of VideoProcessors.
     pub fn deactivate_all_procs(&'static self) {
-        let lps_mutg = self.local_processors.lock().unwrap();
-        let lps = lps_mutg.deref();
-        for vp_id in lps.keys() {
-            self.deactivate_processor(vp_id);
+        for vp_id in self.get_all_proc_ids() {
+            self.deactivate_processor(&vp_id);
         }
     }
 }
