@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     ops::{Deref, DerefMut},
+    panic,
     process::Command,
     sync::{Arc, Mutex, mpsc},
     thread,
@@ -9,7 +10,8 @@ use std::{
 use serde_json::Value;
 
 use crate::file_handling::video_processing::video_processor::{
-    BoolBox, VideoProcessor, VideoProcessorType, kill_process_by_pid,
+    BoolBox, VeryBasicVideoFileDescription, VideoProcessor, VideoProcessorType,
+    get_video_description, kill_process_by_pid,
 };
 
 #[derive(Debug)]
@@ -117,10 +119,52 @@ impl VideoProcessor for LocalVideoProcessor {
                 ),
             ));
         }
+
+        //Check if this VideoProcessor supports the given file:
+        //Canonicalize video_file_path:
+        let video_file_path_full_arc: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+        match panic::catch_unwind(|| -> () {
+            let path_arc = Arc::clone(&video_file_path_full_arc);
+            let mut path_mutg = path_arc.lock().unwrap();
+            let full_path: &mut String = path_mutg.deref_mut();
+            full_path.push_str(
+                std::fs::canonicalize(video_file_path.clone())
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+            );
+        }) {
+            Ok(_) => {}
+            Err(e) => {
+                let err_str = format!(
+                    "Error: Failed to canonicalize the following file path \"{video_file_path}\". Error message: {:?}.",
+                    e
+                );
+                return Err(std::io::Error::new(std::io::ErrorKind::NotFound, err_str));
+            }
+        };
+        let video_file_path_full_mutg = video_file_path_full_arc.lock().unwrap();
+        let video_file_path_full: &String = video_file_path_full_mutg.deref();
+        let description: VeryBasicVideoFileDescription =
+            match get_video_description(video_file_path_full.as_str()) {
+                Ok(desc) => desc,
+                Err(e) => return Err(e),
+            };
+        if !self.is_supported_file(&description) {
+            let err_str = format!(
+                "Error: The file with the following file path \"{video_file_path}\" is not supported by the VideoProcessor with the id of {}.",
+                self.get_id()
+            );
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                err_str,
+            ));
+        }
+
         //Constructing ffmpeg arguments:
         let mut ffmpeg_full_args: Vec<String> = Vec::new();
         ffmpeg_full_args.push("-i".to_string());
-        ffmpeg_full_args.push(video_file_path);
+        ffmpeg_full_args.push(String::from(video_file_path_full));
         for arg in self.ffmpeg_options.iter() {
             ffmpeg_full_args.push(arg.clone());
         }
@@ -246,6 +290,10 @@ impl VideoProcessor for LocalVideoProcessor {
 
     fn get_type(&self) -> VideoProcessorType {
         VideoProcessorType::LOCAL_VIDEO
+    }
+
+    fn is_video_processor(&self) -> bool {
+        true
     }
 }
 

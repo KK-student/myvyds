@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
+    panic,
     sync::{Arc, LazyLock, Mutex},
     thread::{self},
 };
@@ -339,7 +340,37 @@ impl VideoProcessorManager {
     }
 
     ///Get fastest available VideoProcessor. Returns the processor_id of the fastest available VideoProcessor.
-    fn get_optimal_available_vp(&'static self, max_alllowed_jobs: u64) -> Option<u64> {
+    fn get_optimal_available_vp(
+        &'static self,
+        max_alllowed_jobs: u64,
+        video_file_path: &String,
+    ) -> Option<u64> {
+        let video_file_path_full_arc: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+        match panic::catch_unwind(|| -> () {
+            let path_arc = Arc::clone(&video_file_path_full_arc);
+            let mut path_mutg = path_arc.lock().unwrap();
+            let full_path: &mut String = path_mutg.deref_mut();
+            full_path.push_str(
+                std::fs::canonicalize(video_file_path.clone())
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+            );
+        }) {
+            Ok(_) => {}
+            Err(_) => return None,
+        };
+        let video_file_path_full_mutg = video_file_path_full_arc.lock().unwrap();
+        let video_file_path_full: &String = video_file_path_full_mutg.deref();
+        let description: VeryBasicVideoFileDescription =
+            match get_video_description(video_file_path_full.as_str()) {
+                Ok(desc) => desc,
+                Err(e) => return None,
+            };
+
+        //Get fastest available VideoProcessor:
+        let video_file_path_full_mutg = video_file_path_full_arc.lock().unwrap();
+        let video_file_path_full: &String = video_file_path_full_mutg.deref();
         let fastlvps_mutg = self.fastest_local_video_processors.lock().unwrap();
         let fastlvps = fastlvps_mutg.deref();
         let fastlmps_mutg = self.fastest_local_music_processors.lock().unwrap();
@@ -367,7 +398,10 @@ impl VideoProcessorManager {
             let lvp_arc = self.get_processor(&lvp_id).unwrap();
             let lvp_mutg = lvp_arc.lock().unwrap();
             let lvp = lvp_mutg.deref();
-            if lvp.is_activated() && lvp.get_num_active_jobs() < max_alllowed_jobs {
+            if lvp.is_activated()
+                && lvp.get_num_active_jobs() < max_alllowed_jobs
+                && lvp.is_supported_file(&description)
+            {
                 // fastest_lvp_id = lvp.get_id();
                 // fastest_lvp_speed = lvp.get_speed();
                 let speed = lvp.get_speed();
@@ -391,7 +425,10 @@ impl VideoProcessorManager {
             let lmp_arc = self.get_processor(&lmp_id).unwrap();
             let lmp_mutg = lmp_arc.lock().unwrap();
             let lmp = lmp_mutg.deref();
-            if lmp.is_activated() && lmp.get_num_active_jobs() < max_alllowed_jobs {
+            if lmp.is_activated()
+                && lmp.get_num_active_jobs() < max_alllowed_jobs
+                && lmp.is_supported_file(&description)
+            {
                 // fastest_lmp_id = lmp.get_id();
                 // fastest_lmp_speed = lmp.get_speed();
                 let speed = lmp.get_speed();
@@ -421,7 +458,7 @@ impl VideoProcessorManager {
         result_directory: &String,
     ) {
         {
-            let pr_id_opt = self.get_optimal_available_vp(2);
+            let pr_id_opt = self.get_optimal_available_vp(2, video_file_path);
             let pr_id: &u64 = match pr_id_opt {
                 Some(id) => &id.clone(),
                 None => return,
