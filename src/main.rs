@@ -1,17 +1,20 @@
 ///This is a video sharing platform website, similar to YouTube.
 use std::{
+    collections::HashMap,
     ops::{Deref, DerefMut},
     sync::{Arc, Mutex},
 };
 
+use actix_multipart::{Field, Multipart};
+use futures::TryStreamExt;
 // use futures::lock::{Mutex, MutexLockFuture};
 use serde::Deserialize;
 
 use actix_web::{
     App, HttpResponse, HttpServer, Responder, get,
     http::header,
-    mime,
-    web::{self, Query},
+    mime, post,
+    web::{self, Bytes, Query},
 };
 
 use crate::{
@@ -394,6 +397,61 @@ async fn get_comments_page(url_query: Query<GetCommentsPageQuery>) -> impl Respo
     return response_404;
 }
 
+#[post("/video/is_currently_processing")]
+async fn is_currently_processing(mut payload: Multipart) -> HttpResponse {
+    // println!("Received POST data: ");
+    let values: HashMap<String, Vec<u8>> = parse_form_data(&mut payload).await;
+    for (field_name, field_value) in values {
+        // println!(
+        //     "{}: {}",
+        //     field_name,
+        //     String::from_utf8_lossy(field_value.as_slice())
+        // );
+    }
+
+    return HttpResponse::Ok().finish();
+}
+
+async fn parse_form_data(payload: &mut Multipart) -> HashMap<String, Vec<u8>> {
+    let mut result: HashMap<String, Vec<u8>> = HashMap::new();
+    while let Ok(Some(mut field)) = payload.try_next().await {
+        let data: &mut Vec<u8> = {
+            let field_name = field.name().unwrap().to_string();
+            result.insert(field_name.clone(), Vec::new());
+            result.get_mut(&field_name).unwrap()
+        };
+
+        while let Ok(Some(chunk)) = field.try_next().await {
+            data.extend_from_slice(&chunk);
+        }
+        // println!(
+        //     "{}: {}",
+        //     field.name().unwrap(),
+        //     String::from_utf8_lossy(data.as_slice())
+        // );
+    }
+
+    return result;
+}
+
+#[get("/test_form.html")]
+async fn test_form() -> HttpResponse {
+    let html: &str = "<!DOCTYPE html>
+<html>
+<head><title>Webpage for testing form submission. </title></head>
+<body>
+<form action=\"/video/is_currently_processing\" method=\"post\" enctype=\"multipart/form-data\">
+  Name: <input type=\"text\" name=\"person\"><br>
+  File: <input type=\"file\" name=\"secret\"><br>
+  <input type=\"submit\" value=\"Submit\">
+</form>
+</body>
+</html>";
+    return HttpResponse::Ok()
+        .append_header(header::ContentType(mime::TEXT_HTML))
+        .body(html);
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // let test_params = "v=1203487watch_me&id=+=asdpfoiu";
@@ -455,6 +513,8 @@ async fn main() -> std::io::Result<()> {
             .service(get_video_basic_info)
             .service(get_comments_page)
             .service(get_video_thumbnail_image)
+            .service(is_currently_processing)
+            .service(test_form)
     })
     .bind(("127.0.0.1", 7000))
     {
