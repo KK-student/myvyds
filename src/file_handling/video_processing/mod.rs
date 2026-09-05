@@ -43,7 +43,7 @@ pub struct VideoProcessorManager {
 
     currently_processing: LazyLock<Mutex<HashMap<u64, u64>>>,
     finished_processing: LazyLock<Mutex<HashMap<u64, u64>>>,
-    failed_processing: LazyLock<Mutex<HashMap<u64, u64>>>,
+    failed_processing: LazyLock<Mutex<HashMap<u64, u64>>>, //TODO: Add support for storing error messages.
     data_path: &'static str,
 }
 
@@ -520,6 +520,13 @@ impl VideoProcessorManager {
         return result;
     }
 
+    ///Check whether or not if the video with the specified video_id is currently processing:
+    pub fn is_currently_processing(&'static self, video_id: &u64) -> bool {
+        let cp_mutg = self.currently_processing.lock().unwrap();
+        let cp = cp_mutg.deref();
+        return cp.contains_key(video_id);
+    }
+
     ///Get a COPY of the list of videos that have SUCCESSFULLY finished processing.
     pub fn get_finished_processing_videos(&'static self) -> Vec<u64> {
         let fp_mutg = self.finished_processing.lock().unwrap();
@@ -531,6 +538,13 @@ impl VideoProcessorManager {
         return result;
     }
 
+    ///Check whether or not if the video with the specified video_id has SUCCESSFULLY finished processing:
+    pub fn is_finished_processing(&'static self, video_id: &u64) -> bool {
+        let fp_mutg = self.finished_processing.lock().unwrap();
+        let fp = fp_mutg.deref();
+        return fp.contains_key(video_id);
+    }
+
     ///Get a COPY of the list of videos that have failed to process.
     pub fn get_failed_processing_videos(&'static self) -> Vec<u64> {
         let failp_mutg = self.failed_processing.lock().unwrap();
@@ -540,6 +554,13 @@ impl VideoProcessorManager {
             result.push(*id);
         }
         return result;
+    }
+
+    ///Check whether or not if the video with the specified video_id has failed to process.
+    pub fn is_failed_processing(&'static self, video_id: &u64) -> bool {
+        let failp_mutg = self.failed_processing.lock().unwrap();
+        let failp = failp_mutg.deref();
+        return failp.contains_key(video_id);
     }
 
     ///Deactivates and removes the processor with the specified id (processor_id), if it exists.

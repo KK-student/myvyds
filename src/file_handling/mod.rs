@@ -211,8 +211,12 @@ pub mod file_handling {
         }
 
         ///Get an Arc<Mutex<>> pointer that points to the user in the DataManager.
-        pub fn get_user(&self, user_id: &String) -> Arc<Mutex<User>> {
-            Arc::clone(self.users.get(user_id).unwrap())
+        pub fn get_user(&self, user_id: &String) -> Option<Arc<Mutex<User>>> {
+            //Arc::clone(self.users.get(user_id).unwrap())
+            match self.users.get(user_id) {
+                Some(user_arc) => Some(Arc::clone(user_arc)),
+                None => None,
+            }
         }
 
         //Get an Arc<Mutex<>> pointer that points to the video in the DataManager by it's video_id.

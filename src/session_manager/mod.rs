@@ -2,6 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     ops::{Deref, DerefMut},
     sync::{Arc, LazyLock, Mutex},
+    thread, time,
 };
 
 use rand::RngExt;
@@ -12,25 +13,49 @@ use crate::{
 
 mod session;
 
-pub struct SessionManager<F: Fn(&String, &String) -> bool + 'static> {
+pub struct SessionManager<
+    F: Fn(&String, &String) -> bool + 'static + std::marker::Send + std::marker::Sync,
+> {
     sessions: LazyLock<Mutex<HashMap<String, Vec<Arc<Mutex<Session>>>>>>,
     sessions_by_session_id: LazyLock<Mutex<HashMap<u64, Arc<Mutex<Session>>>>>,
 
     verify_password_function: &'static F,
 }
 
-impl<F: Fn(&String, &String) -> bool> SessionManager<F> {
+impl<F> SessionManager<F>
+where
+    F: Fn(&String, &String) -> bool + std::marker::Send + std::marker::Sync,
+{
     pub const fn new(verify_password_function: &'static F) -> Self {
         let result = Self {
             sessions: LazyLock::new(|| -> Mutex<HashMap<String, Vec<Arc<Mutex<Session>>>>> {
                 Mutex::new(HashMap::new())
             }),
             sessions_by_session_id: LazyLock::new(
-                || -> Mutex<HashMap<u64, Arc<Mutex<Session>>>> { Mutex::new(HashMap::new()) },
+                || -> Mutex<HashMap<u64, Arc<Mutex<Session>>>> {
+                    //Return sessions_by_session_id default value:
+                    Mutex::new(HashMap::new())
+                },
             ),
             verify_password_function: verify_password_function,
         };
         return result;
+    }
+
+    pub fn start_autodelete(&'static self) {
+        std::thread::spawn(|| -> () {
+            loop {
+                //Delete all inactive sessions:
+                let mut sessions_mutg = self.sessions.lock().unwrap();
+                let sessions = sessions_mutg.deref_mut();
+                for (user_id, user_sessions_list) in sessions {
+                    self.remove_user_invalid_sessions(user_sessions_list);
+                }
+                //Sleep for 10min:
+                let time = time::Duration::from_mins(10);
+                thread::sleep(time);
+            }
+        });
     }
 
     pub fn login(

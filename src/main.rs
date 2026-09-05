@@ -28,6 +28,7 @@ use crate::{
     management_console::{
         ManagementConsole, text_based_management_console::TextBasedManagementConsole,
     },
+    session_manager::SessionManager,
 };
 
 use crate::file_handling::video_data::VideoData;
@@ -229,12 +230,29 @@ mod session_manager;
 // }
 //
 
+pub fn _get_user_for_session_manager(user_id: &String, password_hash: &String) -> bool {
+    let data_manager_mutg = DATA_MANAGER.lock().unwrap();
+    let data_manager = data_manager_mutg.deref();
+    let user_arc = match data_manager.get_user(user_id) {
+        Some(u_arc) => u_arc,
+        None => return false,
+    };
+    let user_mutg = user_arc.lock().unwrap();
+    let user = user_mutg.deref();
+    return user.check_password_hash(password_hash);
+}
+
+static _GET_USER_FOR_SESSION_MANAGER_FUNC: fn(&String, &String) -> bool =
+    _get_user_for_session_manager;
+
 static DATA_PATH: &str = "./data";
 static DATA_MANAGER: std::sync::LazyLock<Mutex<DataManager>> =
     std::sync::LazyLock::new(|| -> Mutex<DataManager> { Mutex::new(DataManager::new(DATA_PATH)) });
 static PROCESSOR_MANAGER: VideoProcessorManager = VideoProcessorManager::new(DATA_PATH);
 static MANAGEMENT_CONSOLE: TextBasedManagementConsole =
     TextBasedManagementConsole::new(&DATA_MANAGER, &PROCESSOR_MANAGER);
+static SESSION_MANAGER: SessionManager<fn(&String, &String) -> bool> =
+    SessionManager::new(&_GET_USER_FOR_SESSION_MANAGER_FUNC);
 
 ///Gets a specific video file, serving the "/video/get_video_file/[video_id]/[video_seg_file]" endpoint. See the "Getting a video" section in the "./docs/SERVER_API.md" for more details.
 #[get("/video/get_video_file/{video_id}/{video_seg_file}")]
@@ -398,25 +416,87 @@ async fn get_comments_page(url_query: Query<GetCommentsPageQuery>) -> impl Respo
     return response_404;
 }
 
+///Implements the "/video/is_currently_processing" endpoint.
 #[post("/video/is_currently_processing")]
-async fn is_currently_processing(mut payload: Multipart) -> HttpResponse {
+async fn is_currently_processing(
+    mut payload: Multipart,
+    query: Query<VideoIDQuery>,
+) -> HttpResponse {
     let response_404 = HttpResponse::NotFound().finish();
     let response_401 = HttpResponse::Unauthorized().finish();
-    // println!("Received POST data: ");
-    let values: HashMap<String, Vec<u8>> = parse_form_data(&mut payload).await;
-    for (field_name, field_value) in values {
-        println!(
-            "{}: {}",
-            field_name,
-            String::from_utf8_lossy(field_value.as_slice())
-        );
+    // Parse form data:
+    let mut values: HashMap<String, Vec<u8>> = HashMap::new();
+    parse_form_data(&mut payload, &mut values).await;
+    // for (field_name, field_value) in values {
+    //     println!(
+    //         "{}: {}",
+    //         field_name,
+    //         String::from_utf8_lossy(field_value.as_slice())
+    //     );
+    // }
+    let (user_id, session_id) = match get_user_id_session_id(&values) {
+        Some(res) => res,
+        None => return response_401,
+    };
+
+    //Verify user_id and session_id:
+    if SESSION_MANAGER.verify_session(&user_id, session_id) {
+        let video_id: u64 = query.v;
+        let data_manager_mutg = DATA_MANAGER.lock().unwrap();
+        let data_manager = data_manager_mutg.deref();
+        if data_manager.has_video_by_id(&video_id) {
+            let cp: bool = PROCESSOR_MANAGER.is_currently_processing(&video_id);
+            let fp: bool = PROCESSOR_MANAGER.is_finished_processing(&video_id);
+            let failp: bool = PROCESSOR_MANAGER.is_failed_processing(&video_id);
+
+            let mut result_string: String = "".to_string();
+            if !cp && !fp && !failp {
+                result_string =
+                    format!("\"{{\"video_id\":{video_id}, \"processing_status\": 4}}\"");
+            } else if cp && !fp && !failp {
+                result_string =
+                    format!("\"{{\"video_id\":{video_id}, \"processing_status\": 1}}\"");
+            } else if !cp && fp && !failp {
+                result_string =
+                    format!("\"{{\"video_id\":{video_id}, \"processing_status\": 0}}\"");
+            } else if !cp && !fp && failp {
+                result_string = format!(
+                    "\"{{\"video_id\":{video_id}, \"processing_status\": 2, \"error_message\": \"{}\"}}\"",
+                    "Unknown error message (need to add support for error messages)"
+                );
+            } else {
+                todo!("Invalid combination of cp, fp, and failp. ");
+            }
+            return HttpResponse::Ok()
+                .append_header(header::ContentType(mime::APPLICATION_JSON))
+                .body(result_string);
+        } else {
+            return response_404;
+        }
     }
 
     return HttpResponse::Ok().finish();
 }
 
-async fn parse_form_data(payload: &mut Multipart) -> HashMap<String, Vec<u8>> {
-    let mut result: HashMap<String, Vec<u8>> = HashMap::new();
+///Gets the user_id and session_id from the given parsed form data (form_data). Returns None if either user_id or session_id was not found or if session_id is not a valid u64 number.
+fn get_user_id_session_id(form_data: &HashMap<String, Vec<u8>>) -> Option<(String, u64)> {
+    let user_id: String = match form_data.get(&"username".to_string()) {
+        Some(id) => String::from_utf8_lossy(id.as_slice()).to_string(),
+        None => return None,
+    };
+    let session_id_string: String = match form_data.get(&"session_id".to_string()) {
+        Some(id) => String::from_utf8_lossy(id.as_slice()).to_string(),
+        None => return None,
+    };
+    let session_id: u64 = match session_id_string.parse::<u64>() {
+        Ok(id) => id,
+        Err(_) => return None,
+    };
+    return Some((user_id, session_id));
+}
+
+///Given the multipart form data (payload), this parses all of the form data and stores it in the given HashMap (result).
+async fn parse_form_data(payload: &mut Multipart, result: &mut HashMap<String, Vec<u8>>) {
     while let Ok(Some(mut field)) = payload.try_next().await {
         let data: &mut Vec<u8> = {
             let field_name = field.name().unwrap().to_string();
@@ -427,14 +507,7 @@ async fn parse_form_data(payload: &mut Multipart) -> HashMap<String, Vec<u8>> {
         while let Ok(Some(chunk)) = field.try_next().await {
             data.extend_from_slice(&chunk);
         }
-        // println!(
-        //     "{}: {}",
-        //     field.name().unwrap(),
-        //     String::from_utf8_lossy(data.as_slice())
-        // );
     }
-
-    return result;
 }
 
 #[get("/test_form.html")]
@@ -490,6 +563,9 @@ async fn main() -> std::io::Result<()> {
     //     thread::sleep(time::Duration::from_secs(10));
     //     println!("{:#?}", local_test_processor);
     // }
+
+    // Start autodelete thread for SESSION_MANAGER:
+    SESSION_MANAGER.start_autodelete();
 
     //Start ManagementConsole:
     MANAGEMENT_CONSOLE.launch(std::env::var("CARGO_PKG_VERSION").unwrap());

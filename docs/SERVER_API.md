@@ -98,7 +98,9 @@ Otherwise, server sends error response with error code 404.
 1. Client sends a GET request to the server to the endpoint "/video/is_currently_processing?v=[video_id]" with the body of the request being a form with the fields "username"=[user's user_id] and "session_id"=[user's current session_id]. 
 
 2. 
-- If username and session_id are valid: Server sends either "{"video_id":[video_id], processing_status": 1}" if the video is still being processed, "{"video_id":[video_id], processing_status": 0}" if successfully finished processing, or "{"video_id":[video_id], processing_status": 2, "error_message": "[error_message]"}" if it failed to process. 
+- If username and session_id are valid: 
+  - If the video with the given video_id exists: Server sends either "{"video_id":[video_id], processing_status": 1}" if the video is still being processed, "{"video_id":[video_id], processing_status": 0}" if successfully finished processing, "{"video_id":[video_id], processing_status": 4}" if it hasn't even started processing, or "{"video_id":[video_id], processing_status": 2, "error_message": "[error_message]"}" if it failed to process. 
+  - Otherwise, server sends error message with the error code 404. 
 - Otherwise, server sends error message with the error code 401 (Unauthorized). 
 
 ### Editing a video: 
