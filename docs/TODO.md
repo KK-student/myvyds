@@ -16,13 +16,13 @@
   * [ ] Implemented SSHMusicProcessor. 
   * [ ] Implemented the upload video endpoint on the server. 
   * [ ] Implemented save_data function for VideoProcessorManager. 
-- [ ] (NEXT TASK) Checking if a video is still being processed
+- [x] Checking if a video is still being processed
 - [ ] Editing a video
 - [ ] Removing a video
 - [ ] Implemented live streaming using the ez-ffmpeg crate. 
 
 ## [ ] Users: 
-- [ ] Getting publicly-available user information
+- [ ] (NEXT TASK) Getting publicly-available user information
 - [ ] Getting user icon
 - [ ] Logging in
 - [ ] Signing up
