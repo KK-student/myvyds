@@ -1,0 +1,56 @@
+use std::{hash::Hash, time::SystemTime};
+
+#[derive(Debug)]
+pub struct Session {
+    id: u64,
+    user_id: String,
+    time_created: u64,
+    valid_time_length: u64,
+}
+
+impl Session {
+    pub fn new(id: u64, user_id: &String, valid_time_length: u64) -> Self {
+        return Self {
+            id,
+            user_id: user_id.clone(),
+            time_created: get_current_time(),
+            valid_time_length,
+        };
+    }
+
+    pub fn get_id(&self) -> u64 {
+        self.id
+    }
+
+    pub fn get_user_id(&self) -> String {
+        self.user_id.clone()
+    }
+
+    pub fn get_time_created(&self) -> u64 {
+        self.time_created
+    }
+
+    pub fn get_valid_time_length(&self) -> u64 {
+        self.valid_time_length
+    }
+
+    pub fn is_valid(&self, user_id: &String) -> bool {
+        return self.get_user_id().eq(user_id)
+            && get_current_time() <= (self.get_time_created() + self.get_valid_time_length());
+    }
+}
+
+impl Hash for Session {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+        // self.user_id.hash(state);
+        // self.time_created.hash(state);
+    }
+}
+
+fn get_current_time() -> u64 {
+    match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
+        Ok(n) => n.as_secs(),
+        Err(_) => panic!("SystemTime before UNIX EPOCH!"),
+    }
+}

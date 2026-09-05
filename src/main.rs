@@ -34,6 +34,7 @@ use crate::file_handling::video_data::VideoData;
 
 mod file_handling;
 mod management_console;
+mod session_manager;
 
 // #[get("/")]
 // async fn hello() -> impl Responder {
@@ -399,14 +400,16 @@ async fn get_comments_page(url_query: Query<GetCommentsPageQuery>) -> impl Respo
 
 #[post("/video/is_currently_processing")]
 async fn is_currently_processing(mut payload: Multipart) -> HttpResponse {
+    let response_404 = HttpResponse::NotFound().finish();
+    let response_401 = HttpResponse::Unauthorized().finish();
     // println!("Received POST data: ");
     let values: HashMap<String, Vec<u8>> = parse_form_data(&mut payload).await;
     for (field_name, field_value) in values {
-        // println!(
-        //     "{}: {}",
-        //     field_name,
-        //     String::from_utf8_lossy(field_value.as_slice())
-        // );
+        println!(
+            "{}: {}",
+            field_name,
+            String::from_utf8_lossy(field_value.as_slice())
+        );
     }
 
     return HttpResponse::Ok().finish();
