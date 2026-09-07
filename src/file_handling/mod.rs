@@ -90,7 +90,7 @@ pub mod comment;
 pub mod describable;
 mod dirty_data;
 pub mod likeable;
-mod saveable;
+pub mod saveable;
 pub mod user;
 pub mod video_data;
 

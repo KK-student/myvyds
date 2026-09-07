@@ -22,8 +22,8 @@
 - [ ] Implemented live streaming using the ez-ffmpeg crate. 
 
 ## [ ] Users: 
-- [ ] (NEXT TASK) Getting publicly-available user information
-- [ ] Getting user icon
+- [x] Getting publicly-available user information
+- [ ] (NEXT TASK) Getting user icon
 - [ ] Logging in
 - [ ] Signing up
 - [ ] Getting user's subscriptions

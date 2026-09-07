@@ -7,7 +7,6 @@ use std::{
 
 use actix_multipart::{Field, Multipart};
 use futures::TryStreamExt;
-// use futures::lock::{Mutex, MutexLockFuture};
 use serde::Deserialize;
 
 use actix_web::{
@@ -23,6 +22,8 @@ use crate::{
         describable::Describable,
         file_handling::{DataManager, read_small_file},
         likeable::Likeable,
+        saveable::make_json_list_from_u64_list,
+        user::User,
         video_processing::VideoProcessorManager,
     },
     management_console::{
@@ -45,79 +46,6 @@ mod session_manager;
 // async fn manual_hello() -> impl Responder {
 //     HttpResponse::Ok().body("Hey there!")
 // }
-//
-// fn parse_url_parameters(query: &str) -> HashMap<&str, &str> {
-//     let mut result: HashMap<&str, &str> = HashMap::new();
-//     let group_regex_builder: PosixRegexBuilder = PosixRegexBuilder::new(
-//         /*"[^&]*=*[^&]"*/ "[^&]\\{1,\\}=*[^&]\\{1,\\}".as_bytes(),
-//     );
-//     let group_regex: PosixRegex = match group_regex_builder.compile() {
-//         Ok(r) => r,
-//         Err(_) => {
-//             println!("Error: Failed to compile regex. ");
-//             return result;
-//         }
-//     };
-//
-//     let kv_regex: PosixRegex = match PosixRegexBuilder::new("^[^=]\\{1,\\}".as_bytes()).compile() {
-//         Ok(r) => r,
-//         Err(_) => {
-//             println!("Error: Failed to compile regex. ");
-//             return result;
-//         }
-//     };
-//
-//     println!("Matches: ");
-//     let matches = group_regex.matches(query.as_bytes(), Option::from(10));
-//     {
-//         let mut i = 0;
-//         while i < matches.len() {
-//             let r_match = &matches[i][0].unwrap();
-//             let (start, end) = r_match;
-//             let kv_group = &query[*start..*end];
-//
-//             let kv_match = kv_regex.matches(kv_group.as_bytes(), Option::None);
-//             let (key_start, key_end) = if kv_match.len() != 0 {
-//                 kv_match[0][0].unwrap()
-//             } else {
-//                 (0, 0)
-//             };
-//             let key = &kv_group[key_start..key_end];
-//             let value = if key_end + 1 >= kv_group.len() {
-//                 ""
-//             } else {
-//                 &kv_group[(key_end + 1)..]
-//             };
-//             println!(
-//                 "{}: {:?} -> start: {}, end: {}, kv_group: \"{}\", key_start: {}, key_end: {}, key: \"{}\", value: \"{}\"",
-//                 i, r_match, start, end, kv_group, key_start, key_end, key, value
-//             );
-//             result.insert(key, value);
-//
-//             i += 1;
-//         }
-//     }
-//
-//     return result;
-// }
-//
-// async fn get_url_parameters(req: HttpRequest) -> impl Responder {
-//     let query_string = req.query_string();
-//     HttpResponse::Ok().body(format!(
-//         "<!DOCTYPE html>
-// <html>
-//     <head><title>URL parameters</title></head>
-//     <body>
-//         <p>Query String: {}</p>
-//         <p>URL parameters: </p>
-//         <p>{:?}</p>
-//     </body>
-// </html>
-// ",
-//         query_string,
-//         parse_url_parameters(query_string)
-//     ))
-// }
 
 // async fn get_lofi_music() -> impl Responder {
 //     let file_path_str = "./media/coding music synthwave beats to program to-fhL67fnDXcU-av.webm";
@@ -134,101 +62,6 @@ mod session_manager;
 //         //.insert_header(ContentDisposition::attachment(String::from(filename)))
 //         .streaming(reader_stream);
 // }
-
-// async fn get_lofi_music_html() -> impl Responder {
-//     HttpResponse::Ok().body(
-//         "<!DOCTYPE html>
-// <html>
-//     <head>
-//         <title>coding music synthwave beats to program to-fhL67fnDXcU</title>
-//     </head>
-//     <body>
-//         <video src=\"/media/coding music synthwave beats to program to-fhL67fnDXcU-av.webm\" />
-//     </body>
-// </html>",
-//     )
-// }
-
-// #[derive(Debug, Deserialize)]
-// struct Info {
-//     name: String,
-//     age: u32,
-// }
-// async fn url_parameters_form(info: actix_web::web::Query<Info>) -> impl Responder {
-//     HttpResponse::Ok().body(format!(
-//         "<!DOCTYPE html>
-// <html>
-//     <head><title>URL parameters</title></head>
-//     <body>
-//         <p>URL parameters: </p>
-//         <p>{:?}</p>
-//     </body>
-// </html>
-// ",
-//         info
-//     ))
-// }
-
-// #[derive(Deserialize, Debug)]
-// struct VideoID {
-//     id: u64,
-// }
-// async fn get_video(v_query: Query<VideoID>) -> impl Responder {
-//     let video_id = v_query.id;
-//     if video_id == 0 {
-//         let file_path_str =
-//             "./media/coding music synthwave beats to program to-fhL67fnDXcU-av.webm";
-//         let reader_stream: ReaderStream<tokio::fs::File> = match file_stream_reader(file_path_str)
-//             .await
-//         {
-//             Ok(r) => r,
-//             Err(e) => {
-//                 return HttpResponse::Ok()
-//                 .body(format!("<!DOCTYPE html><html><head><title>Error</title></head><body><p>Error: {}</p></body></html>", e.to_string()));
-//             }
-//         };
-//         HttpResponse::Ok()
-//             .content_type(get_mime_type(std::path::Path::new(file_path_str)))
-//             //.insert_header(ContentDisposition::attachment(String::from(filename)))
-//             .streaming(reader_stream)
-//     } else {
-//         HttpResponse::Ok().body(
-//             "<!DOCTYPE html>
-// <html>
-//     <head>
-//         <title>Error</title>
-//     </head>
-//     <body>
-// <p>Could not file video. </p>
-//     </body>
-// </html>",
-//         )
-//     }
-// }
-//
-// fn get_error_page(message: &str) -> String {
-//     format!(
-//         "<!DOCTYPE html>
-// <html>
-// <head><title>Error</title></head>
-// <body>
-// <h1>Error: </h1>
-// <p>{}</p>
-// </body>
-// </html>
-// ",
-//         message
-//     )
-// }
-//
-// async fn watch(v_qid: Query<VideoID>) -> impl Responder {
-//     let watch_js_bytes: Vec<u8> = match read_small_file("./webpage/watch.html") {
-//         Ok(r) => r,
-//         Err(e) => get_error_page(&e.to_string()).as_bytes().to_vec(),
-//     };
-//     HttpResponse::Ok().body(watch_js_bytes)
-// }
-//
 
 pub fn _get_user_for_session_manager(user_id: &String, password_hash: &String) -> bool {
     let data_manager_mutg = DATA_MANAGER.lock().unwrap();
@@ -510,30 +343,44 @@ async fn parse_form_data(payload: &mut Multipart, result: &mut HashMap<String, V
     }
 }
 
-#[get("/test_form.html")]
-async fn test_form() -> HttpResponse {
-    let html: &str = "<!DOCTYPE html>
-<html>
-<head><title>Webpage for testing form submission. </title></head>
-<body>
-<form action=\"/video/is_currently_processing\" method=\"post\" enctype=\"multipart/form-data\">
-  Name: <input type=\"text\" name=\"person\"><br>
-  File: <input type=\"file\" name=\"secret\"><br>
-  <input type=\"submit\" value=\"Submit\">
-</form>
-</body>
-</html>";
+#[derive(Deserialize)]
+struct UserIdQuery {
+    user_id: String,
+}
+#[get("/user/get_public_info")]
+async fn get_public_info(query: Query<UserIdQuery>) -> impl Responder {
+    let response404 = HttpResponse::NotFound().finish();
+
+    let data_manager_mutg = DATA_MANAGER.lock().unwrap();
+    let data_manager = data_manager_mutg.deref();
+
+    let user_id: &String = &query.user_id;
+    let user_arc = match data_manager.get_user(user_id) {
+        Some(user_a) => user_a,
+        None => return response404,
+    };
+    let user_mutg = user_arc.lock().unwrap();
+    let user: &User = user_mutg.deref();
+
+    let description_escaped: String =
+        json_escape::escape_str(user.get_description().as_str()).collect::<String>();
+    let videos_string: String = make_json_list_from_u64_list(user.get_videos().deref());
+    let comments_string: String = make_json_list_from_u64_list(user.get_comments().deref());
+    let json_result: String = format!(
+        "{{\"time_created\": {}, \"description\": {}, \"videos\": {}, \"comments\": {}}}",
+        user.get_time_created(),
+        description_escaped,
+        videos_string,
+        comments_string
+    );
+
     return HttpResponse::Ok()
-        .append_header(header::ContentType(mime::TEXT_HTML))
-        .body(html);
+        .append_header(header::ContentType(mime::APPLICATION_JSON))
+        .body(json_result);
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // let test_params = "v=1203487watch_me&id=+=asdpfoiu";
-    // let test_params = "v=1203487watch_me&id=+=asdpfoiu&ui=&hc&&=;lkj";
-    // let result = parse_url_parameters(test_params);
-
     //Initialize PROCESSOR_MANAGER:
     {
         PROCESSOR_MANAGER.load_data();
@@ -547,22 +394,6 @@ async fn main() -> std::io::Result<()> {
         // println!("DATA_MANAGER: \n{:#?}\n\n", data_manager);
         data_manager.save_data();
     }
-    // {
-    //     // Test LocalVideoProcessor:
-    //     let local_test_processor_config: &str = "{\"max_gpu_tflops\": 34234, \"ffmpeg_options\": [\"-map\", \"0\", \"-c:v:0\", \"libx264\", \"-b:v:0\", \"5000k\", \"-s:v:0\", \"1920x1080\", \"-map\", \"0\", \"-c:v:1\", \"libx264\", \"-b:v:1\", \"3000k\", \"-s:v:1\", \"1280x720\", \"-map\", \"0\", \"-c:v:2\", \"libx264\", \"-b:v:2\", \"1000k\", \"-s:v:2\", \"640x360\", \"-map\", \"0\", \"-c:v:3\", \"libvpx-vp9\", \"-b:v:3\", \"5000k\", \"-s:v:3\", \"1920x1080\", \"-map\", \"0\", \"-c:v:4\", \"libvpx-vp9\", \"-b:v:4\", \"3000k\", \"-s:v:4\", \"1280x720\", \"-map\", \"0\", \"-c:v:5\", \"libvpx-vp9\", \"-b:v:5\", \"1000k\", \"-s:v:5\", \"640x360\", \"-map\", \"0:a:0\", \"-c:a:0\", \"aac\", \"-b:a:0\", \"192k\", \"-map\", \"0:a:0\", \"-c:a:1\", \"aac\", \"-b:a:1\", \"128k\", \"-map\", \"0:a:0\", \"-c:a:2\", \"aac\", \"-b:a:2\", \"64k\", \"-map\", \"0:a:0\", \"-c:a:3\", \"libopus\", \"-b:a:3\", \"192k\", \"-map\", \"0:a:0\", \"-c:a:4\", \"libopus\", \"-b:a:4\", \"128k\", \"-map\", \"0:a:0\", \"-c:a:5\", \"libopus\", \"-b:a:5\", \"64k\"]}";
-    //     // println!("{}", local_test_processor_config);
-    //     let local_test_processor_config_json: Value =
-    //         serde_json::from_str(local_test_processor_config).unwrap();
-    //     let mut local_test_processor: LocalVideoProcessor =
-    //         LocalVideoProcessor::new(&local_test_processor_config_json);
-    //     local_test_processor.process(
-    //         2,
-    //         "/tmp/rust-process-test/sample-10s.mp4".to_string(),
-    //         "/tmp/rust-process-test/output-dir/".to_string(),
-    //     );
-    //     thread::sleep(time::Duration::from_secs(10));
-    //     println!("{:#?}", local_test_processor);
-    // }
 
     // Start autodelete thread for SESSION_MANAGER:
     SESSION_MANAGER.start_autodelete();
@@ -570,30 +401,16 @@ async fn main() -> std::io::Result<()> {
     //Start ManagementConsole:
     MANAGEMENT_CONSOLE.launch(std::env::var("CARGO_PKG_VERSION").unwrap());
 
-    //Test user input:
-    // let mut test_input: String = String::new();
-    // let _ = io::stdin().read_line(&mut test_input);
-    // println!("You typed: \"{test_input}\". ");
-
     match HttpServer::new(move || {
         App::new()
             // .service(hello)
-            // .route("/hey", web::get().to(manual_hello))
-            // .route(
-            //     "/media/coding music synthwave beats to program to-fhL67fnDXcU-av.webm",
-            //     web::get().to(get_lofi_music),
-            // )
-            // .route("/lofi_music", web::get().to(get_lofi_music_html))
-            // .route("/url_params", web::get().to(get_url_parameters))
-            // .route("/url_params_form", web::get().to(url_parameters_form))
-            // .route("/get_video", web::get().to(get_video))
             // .route("/watch", web::get().to(watch))
             .service(get_video_file)
             .service(get_video_basic_info)
             .service(get_comments_page)
             .service(get_video_thumbnail_image)
             .service(is_currently_processing)
-            .service(test_form)
+            .service(get_public_info)
     })
     .bind(("127.0.0.1", 7000))
     {
