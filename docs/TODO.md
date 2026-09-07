@@ -23,9 +23,10 @@
 
 ## [ ] Users: 
 - [x] Getting publicly-available user information
-- [ ] (NEXT TASK) Getting user icon
+- [x] Getting user icon
 - [ ] Logging in
 - [ ] Signing up
+- [ ] Add the ability to create, delete, and edit user data in all consoles
 - [ ] Getting user's subscriptions
 - [ ] Getting user's liked videos
 - [ ] Getting user's disliked videos

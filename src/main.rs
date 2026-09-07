@@ -2,6 +2,8 @@
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
+    path::PathBuf,
+    str::FromStr,
     sync::{Arc, Mutex},
 };
 
@@ -260,13 +262,6 @@ async fn is_currently_processing(
     // Parse form data:
     let mut values: HashMap<String, Vec<u8>> = HashMap::new();
     parse_form_data(&mut payload, &mut values).await;
-    // for (field_name, field_value) in values {
-    //     println!(
-    //         "{}: {}",
-    //         field_name,
-    //         String::from_utf8_lossy(field_value.as_slice())
-    //     );
-    // }
     let (user_id, session_id) = match get_user_id_session_id(&values) {
         Some(res) => res,
         None => return response_401,
@@ -348,6 +343,7 @@ struct UserIdQuery {
     user_id: String,
 }
 #[get("/user/get_public_info")]
+///Getting publicly-available user information:
 async fn get_public_info(query: Query<UserIdQuery>) -> impl Responder {
     let response404 = HttpResponse::NotFound().finish();
 
@@ -377,6 +373,81 @@ async fn get_public_info(query: Query<UserIdQuery>) -> impl Responder {
     return HttpResponse::Ok()
         .append_header(header::ContentType(mime::APPLICATION_JSON))
         .body(json_result);
+}
+
+#[get("/user/get_user_icon")]
+///Getting user icon:
+async fn get_user_icon(query: Query<UserIdQuery>) -> impl Responder {
+    let response404: HttpResponse = HttpResponse::NotFound().finish();
+
+    //Get user:
+    let data_manager_mutg = DATA_MANAGER.lock().unwrap();
+    let data_manager = data_manager_mutg.deref();
+    let user_arc: Arc<Mutex<User>> = match data_manager.get_user(&query.user_id) {
+        Some(u_arc) => u_arc,
+        None => return response404,
+    };
+    let user_mutg = user_arc.lock().unwrap();
+    let user: &User = user_mutg.deref();
+
+    //Get user image:
+    let mut icon_image_path: PathBuf = match PathBuf::from_str(DATA_PATH) {
+        Ok(buf) => buf,
+        Err(_) => return response404,
+    };
+    icon_image_path.push("./user_data");
+    icon_image_path.push(format!("./user-icon-{}.png", user.get_icon_id()));
+    let icon_image = match read_small_file(match icon_image_path.to_str() {
+        Some(path_str) => path_str,
+        None => return response404,
+    }) {
+        Ok(image) => image,
+        Err(_) => return response404,
+    };
+
+    return HttpResponse::Ok()
+        .append_header(header::ContentType(mime::IMAGE_PNG))
+        .body(icon_image);
+}
+
+///Gets the user id (username field) and password hash (password field) from the given parsed form data (form_data). Returns None if either user_id or session_id was not found or if session_id is not a valid u64 number.
+fn get_login_data(form_data: &HashMap<String, Vec<u8>>) -> Option<(String, String)> {
+    let user_id: String = match form_data.get(&"username".to_string()) {
+        Some(id) => String::from_utf8_lossy(id.as_slice()).to_string(),
+        None => return None,
+    };
+    let password_hash: String = match form_data.get(&"password".to_string()) {
+        Some(id) => String::from_utf8_lossy(id.as_slice()).to_string(),
+        None => return None,
+    };
+    return Some((user_id, password_hash));
+}
+
+#[get("/user/login")]
+///Logging in:
+async fn login(mut payload: Multipart) -> impl Responder {
+    let response400 = HttpResponse::BadRequest().finish();
+
+    let mut parsed_data: HashMap<String, Vec<u8>> = HashMap::new();
+    parse_form_data(&mut payload, &mut parsed_data);
+    let (user_id, password_hash) = match get_login_data(&parsed_data) {
+        Some(res) => res,
+        None => return response400,
+    };
+
+    let data_manager_mutg = DATA_MANAGER.lock().unwrap();
+    let data_manager = data_manager_mutg.deref();
+    if !data_manager.has_user(&user_id) {
+        return response400;
+    }
+    let session_id: u64 = match SESSION_MANAGER.login(&user_id, &password_hash) {
+        Ok(id) => id,
+        Err(_) => return response400,
+    };
+
+    return HttpResponse::Ok()
+        .append_header(header::ContentType(mime::APPLICATION_OCTET_STREAM))
+        .body(session_id.to_be_bytes().to_vec());
 }
 
 #[actix_web::main]

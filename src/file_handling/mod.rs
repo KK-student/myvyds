@@ -219,6 +219,14 @@ pub mod file_handling {
             }
         }
 
+        ///Whether or not if this DataManager has a user with the specified user id (user_id) or not.
+        pub fn has_user(&self, user_id: &String) -> bool {
+            match self.get_user(user_id) {
+                Some(_) => true,
+                None => false,
+            }
+        }
+
         //Get an Arc<Mutex<>> pointer that points to the video in the DataManager by it's video_id.
         pub fn get_video(&self, video_id: &u64) -> Arc<Mutex<VideoData>> {
             Arc::clone(self.videos.get(video_id).unwrap())
