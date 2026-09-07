@@ -25,7 +25,7 @@
 - [x] Getting publicly-available user information
 - [x] Getting user icon
 - [x] Logging in
-- [ ] Signing up
+- [x] Signing up
 - [ ] Add the ability to create, delete, and edit user data in all consoles
 - [ ] Getting user's subscriptions
 - [ ] Getting user's liked videos
