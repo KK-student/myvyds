@@ -53,7 +53,10 @@ impl TextBasedManagementConsole {
 impl ManagementConsole for TextBasedManagementConsole {
     fn launch(&'static self, pkg_verson: String) {
         thread::spawn(move || {
-            let help_text = "h -> Show this help message. 
+            let help_text = "General options: 
+h -> Show this help message. 
+
+Managing processors: 
 vprocs -> Show a list of all processors. 
 vproc -> Show the basic information for a processor. 
 activate_proc-> Enable a processor. 
@@ -65,6 +68,11 @@ remove_processor -> Deactivate and remove a processor.
 save_processor_data -> Save all of the video processor data. 
 save_video_user_data -> Save all of the user and video data. 
 save_all_data -> Save all of the data, including all of the user, video, and video processor data. 
+
+Managing user data: 
+vusers -> Show a list of all users. 
+vuser -> Show the basic information for a user. 
+
 To quit, press Ctrl+C. ";
             println!(
                 "Myvids v{} text-based management console: ",
@@ -279,6 +287,12 @@ To quit, press Ctrl+C. ";
                     }
                     "save_all_data" => {
                         todo!("Implement \"save_all_data\"!");
+                    }
+                    "vusers" => {
+                        todo!("Implement \"vusers\"!");
+                    }
+                    "vuser" => {
+                        todo!("Implement \"vuser\"!");
                     }
                     &_ => println!("Error: \"{input}\" is not a valid command. "),
                 };

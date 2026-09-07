@@ -26,7 +26,7 @@
 - [x] Getting user icon
 - [x] Logging in
 - [x] Signing up
-- [ ] Add the ability to create, delete, and edit user data in all consoles
+- [ ] Add the ability to create, delete, and edit user data in the TextBasedManagementConsole
 - [ ] Getting user's subscriptions
 - [ ] Getting user's liked videos
 - [ ] Getting user's disliked videos
