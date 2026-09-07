@@ -88,19 +88,64 @@ impl User {
             user_json_value["disliked_comments"].as_array().unwrap(),
         );
 
+        // return Arc::new(Mutex::new(User {
+        //     user_id: user_id.clone(),
+        //     time_created: time_created,
+        //     icon_id: icon_id,
+        //     description: description.clone(),
+        //     videos: videos,
+        //     subscriptions: subscriptions,
+        //     comments: comments,
+        //     password_hash: password_hash.clone(),
+        //     liked_vids: liked_vids,
+        //     disliked_vids: disliked_vids,
+        //     liked_comments: liked_comments,
+        //     disliked_comments: disliked_comments,
+        //     dirty: false,
+        // }));
+        return Self::new_arc(
+            user_id,
+            time_created,
+            icon_id,
+            description,
+            &videos,
+            &subscriptions,
+            &comments,
+            &password_hash,
+            &liked_vids,
+            &disliked_vids,
+            &liked_comments,
+            &disliked_comments,
+        );
+    }
+
+    pub fn new_arc(
+        user_id: &String,
+        time_created: u64,
+        icon_id: u64,
+        description: &String,
+        videos: &Box<Vec<u64>>,
+        subscriptions: &Box<Vec<String>>,
+        comments: &Box<Vec<u64>>,
+        password_hash: &String,
+        liked_vids: &Box<Vec<u64>>,
+        disliked_vids: &Box<Vec<u64>>,
+        liked_comments: &Box<Vec<u64>>,
+        disliked_comments: &Box<Vec<u64>>,
+    ) -> Arc<Mutex<Self>> {
         return Arc::new(Mutex::new(User {
             user_id: user_id.clone(),
             time_created: time_created,
             icon_id: icon_id,
             description: description.clone(),
-            videos: videos,
-            subscriptions: subscriptions,
-            comments: comments,
+            videos: videos.clone(),
+            subscriptions: subscriptions.clone(),
+            comments: comments.clone(),
             password_hash: password_hash.clone(),
-            liked_vids: liked_vids,
-            disliked_vids: disliked_vids,
-            liked_comments: liked_comments,
-            disliked_comments: disliked_comments,
+            liked_vids: liked_vids.clone(),
+            disliked_vids: disliked_vids.clone(),
+            liked_comments: liked_comments.clone(),
+            disliked_comments: disliked_comments.clone(),
             dirty: false,
         }));
     }

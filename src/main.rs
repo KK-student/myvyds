@@ -39,6 +39,7 @@ use crate::file_handling::video_data::VideoData;
 mod file_handling;
 mod management_console;
 mod session_manager;
+mod time;
 
 // #[get("/")]
 // async fn hello() -> impl Responder {
@@ -428,18 +429,52 @@ fn get_login_data(form_data: &HashMap<String, Vec<u8>>) -> Option<(String, Strin
 async fn login(mut payload: Multipart) -> impl Responder {
     let response400 = HttpResponse::BadRequest().finish();
 
+    //Getting username and password:
     let mut parsed_data: HashMap<String, Vec<u8>> = HashMap::new();
-    parse_form_data(&mut payload, &mut parsed_data);
+    parse_form_data(&mut payload, &mut parsed_data).await;
     let (user_id, password_hash) = match get_login_data(&parsed_data) {
         Some(res) => res,
         None => return response400,
     };
 
+    //Check if username and password is valid. If so, login with SESSION_MANAGER.
     let data_manager_mutg = DATA_MANAGER.lock().unwrap();
     let data_manager = data_manager_mutg.deref();
     if !data_manager.has_user(&user_id) {
         return response400;
     }
+    let session_id: u64 = match SESSION_MANAGER.login(&user_id, &password_hash) {
+        Ok(id) => id,
+        Err(_) => return response400,
+    };
+
+    return HttpResponse::Ok()
+        .append_header(header::ContentType(mime::APPLICATION_OCTET_STREAM))
+        .body(session_id.to_be_bytes().to_vec());
+}
+
+#[get("/user/signup")]
+///Signing up:
+async fn signup(mut payload: Multipart) -> impl Responder {
+    let response400 = HttpResponse::BadRequest().finish();
+
+    //Getting username and password:
+    let mut parsed_data: HashMap<String, Vec<u8>> = HashMap::new();
+    parse_form_data(&mut payload, &mut parsed_data).await;
+    let (user_id, password_hash) = match get_login_data(&parsed_data) {
+        Some(res) => res,
+        None => return response400,
+    };
+
+    //Check if there is any user with the given username.
+    let mut data_manager_mutg = DATA_MANAGER.lock().unwrap();
+    let data_manager = data_manager_mutg.deref_mut();
+    if data_manager.has_user(&user_id) {
+        return response400;
+    }
+
+    //Create new user:
+    data_manager.add_user(&user_id, &password_hash, &"".to_string(), 0);
     let session_id: u64 = match SESSION_MANAGER.login(&user_id, &password_hash) {
         Ok(id) => id,
         Err(_) => return response400,

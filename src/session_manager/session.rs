@@ -1,5 +1,7 @@
 use std::{hash::Hash, time::SystemTime};
 
+use crate::time::get_current_time;
+
 #[derive(Debug)]
 pub struct Session {
     id: u64,
@@ -45,12 +47,5 @@ impl Hash for Session {
         self.id.hash(state);
         // self.user_id.hash(state);
         // self.time_created.hash(state);
-    }
-}
-
-fn get_current_time() -> u64 {
-    match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
-        Ok(n) => n.as_secs(),
-        Err(_) => panic!("SystemTime before UNIX EPOCH!"),
     }
 }

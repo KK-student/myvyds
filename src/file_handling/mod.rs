@@ -107,34 +107,16 @@ pub mod file_handling {
         sync::{Arc, Mutex},
     };
 
-    use crate::file_handling::{
-        comment::*, dirty_data::*, likeable::*, saveable::Saveable, user::*, video_data::*,
+    use crate::{
+        file_handling::{
+            comment::*, dirty_data::*, likeable::*, saveable::Saveable, user::*, video_data::*,
+        },
+        time::get_current_time,
     };
 
     use serde_json::Value;
     use tokio::fs::File;
     use tokio_util::io::ReaderStream;
-
-    //Get the mime type for a file. Supports only a limited set of mime types.
-    // pub fn get_mime_type(file_path: &std::path::Path) -> &str {
-    //     match file_path.extension().and_then(std::ffi::OsStr::to_str) {
-    //         Some("png") => "image/png",
-    //         Some("jpg") | Some("jpeg") => "image/jpeg",
-    //         Some("gif") => "image/gif",
-    //         Some("html") => "text/html",
-    //         Some("txt") => "text/plain",
-    //         Some("json") => "application/json",
-    //         Some("js") => "text/javascript",
-    //         Some("jsx") => "text/jsx",
-    //         Some("css") => "text/css",
-    //
-    //         //Video and audio:
-    //         Some("webm") => "video/webm",
-    //
-    //         //Generic:
-    //         _ => "application/octet-stream", // Default MIME type
-    //     }
-    // }
 
     ///Read a file from "./" as a stream.
     pub async fn file_stream_reader(
@@ -225,6 +207,35 @@ pub mod file_handling {
                 Some(_) => true,
                 None => false,
             }
+        }
+
+        pub fn add_user(
+            &mut self,
+            user_id: &String,
+            password_hash: &String,
+            description: &String,
+            icon_id: u64,
+        ) {
+            if self.has_user(user_id) {
+                return;
+            }
+            //Create the new user:
+            let user_arc: Arc<Mutex<User>> = User::new_arc(
+                user_id,
+                get_current_time(),
+                icon_id,
+                description,
+                &Box::new(Vec::new()),
+                &Box::new(Vec::new()),
+                &Box::new(Vec::new()),
+                password_hash,
+                &Box::new(Vec::new()),
+                &Box::new(Vec::new()),
+                &Box::new(Vec::new()),
+                &Box::new(Vec::new()),
+            );
+            //Add the new user:
+            self.users.insert(user_id.clone(), user_arc);
         }
 
         //Get an Arc<Mutex<>> pointer that points to the video in the DataManager by it's video_id.
