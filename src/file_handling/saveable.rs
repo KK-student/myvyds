@@ -24,6 +24,28 @@ pub fn make_json_list_from_strings(list: &Vec<String>) -> String {
 
     return result;
 }
+
+pub fn make_json_list_from_saveable_list(list: &Vec<Arc<Mutex<impl Saveable>>>) -> String {
+    let mut result = String::from("[");
+    {
+        let mut i = 0;
+        while i < list.len() {
+            if i > 0 {
+                result.push_str(", ");
+            }
+            let item_arc = list.get(i).unwrap();
+            let item_mutg = item_arc.lock().unwrap();
+            let item: &dyn Saveable = item_mutg.deref();
+            result.push_str(&item.to_json(false));
+
+            i += 1;
+        }
+    }
+
+    result.push(']');
+    return result;
+}
+
 pub fn make_json_list_from_u64_list(list: &Vec<u64>) -> String {
     let mut result = String::from("[");
     {

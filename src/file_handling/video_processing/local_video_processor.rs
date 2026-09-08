@@ -9,9 +9,12 @@ use std::{
 
 use serde_json::Value;
 
-use crate::file_handling::video_processing::video_processor::{
-    BoolBox, VeryBasicVideoFileDescription, VideoProcessor, VideoProcessorType,
-    get_video_description, kill_process_by_pid,
+use crate::file_handling::{
+    saveable::{Saveable, make_json_list_from_strings},
+    video_processing::video_processor::{
+        BoolBox, VeryBasicVideoFileDescription, VideoProcessor, VideoProcessorType,
+        get_video_description, kill_process_by_pid,
+    },
 };
 
 #[derive(Debug)]
@@ -51,11 +54,22 @@ impl LocalVideoProcessor {
     }
 }
 
+impl Saveable for LocalVideoProcessor {
+    fn to_json(&self, pretty: bool) -> String {
+        let ffmpeg_options_string: String = make_json_list_from_strings(&self.ffmpeg_options);
+        let max_gpu_flops_string: String = self.max_gpu_tflops.to_string();
+        return format!(
+            "{{\"id\": {}, \"ffmpeg_options\": {ffmpeg_options_string}, \"max_gpu_tflops\": {max_gpu_flops_string}}}",
+            self.get_id()
+        );
+    }
+}
+
 impl VideoProcessor for LocalVideoProcessor {
     ///Create a new LocalVideoProcessor with the given id (id) and from the given JSON configuration data (config_json_data). The given JSON data must be in the following format:
     ///
-    ///{"ffmpeg_options": [list of all of the ffmpeg options needed to convert the input video file into MPEG_DASH format as a list of strings (with no spaces in the items themselves), NOT INCLUDING "-i", the input video file, "-f", "dash", or "./output.mpd"], "max_gpu_tflops": [the maximum amount of tflops the server's GPU could do as a u64]}
-    fn new(id: u64, config_json_data: &Value) -> Self
+    ///{"id": [processor_id], "ffmpeg_options": [list of all of the ffmpeg options needed to convert the input video file into MPEG_DASH format as a list of strings (with no spaces in the items themselves), NOT INCLUDING "-i", the input video file, "-f", "dash", or "./output.mpd"], "max_gpu_tflops": [the maximum amount of tflops the server's GPU could do as a u64]}
+    fn new(config_json_data: &Value) -> Self
     where
         Self: Sized,
     {
@@ -63,6 +77,7 @@ impl VideoProcessor for LocalVideoProcessor {
         for json_item in config_json_data["ffmpeg_options"].as_array().unwrap() {
             ffmpeg_options.push(json_item.as_str().unwrap().to_string());
         }
+        let id: u64 = config_json_data["id"].as_u64().unwrap();
 
         return Self::new_with_opts(
             id,

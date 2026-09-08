@@ -1,7 +1,10 @@
 use std::{
     collections::HashMap,
+    io::Write,
     ops::{Deref, DerefMut},
     panic,
+    path::PathBuf,
+    str::FromStr,
     sync::{Arc, LazyLock, Mutex},
     thread::{self},
 };
@@ -10,6 +13,7 @@ use serde_json::Value;
 
 use crate::file_handling::{
     file_handling::read_small_file,
+    saveable::{make_json_from_saveable_list, make_json_list_from_saveable_list},
     video_processing::{
         local_music_processor::LocalMusicProcessor, local_video_processor::LocalVideoProcessor,
         video_processor::*,
@@ -96,23 +100,70 @@ impl VideoProcessorManager {
         //Local video processors:
         let local_video_processors_jlist = json_data["local_video_processors"].as_array().unwrap();
         for local_video_processors_jobj in local_video_processors_jlist {
-            for (lvp_id_str, lvp_jobj) in local_video_processors_jobj.as_object().unwrap() {
-                let lvp_id: u64 = lvp_id_str.parse::<u64>().unwrap();
-                self.add_local_video_processor(Arc::new(Mutex::new(LocalVideoProcessor::new(
-                    lvp_id, lvp_jobj,
-                ))));
-            }
+            // for (lvp_id_str, lvp_jobj) in local_video_processors_jobj.as_object().unwrap() {
+            self.add_local_video_processor(Arc::new(Mutex::new(LocalVideoProcessor::new(
+                local_video_processors_jobj,
+            ))));
+            // }
         }
         //Local video processors:
         let local_music_processors_jlist = json_data["local_music_processors"].as_array().unwrap();
         for local_music_processors_jobj in local_music_processors_jlist {
-            for (lmp_id_str, lmp_jobj) in local_music_processors_jobj.as_object().unwrap() {
-                let lmp_id: u64 = lmp_id_str.parse::<u64>().unwrap();
-                self.add_local_video_processor(Arc::new(Mutex::new(LocalVideoProcessor::new(
-                    lmp_id, lmp_jobj,
-                ))));
-            }
+            // for (lmp_id_str, lmp_jobj) in local_music_processors_jobj.as_object().unwrap() {
+            self.add_local_music_processor(Arc::new(Mutex::new(LocalMusicProcessor::new(
+                local_music_processors_jobj,
+            ))));
+            // }
         }
+    }
+
+    ///Save the VideoProcessorManager's data to disk (or wherever the data file is stored).
+    pub fn save_data(&'static self) {
+        //Create JSON data string:
+        //Lock data:
+        let local_video_procs_mutg = self.local_video_processors.lock().unwrap();
+        let local_music_procs_mutg = self.local_music_processors.lock().unwrap();
+        //Local video processors:
+        let local_video_procs_map = local_video_procs_mutg.deref();
+        let mut local_video_procs_list: Vec<Arc<Mutex<LocalVideoProcessor>>> = Vec::new();
+        for item in local_video_procs_map.values() {
+            local_video_procs_list.push(Arc::clone(item));
+        }
+        let local_video_procs_string: String =
+            make_json_list_from_saveable_list(&local_video_procs_list);
+        //Local music processors:
+        let local_music_procs_map = local_music_procs_mutg.deref();
+        let mut local_music_procs_list: Vec<Arc<Mutex<LocalMusicProcessor>>> = Vec::new();
+        for item in local_music_procs_map.values() {
+            local_music_procs_list.push(Arc::clone(item));
+        }
+        let local_music_procs_string: String =
+            make_json_list_from_saveable_list(&local_music_procs_list);
+
+        //Final result:
+        let result: String = format!(
+            "{{\"local_video_processors\": {local_video_procs_string}, \"local_music_processors\": {local_music_procs_string}}}"
+        );
+
+        //Write processors.json file:
+        let mut result_path_buf = PathBuf::from_str(self.data_path).unwrap();
+        result_path_buf.push("./processors.json");
+        let result_path_canon = std::fs::canonicalize(result_path_buf).unwrap();
+        let result_path_string: &String = &result_path_canon.to_string_lossy().to_string();
+        let mut result_json_file = std::fs::File::create(result_path_canon).expect(
+            format!(
+                "Error: Could not create or open the file \"{}\" for writing. ",
+                result_path_string
+            )
+            .as_str(),
+        );
+        result_json_file.write_all(result.as_bytes()).expect(
+            format!(
+                "Error: Could not write processor data to the file \"{}\". ",
+                result_path_string
+            )
+            .as_str(),
+        );
     }
 
     ///Adds the given LocalVideoProcessor (new_processor_arc) to the appropriate location in self.fastest_local_video_processors.

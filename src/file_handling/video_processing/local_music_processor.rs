@@ -7,9 +7,12 @@ use std::{
     thread,
 };
 
-use crate::file_handling::video_processing::video_processor::{
-    BoolBox, VeryBasicVideoFileDescription, VideoProcessor, VideoProcessorType,
-    get_video_description, kill_process_by_pid,
+use crate::file_handling::{
+    saveable::{Saveable, make_json_list_from_strings},
+    video_processing::video_processor::{
+        BoolBox, VeryBasicVideoFileDescription, VideoProcessor, VideoProcessorType,
+        get_video_description, kill_process_by_pid,
+    },
 };
 
 #[derive(Debug)]
@@ -26,6 +29,17 @@ pub struct LocalMusicProcessor {
     running_pids: Arc<Mutex<HashMap<u64, u32>>>, //Map of the pids of the ffmpeg commands used to process the videos.
 
     speed: u64,
+}
+
+impl Saveable for LocalMusicProcessor {
+    fn to_json(&self, pretty: bool) -> String {
+        let ffmpeg_options_string: String = make_json_list_from_strings(&self.ffmpeg_options);
+        let max_speed_string: String = self.speed.to_string();
+        return format!(
+            "{{\"id\": {}, \"ffmpeg_options\": {ffmpeg_options_string}, \"speed\": {max_speed_string}}}",
+            self.get_id()
+        );
+    }
 }
 
 impl LocalMusicProcessor {
@@ -51,8 +65,8 @@ impl LocalMusicProcessor {
 impl VideoProcessor for LocalMusicProcessor {
     ///Creates a new LocalMusicProcessor from the given id (id) and JSON data (config_json_data). The JSON data must be in the following JSON format:
     ///
-    ///{"ffmpeg_options": [list of all of the ffmpeg options needed to convert the input audio file into MPEG_DASH format as a list of strings (with no spaces in the items themselves), NOT INCLUDING "-i", the input audio file, "-f", "dash", or "./output.mpd"], "speed": [a number that represents the LocalMusicProcessor's speed, similar to the \"max_gpu_tflops\" value for LocalVideoProcessor]}
-    fn new(id: u64, config_json_data: &serde_json::Value) -> Self
+    ///{"id": [processor_id], "ffmpeg_options": [list of all of the ffmpeg options needed to convert the input audio file into MPEG_DASH format as a list of strings (with no spaces in the items themselves), NOT INCLUDING "-i", the input audio file, "-f", "dash", or "./output.mpd"], "speed": [a number that represents the LocalMusicProcessor's speed, similar to the \"max_gpu_tflops\" value for LocalVideoProcessor]}
+    fn new(config_json_data: &serde_json::Value) -> Self
     where
         Self: Sized,
     {
@@ -60,6 +74,7 @@ impl VideoProcessor for LocalMusicProcessor {
         for json_item in config_json_data["ffmpeg_options"].as_array().unwrap() {
             ffmpeg_options.push(json_item.as_str().unwrap().to_string());
         }
+        let id: u64 = config_json_data["id"].as_u64().unwrap();
         return Self::new_with_opts(
             id,
             &ffmpeg_options,

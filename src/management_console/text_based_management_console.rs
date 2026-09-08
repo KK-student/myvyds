@@ -1,6 +1,6 @@
 use std::{
     collections::HashSet,
-    ops::Deref,
+    ops::{Deref, DerefMut},
     sync::{Arc, Mutex},
     thread,
 };
@@ -280,13 +280,18 @@ To quit, press Ctrl+C. ";
                         self.processor_manager.remove_processor(&id);
                     }
                     "save_processor_data" => {
-                        todo!("Implement \"save_processor_data\"!");
+                        self.processor_manager.save_data();
                     }
                     "save_video_user_data" => {
-                        todo!("Implement \"save_video_user_data\"!");
+                        let mut data_manager_mutg = self.data_manager.lock().unwrap();
+                        let data_manager = data_manager_mutg.deref_mut();
+                        data_manager.save_data();
                     }
                     "save_all_data" => {
-                        todo!("Implement \"save_all_data\"!");
+                        let mut data_manager_mutg = self.data_manager.lock().unwrap();
+                        let data_manager = data_manager_mutg.deref_mut();
+                        data_manager.save_data();
+                        self.processor_manager.save_data();
                     }
                     "vusers" => {
                         todo!("Implement \"vusers\"!");

@@ -9,6 +9,8 @@ use std::{
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::file_handling::saveable::Saveable;
+
 #[derive(Debug, PartialEq)]
 ///Represents the different types of the VideoProcessors.
 ///
@@ -46,9 +48,9 @@ pub fn cast_video_processor_arc<R: VideoProcessor, F: VideoProcessor>(
 }
 
 ///A trait for processing videos.
-pub trait VideoProcessor {
+pub trait VideoProcessor: Saveable {
     ///Create a new VideoProcessor (return type depends on struct implementing this trait) from the given JSON configuration data (config_json_data).
-    fn new(id: u64, config_json_data: &Value) -> Self
+    fn new(config_json_data: &Value) -> Self
     where
         Self: Sized;
 
