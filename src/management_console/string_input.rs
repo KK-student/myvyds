@@ -144,21 +144,8 @@ pub fn get_menu_item(
 
 ///Prompts the user for either a yes or no answer.
 pub fn get_yes_or_no(prompt: &str) -> bool {
-    //TODO: Will have to find out why there is no space after '?' at the end of {prompt} of prompt if the last character in prompt variable is '?'.
     let full_prompt = format!(
-        "{prompt}{}Enter your answer (y/n): ",
-        if prompt.len() == 0 {
-            let prompt_last_char = prompt.chars().last().unwrap();
-            if prompt_last_char == '?' || prompt_last_char == '.' {
-                " "
-            } else if prompt_last_char != ' ' {
-                ". "
-            } else {
-                ""
-            }
-        } else {
-            ""
-        }
+        "{prompt}\nEnter your answer (y/n): "
     );
     loop {
         print!("{full_prompt}");
