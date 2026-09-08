@@ -72,6 +72,9 @@ save_all_data -> Save all of the data, including all of the user, video, and vid
 Managing user data: 
 vusers -> Show a list of all users. 
 vuser -> Show the basic information for a user. 
+add_user -> Add a new user. 
+remove_user -> Remove a user. 
+edit_user -> Edit the info for a user. 
 
 To quit, press Ctrl+C. ";
             println!(
@@ -298,6 +301,15 @@ To quit, press Ctrl+C. ";
                     }
                     "vuser" => {
                         todo!("Implement \"vuser\"!");
+                    }
+                    "add_user" => {
+                        todo!("Implement \"add_user\"!");
+                    }
+                    "remove_user" => {
+                        todo!("Implement \"remove_user\"!");
+                    }
+                    "edit_user" => {
+                        todo!("Implement \"edit_user\"!");
                     }
                     &_ => println!("Error: \"{input}\" is not a valid command. "),
                 };
