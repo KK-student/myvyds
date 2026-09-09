@@ -5,9 +5,12 @@ use std::{
     thread,
 };
 
+use argon2::{Argon2, PasswordHasher};
+
 use crate::{
     file_handling::{
         file_handling::DataManager,
+        user::User,
         video_processing::{
             VideoProcessorManager,
             local_music_processor::LocalMusicProcessor,
@@ -28,9 +31,25 @@ impl Container<u64> for VideoProcessorManagerContainer {
     }
 }
 
+struct DataManagerContainer {
+    dm: &'static std::sync::LazyLock<Mutex<DataManager>>,
+}
+
+impl Container<String> for DataManagerContainer {
+    fn contains_generic(&self, value: &String) -> bool {
+        let data_manager_mutg = self.dm.lock().unwrap();
+        let data_manager = data_manager_mutg.deref();
+        return match data_manager.get_user(value) {
+            Some(_) => true,
+            None => false,
+        };
+    }
+}
+
 ///A ManagementConsole that runs directly on the server and talks to the user via the server's terminal.
 pub struct TextBasedManagementConsole {
     data_manager: &'static std::sync::LazyLock<Mutex<DataManager>>,
+    data_manager_container: DataManagerContainer,
     processor_manager: &'static VideoProcessorManager,
     processor_manager_container: VideoProcessorManagerContainer,
 }
@@ -42,6 +61,7 @@ impl TextBasedManagementConsole {
     ) -> Self {
         return Self {
             data_manager,
+            data_manager_container: DataManagerContainer { dm: data_manager },
             processor_manager,
             processor_manager_container: VideoProcessorManagerContainer {
                 vpm: processor_manager,
@@ -118,6 +138,26 @@ To quit, press Ctrl+C. ";
                         vproc.is_activated(),
                     );
                 }
+                fn view_user_obj(user_obj: &User) {
+                    println!(
+                        "id (aka username) \"{}\": 
+\tdescription: {}
+\tvideos: {:?}
+\tsubscriptions: {:?}
+\tliked videos: {:?}
+\tdisliked videos: {:?}
+\tliked comments: {:?}
+\tdisliked comments: {:?}",
+                        user_obj.get_user_id(),
+                        user_obj.get_description(),
+                        user_obj.get_videos(),
+                        user_obj.get_subscriptions(),
+                        user_obj.get_liked_vids(),
+                        user_obj.get_disliked_vids(),
+                        user_obj.get_liked_comments(),
+                        user_obj.get_disliked_comments()
+                    );
+                }
                 match input.as_str() {
                     "h" => println!("{help_text}"),
                     "vprocs" => {
@@ -140,7 +180,7 @@ To quit, press Ctrl+C. ";
                     "vproc" => {
                         // let procs = self.processor_manager.get_processors_clone();
                         // let id: u64 = get_number_in_set(&procs, "Enter processor id");
-                        let id: u64 = get_number_in_set(
+                        let id: u64 = get_value_in_set(
                             &self.processor_manager_container,
                             "Enter processor id",
                         );
@@ -150,7 +190,7 @@ To quit, press Ctrl+C. ";
                         view_proc_obj(vp_mutg.deref());
                     }
                     "activate_proc" => {
-                        let id: u64 = get_number_in_set(
+                        let id: u64 = get_value_in_set(
                             &self.processor_manager_container,
                             "Enter processor id",
                         );
@@ -159,7 +199,7 @@ To quit, press Ctrl+C. ";
                         }
                     }
                     "deactivate_proc" => {
-                        let id: u64 = get_number_in_set(
+                        let id: u64 = get_value_in_set(
                             &self.processor_manager_container,
                             "Enter processor id",
                         );
@@ -276,7 +316,7 @@ To quit, press Ctrl+C. ";
                     }
                     "remove_processor" => {
                         //Deactivate and remove a processor.
-                        let id: u64 = get_number_in_set(
+                        let id: u64 = get_value_in_set(
                             &self.processor_manager_container,
                             "Enter processor id",
                         );
@@ -297,13 +337,42 @@ To quit, press Ctrl+C. ";
                         self.processor_manager.save_data();
                     }
                     "vusers" => {
-                        todo!("Implement \"vusers\"!");
+                        let data_manager_mutg = self.data_manager.lock().unwrap();
+                        let data_manager = data_manager_mutg.deref();
+                        data_manager.for_all_users(|user_arc: Arc<Mutex<User>>| -> () {
+                            let user_mutg = user_arc.lock().unwrap();
+                            let user: &User = user_mutg.deref();
+                            view_user_obj(user);
+                        });
                     }
                     "vuser" => {
-                        todo!("Implement \"vuser\"!");
+                        let user_id: String = get_value_in_set(
+                            &self.data_manager_container,
+                            "Enter user id (aka username)",
+                        );
+                        let data_manager_mutg = self.data_manager.lock().unwrap();
+                        let data_manager = data_manager_mutg.deref();
+                        let user_arc = data_manager.get_user(&user_id).unwrap();
+                        let user_mutg = user_arc.lock().unwrap();
+                        let user: &User = user_mutg.deref();
+                        view_user_obj(user);
                     }
                     "add_user" => {
-                        todo!("Implement \"add_user\"!");
+                        let mut data_manager_mutg = self.data_manager.lock().unwrap();
+                        let data_manager = data_manager_mutg.deref_mut();
+                        let user_id: &String =
+                            &prompt(&"Enter the user id (aka username)".to_string());
+                        let description: &String = &prompt(&"Enter the description".to_string());
+                        let icon_id: u64 = get_number(&"Enter icon id".to_string());
+
+                        let password: String =
+                            prompt_password(&"Enter the user's password".to_string());
+                        let argon2 = Argon2::default();
+                        let password_hash: String = argon2
+                            .hash_password(password.as_bytes())
+                            .unwrap()
+                            .to_string();
+                        data_manager.add_user(user_id, &password_hash, description, icon_id);
                     }
                     "remove_user" => {
                         todo!("Implement \"remove_user\"!");

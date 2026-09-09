@@ -44,6 +44,32 @@ pub fn get_input() -> String {
     return result.to_string();
 }
 
+///Prompts a user for a line of text. 
+pub fn prompt(prompt: &String) -> String {
+    print!("{prompt}: ");
+    return get_input();
+}
+
+///Prompts the user for a good password
+pub fn prompt_password(prompt_string: &String) -> String {
+    loop {
+        let password: String = loop {
+            let input: String = prompt(prompt_string);
+            if input.len() >= 16 {
+                break input;
+            } else {
+                println!("Error: Bad password. Will not accept this password. ");
+            }
+        };
+        let password_str2: String = prompt(&"Enter password again".to_string());
+        if password == password_str2 {
+            break password;
+        } else {
+            println!("Error: Passwords didn't match!");
+        }
+    }
+}
+
 ///Prompts a single user for a number within a specified range. Min, max, and the resulting number can be of any type covered by the Num trait and must also implement the std::str::FromStr trait.
 pub fn get_number_in_range<T: Num + std::str::FromStr + std::cmp::PartialOrd>(
     min: T,
@@ -72,7 +98,7 @@ pub fn get_number_in_range<T: Num + std::str::FromStr + std::cmp::PartialOrd>(
 }
 
 ///Prompts a single user for a number that is in the specified set (list). Min, max, and the resulting number can be of any type covered by the Num trait and must also implement the std::str::FromStr trait.
-pub fn get_number_in_set<T: Num + std::str::FromStr + Eq + Hash>(
+pub fn get_value_in_set<T: std::str::FromStr + Eq + Hash>(
     list: &impl Container<T>,
     prompt: &str,
 ) -> T {

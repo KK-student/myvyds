@@ -201,6 +201,13 @@ pub mod file_handling {
             }
         }
 
+        ///Execute a function (action) on each user in the DataManager.
+        pub fn for_all_users<F: Fn(Arc<Mutex<User>>)>(&self, action: F) {
+            for user_arc in self.users.values() {
+                action(Arc::clone(user_arc));
+            }
+        }
+
         ///Whether or not if this DataManager has a user with the specified user id (user_id) or not.
         pub fn has_user(&self, user_id: &String) -> bool {
             match self.get_user(user_id) {
