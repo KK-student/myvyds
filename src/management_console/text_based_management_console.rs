@@ -18,7 +18,11 @@ use crate::{
             video_processor::{VideoProcessor, VideoProcessorType},
         },
     },
-    management_console::{ManagementConsole, string_input::*},
+    management_console::{
+        ManagementConsole,
+        password_input::{prompt_change_password, prompt_new_password},
+        string_input::*,
+    },
 };
 
 struct VideoProcessorManagerContainer {
@@ -141,6 +145,7 @@ To quit, press Ctrl+C. ";
                 fn view_user_obj(user_obj: &User) {
                     println!(
                         "id (aka username) \"{}\": 
+\tpassword_hash: {}
 \tdescription: {}
 \tvideos: {:?}
 \tsubscriptions: {:?}
@@ -149,6 +154,7 @@ To quit, press Ctrl+C. ";
 \tliked comments: {:?}
 \tdisliked comments: {:?}",
                         user_obj.get_user_id(),
+                        user_obj.get_password_hash(),
                         user_obj.get_description(),
                         user_obj.get_videos(),
                         user_obj.get_subscriptions(),
@@ -366,7 +372,7 @@ To quit, press Ctrl+C. ";
                         let icon_id: u64 = get_number(&"Enter icon id".to_string());
 
                         let password: String =
-                            prompt_password(&"Enter the user's password".to_string());
+                            prompt_new_password(&"Enter the user's password".to_string());
                         let argon2 = Argon2::default();
                         let password_hash: String = argon2
                             .hash_password(password.as_bytes())
@@ -375,10 +381,69 @@ To quit, press Ctrl+C. ";
                         data_manager.add_user(user_id, &password_hash, description, icon_id);
                     }
                     "remove_user" => {
-                        todo!("Implement \"remove_user\"!");
+                        let user_id: String = get_value_in_set(
+                            &self.data_manager_container,
+                            "Enter user id (aka username)",
+                        );
+                        let mut data_manager_mutg = self.data_manager.lock().unwrap();
+                        let data_manager = data_manager_mutg.deref_mut();
+                        data_manager.remove_user(&user_id);
                     }
                     "edit_user" => {
-                        todo!("Implement \"edit_user\"!");
+                        let user_id: String = get_value_in_set(
+                            &self.data_manager_container,
+                            "Enter user id (aka username)",
+                        );
+                        loop {
+                            match get_menu_item(
+                                Some("Fields to edit"),
+                                "Please enter which field to edit",
+                                &["Password", "Description", "Quit"],
+                                1,
+                            ) {
+                                0 => {
+                                    let new_password: String = prompt_change_password(
+                                        &format!(
+                                            "Enter the new password for the user with the user_id \"{user_id}\""
+                                        ),
+                                        &|password_hash: &String| -> bool {
+                                            let data_manager_mutg =
+                                                self.data_manager.lock().unwrap();
+                                            let data_manager = data_manager_mutg.deref();
+                                            let user_arc = data_manager.get_user(&user_id).unwrap();
+                                            let user_mutg = user_arc.lock().unwrap();
+                                            let user = user_mutg.deref();
+                                            user.check_password_hash(password_hash)
+                                        },
+                                    );
+                                    let new_password_hash = Argon2::default()
+                                        .hash_password(new_password.as_bytes())
+                                        .unwrap()
+                                        .to_string();
+                                    println!(
+                                        "new_password: \"{new_password}\", new_password_hash: \"{new_password_hash}\""
+                                    );
+                                    let data_manager_mutg = self.data_manager.lock().unwrap();
+                                    let data_manager = data_manager_mutg.deref();
+                                    let user_arc = data_manager.get_user(&user_id).unwrap();
+                                    let mut user_mutg = user_arc.lock().unwrap();
+                                    let user = user_mutg.deref_mut();
+                                    user.set_password_hash(&new_password_hash);
+                                }
+                                1 => {
+                                    let data_manager_mutg = self.data_manager.lock().unwrap();
+                                    let data_manager = data_manager_mutg.deref();
+                                    let user_arc = data_manager.get_user(&user_id).unwrap();
+                                    let mut user_mutg = user_arc.lock().unwrap();
+                                    let user = user_mutg.deref_mut();
+                                    user.set_description(&prompt(
+                                        &"Enter the new description".to_string(),
+                                    ));
+                                }
+                                2 => break,
+                                num => todo!("Error: Unimplemented menu option ({num})!"),
+                            };
+                        }
                     }
                     &_ => println!("Error: \"{input}\" is not a valid command. "),
                 };

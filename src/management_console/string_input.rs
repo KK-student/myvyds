@@ -1,6 +1,7 @@
 use std::io;
 use std::io::Write;
 
+use argon2::{Argon2, PasswordHasher};
 use num_traits::Num;
 
 use std::collections::{HashMap, HashSet, LinkedList};
@@ -44,30 +45,10 @@ pub fn get_input() -> String {
     return result.to_string();
 }
 
-///Prompts a user for a line of text. 
+///Prompts a user for a line of text.
 pub fn prompt(prompt: &String) -> String {
     print!("{prompt}: ");
     return get_input();
-}
-
-///Prompts the user for a good password
-pub fn prompt_password(prompt_string: &String) -> String {
-    loop {
-        let password: String = loop {
-            let input: String = prompt(prompt_string);
-            if input.len() >= 16 {
-                break input;
-            } else {
-                println!("Error: Bad password. Will not accept this password. ");
-            }
-        };
-        let password_str2: String = prompt(&"Enter password again".to_string());
-        if password == password_str2 {
-            break password;
-        } else {
-            println!("Error: Passwords didn't match!");
-        }
-    }
 }
 
 ///Prompts a single user for a number within a specified range. Min, max, and the resulting number can be of any type covered by the Num trait and must also implement the std::str::FromStr trait.
@@ -170,9 +151,7 @@ pub fn get_menu_item(
 
 ///Prompts the user for either a yes or no answer.
 pub fn get_yes_or_no(prompt: &str) -> bool {
-    let full_prompt = format!(
-        "{prompt}\nEnter your answer (y/n): "
-    );
+    let full_prompt = format!("{prompt}\nEnter your answer (y/n): ");
     loop {
         print!("{full_prompt}");
         let input = get_input().to_lowercase();

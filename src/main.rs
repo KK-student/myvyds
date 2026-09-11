@@ -411,28 +411,30 @@ async fn get_user_icon(query: Query<UserIdQuery>) -> impl Responder {
         .body(icon_image);
 }
 
-///Gets the user id (username field) and password hash (password field) from the given parsed form data (form_data). Returns None if either user_id or session_id was not found or if session_id is not a valid u64 number.
+///Gets the user id (username field) and password (password field) from the given parsed form data (form_data). Returns None if either user_id or session_id was not found or if session_id is not a valid u64 number.
 fn get_login_data(form_data: &HashMap<String, Vec<u8>>) -> Option<(String, String)> {
     let user_id: String = match form_data.get(&"username".to_string()) {
         Some(id) => String::from_utf8_lossy(id.as_slice()).to_string(),
         None => return None,
     };
-    let password_hash: String = match form_data.get(&"password".to_string()) {
+    let password: String = match form_data.get(&"password".to_string()) {
         Some(id) => String::from_utf8_lossy(id.as_slice()).to_string(),
         None => return None,
     };
-    return Some((user_id, password_hash));
+    return Some((user_id, password));
 }
 
-#[get("/user/login")]
 ///Logging in:
-async fn login(mut payload: Multipart) -> impl Responder {
+///TODO: Function hangs when called.
+#[post("/user/login")]
+async fn login_endpoint(mut payload: Multipart) -> impl Responder {
+    println!("login called");
     let response400 = HttpResponse::BadRequest().finish();
 
     //Getting username and password:
     let mut parsed_data: HashMap<String, Vec<u8>> = HashMap::new();
     parse_form_data(&mut payload, &mut parsed_data).await;
-    let (user_id, password_hash) = match get_login_data(&parsed_data) {
+    let (user_id, password) = match get_login_data(&parsed_data) {
         Some(res) => res,
         None => return response400,
     };
@@ -443,7 +445,7 @@ async fn login(mut payload: Multipart) -> impl Responder {
     if !data_manager.has_user(&user_id) {
         return response400;
     }
-    let session_id: u64 = match SESSION_MANAGER.login(&user_id, &password_hash) {
+    let session_id: u64 = match SESSION_MANAGER.login(&user_id, &password) {
         Ok(id) => id,
         Err(_) => return response400,
     };
@@ -461,7 +463,7 @@ async fn signup(mut payload: Multipart) -> impl Responder {
     //Getting username and password:
     let mut parsed_data: HashMap<String, Vec<u8>> = HashMap::new();
     parse_form_data(&mut payload, &mut parsed_data).await;
-    let (user_id, password_hash) = match get_login_data(&parsed_data) {
+    let (user_id, password) = match get_login_data(&parsed_data) {
         Some(res) => res,
         None => return response400,
     };
@@ -474,8 +476,8 @@ async fn signup(mut payload: Multipart) -> impl Responder {
     }
 
     //Create new user:
-    data_manager.add_user(&user_id, &password_hash, &"".to_string(), 0);
-    let session_id: u64 = match SESSION_MANAGER.login(&user_id, &password_hash) {
+    data_manager.add_user(&user_id, &password, &"".to_string(), 0);
+    let session_id: u64 = match SESSION_MANAGER.login(&user_id, &password) {
         Ok(id) => id,
         Err(_) => return response400,
     };
@@ -517,8 +519,11 @@ async fn main() -> std::io::Result<()> {
             .service(get_video_thumbnail_image)
             .service(is_currently_processing)
             .service(get_public_info)
+            .service(get_user_icon)
+            .service(login_endpoint)
+            .service(signup)
     })
-    .bind(("127.0.0.1", 7000))
+    .bind(("127.0.0.1", 6000))
     {
         Ok(res) => res,
         Err(e) => {

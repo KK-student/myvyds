@@ -4,6 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use json_escape::escape_str;
 use serde_json::Value;
 
@@ -298,9 +299,21 @@ impl User {
         return true;
     }
 
-    ///Checks if the given password hash (password_hash parameter) matches exactly to that of the user's password hash.
-    pub fn check_password_hash(&self, password_hash: &String) -> bool {
-        return self.password_hash == password_hash.clone();
+    ///Checks if the given password (password parameter) matches the user's password hash.
+    ///TODO: Need to have the user send the password instead of the password hash.
+    pub fn check_password_hash(&self, password: &String) -> bool {
+        // return self.password_hash == password.clone();
+        let password_hash = PasswordHash::new(self.password_hash.as_str()).unwrap();
+        let argon2 = Argon2::default();
+        match argon2.verify_password(password.as_bytes(), &password_hash) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
+
+    ///Gets the hash of the password:
+    pub fn get_password_hash(&self) -> String {
+        self.password_hash.clone()
     }
 
     ///Sets the user's password hash.
