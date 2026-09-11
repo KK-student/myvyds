@@ -46,10 +46,12 @@ where
         std::thread::spawn(|| -> () {
             loop {
                 //Delete all inactive sessions:
-                let mut sessions_mutg = self.sessions.lock().unwrap();
-                let sessions = sessions_mutg.deref_mut();
-                for (user_id, user_sessions_list) in sessions {
-                    self.remove_user_invalid_sessions(user_sessions_list);
+                {
+                    let mut sessions_mutg = self.sessions.lock().unwrap();
+                    let sessions = sessions_mutg.deref_mut();
+                    for (user_id, user_sessions_list) in sessions {
+                        self.remove_user_invalid_sessions(user_sessions_list);
+                    }
                 }
                 //Sleep for 10min:
                 let time = time::Duration::from_mins(10);

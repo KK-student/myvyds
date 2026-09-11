@@ -425,10 +425,8 @@ fn get_login_data(form_data: &HashMap<String, Vec<u8>>) -> Option<(String, Strin
 }
 
 ///Logging in:
-///TODO: Function hangs when called.
 #[post("/user/login")]
 async fn login_endpoint(mut payload: Multipart) -> impl Responder {
-    println!("login called");
     let response400 = HttpResponse::BadRequest().finish();
 
     //Getting username and password:
@@ -440,10 +438,12 @@ async fn login_endpoint(mut payload: Multipart) -> impl Responder {
     };
 
     //Check if username and password is valid. If so, login with SESSION_MANAGER.
-    let data_manager_mutg = DATA_MANAGER.lock().unwrap();
-    let data_manager = data_manager_mutg.deref();
-    if !data_manager.has_user(&user_id) {
-        return response400;
+    {
+        let data_manager_mutg = DATA_MANAGER.lock().unwrap();
+        let data_manager = data_manager_mutg.deref();
+        if !data_manager.has_user(&user_id) {
+            return response400;
+        }
     }
     let session_id: u64 = match SESSION_MANAGER.login(&user_id, &password) {
         Ok(id) => id,
@@ -489,6 +489,8 @@ async fn signup(mut payload: Multipart) -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    //Get command line args:
+    let args: Vec<String> = std::env::args().collect::<Vec<String>>();
     //Initialize PROCESSOR_MANAGER:
     {
         PROCESSOR_MANAGER.load_data();
@@ -507,7 +509,9 @@ async fn main() -> std::io::Result<()> {
     SESSION_MANAGER.start_autodelete();
 
     //Start ManagementConsole:
-    MANAGEMENT_CONSOLE.launch(std::env::var("CARGO_PKG_VERSION").unwrap());
+    if args.contains(&"-text_console".to_string()) {
+        MANAGEMENT_CONSOLE.launch(std::env::var("CARGO_PKG_VERSION").unwrap());
+    }
 
     match HttpServer::new(move || {
         App::new()
