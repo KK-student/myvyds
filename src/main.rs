@@ -8,6 +8,7 @@ use std::{
 };
 
 use actix_multipart::{Field, Multipart};
+use argon2::{Argon2, PasswordHasher};
 use futures::TryStreamExt;
 use serde::Deserialize;
 
@@ -455,7 +456,7 @@ async fn login_endpoint(mut payload: Multipart) -> impl Responder {
         .body(session_id.to_be_bytes().to_vec());
 }
 
-#[get("/user/signup")]
+#[post("/user/signup")]
 ///Signing up:
 async fn signup(mut payload: Multipart) -> impl Responder {
     let response400 = HttpResponse::BadRequest().finish();
@@ -468,15 +469,25 @@ async fn signup(mut payload: Multipart) -> impl Responder {
         None => return response400,
     };
 
-    //Check if there is any user with the given username.
-    let mut data_manager_mutg = DATA_MANAGER.lock().unwrap();
-    let data_manager = data_manager_mutg.deref_mut();
-    if data_manager.has_user(&user_id) {
-        return response400;
+    {
+        //Check if there is any user with the given username.
+        let mut data_manager_mutg = DATA_MANAGER.lock().unwrap();
+        let data_manager = data_manager_mutg.deref_mut();
+        if data_manager.has_user(&user_id) {
+            return response400;
+        }
+
+        //Create the password hash:
+        let password_hash = Argon2::default()
+            .hash_password(password.as_bytes())
+            .unwrap()
+            .to_string();
+
+        //Create new user:
+        data_manager.add_user(&user_id, &password_hash, &"".to_string(), 0);
     }
 
-    //Create new user:
-    data_manager.add_user(&user_id, &password, &"".to_string(), 0);
+    //Get session id:
     let session_id: u64 = match SESSION_MANAGER.login(&user_id, &password) {
         Ok(id) => id,
         Err(_) => return response400,
