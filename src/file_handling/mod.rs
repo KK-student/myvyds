@@ -648,5 +648,9 @@ pub mod file_handling {
             let video: &mut VideoData = video_mutg.deref_mut();
             video.remove_comment_recursive(*comment_id);
         }
+
+        pub fn get_comment(&self, comment_id: &u64) -> Option<&Arc<Mutex<Comment>>> {
+            self.comments_by_id.get(comment_id)
+        }
     }
 }
