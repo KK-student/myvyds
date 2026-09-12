@@ -35,11 +35,11 @@ impl Container<u64> for VideoProcessorManagerContainer {
     }
 }
 
-struct DataManagerContainer {
+struct DataManagerUserContainer {
     dm: &'static std::sync::LazyLock<Mutex<DataManager>>,
 }
 
-impl Container<String> for DataManagerContainer {
+impl Container<String> for DataManagerUserContainer {
     fn contains_generic(&self, value: &String) -> bool {
         let data_manager_mutg = self.dm.lock().unwrap();
         let data_manager = data_manager_mutg.deref();
@@ -50,10 +50,36 @@ impl Container<String> for DataManagerContainer {
     }
 }
 
+struct DataManagerVideoDataContainer {
+    dm: &'static std::sync::LazyLock<Mutex<DataManager>>,
+}
+
+impl Container<u64> for DataManagerVideoDataContainer {
+    fn contains_generic(&self, value: &u64) -> bool {
+        let data_manager_mutg = self.dm.lock().unwrap();
+        let data_manager = data_manager_mutg.deref();
+        return data_manager.has_video_by_id(value);
+    }
+}
+
+struct DataManagerCommentContainer {
+    dm: &'static std::sync::LazyLock<Mutex<DataManager>>,
+}
+
+impl Container<u64> for DataManagerCommentContainer {
+    fn contains_generic(&self, value: &u64) -> bool {
+        let data_manager_mutg = self.dm.lock().unwrap();
+        let data_manager = data_manager_mutg.deref();
+        return data_manager.has_comment(value);
+    }
+}
+
 ///A ManagementConsole that runs directly on the server and talks to the user via the server's terminal.
 pub struct TextBasedManagementConsole {
     data_manager: &'static std::sync::LazyLock<Mutex<DataManager>>,
-    data_manager_container: DataManagerContainer,
+    data_manager_user_container: DataManagerUserContainer,
+    data_manager_video_data_container: DataManagerVideoDataContainer,
+    data_manager_comment_container: DataManagerCommentContainer,
     processor_manager: &'static VideoProcessorManager,
     processor_manager_container: VideoProcessorManagerContainer,
 }
@@ -65,7 +91,9 @@ impl TextBasedManagementConsole {
     ) -> Self {
         return Self {
             data_manager,
-            data_manager_container: DataManagerContainer { dm: data_manager },
+            data_manager_user_container: DataManagerUserContainer { dm: data_manager },
+            data_manager_video_data_container: DataManagerVideoDataContainer { dm: data_manager },
+            data_manager_comment_container: DataManagerCommentContainer { dm: data_manager },
             processor_manager,
             processor_manager_container: VideoProcessorManagerContainer {
                 vpm: processor_manager,
@@ -145,8 +173,8 @@ To quit, press Ctrl+C. ";
                 fn view_user_obj(user_obj: &User) {
                     println!(
                         "id (aka username) \"{}\": 
-\tpassword_hash: {}
-\tdescription: {}
+\tpassword_hash: \"{}\"
+\tdescription: \"{}\"
 \tvideos: {:?}
 \tsubscriptions: {:?}
 \tliked videos: {:?}
@@ -353,7 +381,7 @@ To quit, press Ctrl+C. ";
                     }
                     "vuser" => {
                         let user_id: String = get_value_in_set(
-                            &self.data_manager_container,
+                            &self.data_manager_user_container,
                             "Enter user id (aka username)",
                         );
                         let data_manager_mutg = self.data_manager.lock().unwrap();
@@ -382,7 +410,7 @@ To quit, press Ctrl+C. ";
                     }
                     "remove_user" => {
                         let user_id: String = get_value_in_set(
-                            &self.data_manager_container,
+                            &self.data_manager_user_container,
                             "Enter user id (aka username)",
                         );
                         let mut data_manager_mutg = self.data_manager.lock().unwrap();
@@ -391,14 +419,24 @@ To quit, press Ctrl+C. ";
                     }
                     "edit_user" => {
                         let user_id: String = get_value_in_set(
-                            &self.data_manager_container,
+                            &self.data_manager_user_container,
                             "Enter user id (aka username)",
                         );
                         loop {
                             match get_menu_item(
-                                Some("Fields to edit"),
-                                "Please enter which field to edit",
-                                &["Password", "Description", "Quit"],
+                                Some("List of actions"),
+                                "Please enter what you want to do",
+                                &[
+                                    "Change the password",
+                                    "Change the description",
+                                    "View subscriptions",
+                                    "Subscribe to a channel",
+                                    "Unsubscribe from a channel",
+                                    "View user",
+                                    "Make comment",
+                                    "Remove comment",
+                                    "Quit",
+                                ],
                                 1,
                             ) {
                                 0 => {
@@ -440,7 +478,80 @@ To quit, press Ctrl+C. ";
                                         &"Enter the new description".to_string(),
                                     ));
                                 }
-                                2 => break,
+                                2 => {
+                                    let data_manager_mutg = self.data_manager.lock().unwrap();
+                                    let data_manager = data_manager_mutg.deref();
+                                    let user_arc = data_manager.get_user(&user_id).unwrap();
+                                    let user_mutg = user_arc.lock().unwrap();
+                                    let user = user_mutg.deref();
+                                    print!("Subscriptions: ");
+                                    {
+                                        let mut i = 0;
+                                        for subscription in user.get_subscriptions().iter() {
+                                            if i > 0 {
+                                                print!(", ");
+                                            }
+                                            print!("{subscription}");
+                                            i += 1;
+                                        }
+                                        println!();
+                                    }
+                                }
+                                3 => {
+                                    let channel_user_id: String = get_value_in_set(
+                                        &self.data_manager_user_container,
+                                        "Enter user id (aka username)",
+                                    );
+
+                                    let data_manager_mutg = self.data_manager.lock().unwrap();
+                                    let data_manager = data_manager_mutg.deref();
+                                    let user_arc = data_manager.get_user(&user_id).unwrap();
+                                    let mut user_mutg = user_arc.lock().unwrap();
+                                    let user = user_mutg.deref_mut();
+
+                                    user.add_subscription(&channel_user_id);
+                                }
+                                4 => {
+                                    let data_manager_mutg = self.data_manager.lock().unwrap();
+                                    let data_manager = data_manager_mutg.deref();
+                                    let user_arc = data_manager.get_user(&user_id).unwrap();
+                                    let mut user_mutg = user_arc.lock().unwrap();
+                                    let user = user_mutg.deref_mut();
+
+                                    let channel_user_id: String =
+                                        prompt(&"Enter user id (aka username)".to_string());
+                                    user.remove_subscription(&channel_user_id);
+                                }
+                                5 => {
+                                    let data_manager_mutg = self.data_manager.lock().unwrap();
+                                    let data_manager = data_manager_mutg.deref();
+                                    let user_arc = data_manager.get_user(&user_id).unwrap();
+                                    let user_mutg = user_arc.lock().unwrap();
+                                    let user = user_mutg.deref();
+
+                                    view_user_obj(user);
+                                }
+                                6 => {
+                                    let video_id: u64 = get_value_in_set(
+                                        &self.data_manager_video_data_container,
+                                        "Enter the video id of the video you want to comment to",
+                                    );
+                                    let mut data_manager_mutg = self.data_manager.lock().unwrap();
+                                    let data_manager = data_manager_mutg.deref_mut();
+                                    let comment_text: String =
+                                        prompt(&"Enter the comment text".to_string());
+                                    data_manager.make_comment(&user_id, &video_id, &comment_text);
+                                }
+                                7 => {
+                                    let comment_id: u64 = get_value_in_set(
+                                        &self.data_manager_comment_container,
+                                        "Enter the comment id of the comment you want to remove",
+                                    );
+                                    let mut data_manager_mutg = self.data_manager.lock().unwrap();
+                                    let data_manager = data_manager_mutg.deref_mut();
+                                    data_manager.remove_comment(&comment_id);
+                                }
+                                8 => break,
                                 num => todo!("Error: Unimplemented menu option ({num})!"),
                             };
                         }

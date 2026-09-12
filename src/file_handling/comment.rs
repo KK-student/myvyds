@@ -7,11 +7,14 @@ use std::{
 use json_escape::escape_str;
 use serde_json::Value;
 
-use crate::file_handling::{
-    describable::{Describable, make_json_from_describable_list},
-    dirty_data::DirtyData,
-    likeable::Likeable,
-    saveable::{Saveable, make_json_from_saveable_list},
+use crate::{
+    file_handling::{
+        describable::{Describable, make_json_from_describable_list},
+        dirty_data::DirtyData,
+        likeable::Likeable,
+        saveable::{Saveable, make_json_from_saveable_list},
+    },
+    time::get_current_time,
 };
 
 ///Represents a comment stored on disk.
@@ -69,6 +72,22 @@ impl Comment {
             dirty: false,
             edited: false,
         }
+    }
+
+    ///Make a new comment
+    pub fn new_comment(id: u64, level: u64, author: &String, text: &String) -> Self {
+        return Comment {
+            id,
+            level,
+            author: author.clone(),
+            text: text.clone(),
+            creation_time: get_current_time(),
+            replies: Box::new(Vec::new()),
+            likes: 0,
+            dislikes: 0,
+            dirty: true,
+            edited: false,
+        };
     }
 
     ///Get comment id.

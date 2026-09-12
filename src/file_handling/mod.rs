@@ -114,6 +114,7 @@ pub mod file_handling {
         time::get_current_time,
     };
 
+    use rand::RngExt;
     use serde_json::Value;
     use tokio::fs::File;
     use tokio_util::io::ReaderStream;
@@ -579,6 +580,48 @@ pub mod file_handling {
 
         pub fn has_video_by_id(&self, video_id: &u64) -> bool {
             self.videos.contains_key(video_id)
+        }
+
+        pub fn has_comment(&self, comment_id: &u64) -> bool {
+            self.comments_by_id.contains_key(comment_id)
+        }
+
+        ///Makes a comment for a video
+        pub fn make_comment(&mut self, user_id: &String, video_id: &u64, text: &String) {
+            //Get user:
+            let user_arc: Arc<Mutex<User>> = match self.get_user(user_id) {
+                Some(u_arc) => u_arc,
+                None => return,
+            };
+            let mut user_mutg = user_arc.lock().unwrap();
+            let user: &mut User = user_mutg.deref_mut();
+            //Get video:
+            let video_arc: Arc<Mutex<VideoData>> = if self.has_video_by_id(video_id) {
+                self.get_video(video_id)
+            } else {
+                return;
+            };
+            let mut video_mutg = video_arc.lock().unwrap();
+            let video: &mut VideoData = video_mutg.deref_mut();
+
+            //Make the comment:
+            let mut rand = rand::rng();
+            let comment_id: u64 = loop {
+                let val: u64 = rand.random::<u64>();
+                if !self.has_comment(&val) {
+                    break val;
+                }
+            };
+            let comment_arc: Arc<Mutex<Comment>> = Arc::new(Mutex::new(Comment::new_comment(
+                comment_id, 0, user_id, text,
+            )));
+            video.add_comment(comment_arc);
+            user.add_comment(comment_id);
+        }
+
+        ///Remove a comment by it's comment id:
+        pub fn remove_comment(&mut self, comment_id: &u64) {
+            todo!("Implement this!");
         }
     }
 }
