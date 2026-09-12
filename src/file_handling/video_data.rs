@@ -108,7 +108,10 @@ impl VideoData {
 
     ///Add a comment to level 0.
     pub fn add_comment(&mut self, comment_arc: Arc<Mutex<Comment>>) {
-        self.comments.push(comment_arc);
+        self.comments.push(Arc::clone(&comment_arc));
+        let mut comment_mutg = comment_arc.lock().unwrap();
+        let comment: &mut Comment = comment_mutg.deref_mut();
+        comment.set_video_id(self.get_id());
         self.set_dirty(true);
     }
 

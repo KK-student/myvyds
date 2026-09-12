@@ -21,6 +21,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Comment {
     id: u64,
+    video_id: Option<u64>,
     level: u64,
     author: String,
     text: String,
@@ -62,6 +63,7 @@ impl Comment {
 
         Comment {
             id: comment_id,
+            video_id: None,
             level: level,
             author: default_value.clone(),
             text: text.to_string(),
@@ -75,9 +77,16 @@ impl Comment {
     }
 
     ///Make a new comment
-    pub fn new_comment(id: u64, level: u64, author: &String, text: &String) -> Self {
+    pub fn new_comment(
+        id: u64,
+        video_id: Option<u64>,
+        level: u64,
+        author: &String,
+        text: &String,
+    ) -> Self {
         return Comment {
             id,
+            video_id: video_id,
             level,
             author: author.clone(),
             text: text.clone(),
@@ -93,6 +102,14 @@ impl Comment {
     ///Get comment id.
     pub fn get_id(&self) -> u64 {
         self.id
+    }
+
+    pub fn get_video_id(&self) -> Option<u64> {
+        self.video_id
+    }
+
+    pub fn set_video_id(&mut self, video_id: u64) {
+        self.video_id = Some(video_id);
     }
 
     ///Get comment level.
@@ -195,13 +212,23 @@ impl Comment {
     }
 
     ///Add a reply.
-    pub fn add_reply(&mut self, reply: Arc<Mutex<Comment>>) -> bool {
+    pub fn add_reply(&mut self, reply_arc: Arc<Mutex<Comment>>) -> bool {
         if !Self::can_add_replies(self) {
             return false;
         }
 
         let replies: &mut Vec<Arc<Mutex<Comment>>> = self.replies.deref_mut();
-        replies.push(reply);
+        replies.push(Arc::clone(&reply_arc));
+
+        {
+            //Set video_id of reply:
+            let mut reply_mutg = reply_arc.lock().unwrap();
+            let reply: &mut Comment = reply_mutg.deref_mut();
+            match self.get_video_id() {
+                Some(v_id) => reply.set_video_id(v_id),
+                None => {}
+            };
+        }
 
         self.set_dirty(true);
         return true;

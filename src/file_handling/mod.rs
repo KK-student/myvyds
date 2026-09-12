@@ -613,7 +613,11 @@ pub mod file_handling {
                 }
             };
             let comment_arc: Arc<Mutex<Comment>> = Arc::new(Mutex::new(Comment::new_comment(
-                comment_id, 0, user_id, text,
+                comment_id,
+                Some(*video_id),
+                0,
+                user_id,
+                text,
             )));
             video.add_comment(comment_arc);
             user.add_comment(comment_id);
@@ -621,7 +625,28 @@ pub mod file_handling {
 
         ///Remove a comment by it's comment id:
         pub fn remove_comment(&mut self, comment_id: &u64) {
-            todo!("Implement this!");
+            //Get the video_id of the video which the comment is in:
+            let video_id: u64 = match {
+                let comment_arc = match self.comments_by_id.get(comment_id) {
+                    Some(c_arc) => c_arc,
+                    None => return,
+                };
+                let comment_mutg = comment_arc.lock().unwrap();
+                let comment: &Comment = comment_mutg.deref();
+                comment.get_video_id()
+            } {
+                Some(id) => id,
+                None => return,
+            };
+            //Get the video arc:
+            let video_arc = if self.has_video_by_id(&video_id) {
+                self.get_video(&video_id)
+            } else {
+                return;
+            };
+            let mut video_mutg = video_arc.lock().unwrap();
+            let video: &mut VideoData = video_mutg.deref_mut();
+            video.remove_comment_recursive(*comment_id);
         }
     }
 }
