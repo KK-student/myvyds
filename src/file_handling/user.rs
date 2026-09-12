@@ -203,6 +203,12 @@ impl User {
         return -1;
     }
 
+    ///Adds a new video to the list of created videos.
+    pub fn add_video(&mut self, video_id: u64) {
+        self.videos.push(video_id);
+        self.set_dirty(true);
+    }
+
     ///Removes a video from the list of user created videos.
     pub fn remove_video(&mut self, video_id: u64) -> bool {
         let video_index = self.get_video_index(video_id);

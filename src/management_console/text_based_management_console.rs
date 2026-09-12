@@ -30,7 +30,7 @@ use crate::{
 };
 
 struct VideoProcessorManagerContainer {
-    vpm: &'static VideoProcessorManager,
+    vpm: &'static VideoProcessorManager<fn(u64) -> ()>,
 }
 
 impl Container<u64> for VideoProcessorManagerContainer {
@@ -39,8 +39,8 @@ impl Container<u64> for VideoProcessorManagerContainer {
     }
 }
 
-struct DataManagerUserContainer {
-    dm: &'static std::sync::LazyLock<Mutex<DataManager>>,
+pub struct DataManagerUserContainer {
+    pub dm: &'static std::sync::LazyLock<Mutex<DataManager>>,
 }
 
 impl Container<String> for DataManagerUserContainer {
@@ -84,14 +84,14 @@ pub struct TextBasedManagementConsole {
     data_manager_user_container: DataManagerUserContainer,
     data_manager_video_data_container: DataManagerVideoDataContainer,
     data_manager_comment_container: DataManagerCommentContainer,
-    processor_manager: &'static VideoProcessorManager,
+    processor_manager: &'static VideoProcessorManager<fn(u64) -> ()>,
     processor_manager_container: VideoProcessorManagerContainer,
 }
 
 impl TextBasedManagementConsole {
     pub const fn new(
         data_manager: &'static std::sync::LazyLock<Mutex<DataManager>>,
-        processor_manager: &'static VideoProcessorManager,
+        processor_manager: &'static VideoProcessorManager<fn(u64) -> ()>,
     ) -> Self {
         return Self {
             data_manager,
@@ -627,6 +627,64 @@ number of comments: \"{}\"",
                         let video_mutg = video_arc.lock().unwrap();
                         let video: &VideoData = video_mutg.deref();
                         view_video_data_obj(video);
+                    }
+                    "add_video" => {
+                        //Add video:
+                        let name: String = prompt(&"Enter the name of the new video".to_string());
+                        let author_user_id: String = get_value_in_set(
+                            &self.data_manager_user_container,
+                            "Enter the user_id (aka username) of the author",
+                        );
+                        let description: String =
+                            prompt(&"Enter the description of the new video".to_string());
+                        let input_file: std::path::PathBuf = prompt_file(
+                            "Enter the file path of the video input file (for processing)",
+                            false,
+                        );
+                        let video_id: u64 = match {
+                            let mut data_manager_mutg = self.data_manager.lock().unwrap();
+                            let data_manager = data_manager_mutg.deref_mut();
+                            data_manager.add_video(
+                                &name,
+                                &author_user_id,
+                                &description,
+                                &input_file,
+                            )
+                        } {
+                            Some(id) => id,
+                            None => {
+                                println!("Error: Failed to add video. ");
+                                continue;
+                            }
+                        };
+
+                        //Process video:
+                        // let pm = self.processor_manager;
+                        thread::spawn(move || -> () {
+                            let result_directory: String = {
+                                let data_manager_mutg = self.data_manager.lock().unwrap();
+                                let data_manager = data_manager_mutg.deref();
+                                data_manager
+                                    .get_video_dir(&video_id)
+                                    .to_str()
+                                    .unwrap()
+                                    .to_string()
+                            };
+                            self.processor_manager.process(
+                                video_id,
+                                &input_file.to_str().unwrap().to_string(),
+                                &result_directory,
+                            );
+                        });
+                        // self.processor_manager.process(
+                        //     video_id,
+                        //     &input_file.to_str().unwrap().to_string(),
+                        //     &data_manager
+                        //         .get_video_dir(&video_id)
+                        //         .to_str()
+                        //         .unwrap()
+                        //         .to_string(),
+                        // );
                     }
                     &_ => println!("Error: \"{input}\" is not a valid command. "),
                 };

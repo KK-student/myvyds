@@ -7,6 +7,8 @@ use num_traits::Num;
 use std::collections::{HashMap, HashSet, LinkedList};
 use std::hash::Hash;
 
+use crate::file_handling::file_handling::file_stream_reader;
+
 ///Represents a set that can be used for the get_number_in_set function.
 pub trait Container<T: Eq + Hash> {
     fn contains_generic(&self, value: &T) -> bool;
@@ -163,5 +165,66 @@ pub fn get_yes_or_no(prompt: &str) -> bool {
             println!("Error: Invalid input: \"{input}\". ");
             continue;
         }
+    }
+}
+
+fn is_file_readable(file_path: &std::path::PathBuf) -> bool {
+    match std::fs::File::open(file_path) {
+        Ok(_) => true,
+        Err(_) => false,
+    }
+}
+
+fn is_file_existing(file_path: &std::path::PathBuf) -> bool {
+    match std::fs::exists(file_path) {
+        Ok(val) => val,
+        Err(_) => false,
+    }
+}
+
+fn is_file_writeable(file_path: &std::path::PathBuf) -> bool {
+    if !is_file_existing(file_path) {
+        return false;
+    }
+    let file = match std::fs::File::open(file_path) {
+        Ok(f) => f,
+        Err(_) => return false,
+    };
+    let metadata = match file.metadata() {
+        Ok(m) => m,
+        Err(_) => return false,
+    };
+    return !metadata.permissions().readonly();
+}
+
+pub fn prompt_file(prompt_str: &str, write_permission: bool) -> std::path::PathBuf {
+    let prompt_string: &String = &prompt_str.to_string();
+    loop {
+        let input: String = prompt(prompt_string);
+        let mut result_path = std::path::PathBuf::from(input);
+        result_path = match std::fs::canonicalize(result_path) {
+            Ok(p) => p,
+            Err(_) => {
+                println!("Error: Invalid input - cannot be canonicalized. ");
+                continue;
+            }
+        };
+        match result_path.to_str() {
+            Some(_) => {}
+            None => {
+                println!("Error: Invalid input - file path is not valid unicode. ");
+                continue;
+            }
+        };
+        if !is_file_existing(&result_path)
+            || !is_file_readable(&result_path)
+            || (write_permission && !is_file_writeable(&result_path))
+        {
+            println!(
+                "Error: Invalid input - the given file either cannot be opened/read or doesn't have the correct permissions. "
+            );
+            continue;
+        }
+        return result_path;
     }
 }

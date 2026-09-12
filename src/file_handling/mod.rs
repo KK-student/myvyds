@@ -103,6 +103,7 @@ pub mod file_handling {
         fs::{self},
         io::{ErrorKind, Write},
         ops::{Deref, DerefMut},
+        path::PathBuf,
         str::FromStr,
         sync::{Arc, Mutex},
     };
@@ -327,6 +328,17 @@ pub mod file_handling {
             }
         }
 
+        //Gets the directory in which the MPEG_DASH files for the video with the given video id (video_id) are stored.
+        pub fn get_video_dir(&self, video_id: &u64) -> PathBuf {
+            let mut result: PathBuf =
+                std::fs::canonicalize(std::path::PathBuf::from(self.get_data_path())).unwrap();
+            result.push("media");
+            result.push(video_id.to_string());
+
+            println!("Prints!");
+            return result;
+        }
+
         //Get an Arc<Mutex<>> pointer that points to the video in the DataManager by it's name.
         pub fn get_video_by_name(&self, name: &String) -> Option<Arc<Mutex<VideoData>>> {
             // self.get_video(self.videos_by_name.get(name).unwrap())
@@ -336,9 +348,59 @@ pub mod file_handling {
             }
         }
 
+        pub fn has_video_by_name(&self, name: &String) -> bool {
+            match self.get_video_by_name(name) {
+                Some(_) => true,
+                None => false,
+            }
+        }
+
         //Get number of videos.
         pub fn get_num_videos(&self) -> u64 {
             self.videos.len() as u64
+        }
+
+        //Add a new video.
+        pub fn add_video(
+            &mut self,
+            name: &String,
+            author_user_id: &String,
+            description: &String,
+            input_file_path: &std::path::PathBuf,
+        ) -> Option<u64> {
+            let mut rand = rand::rng();
+
+            let final_name: String = if !self.has_video_by_name(name) {
+                name.clone()
+            } else {
+                format!("{name} (duplicate)")
+            };
+
+            //Create the VideoData object:
+            let input_file_canon = std::fs::canonicalize(input_file_path).unwrap();
+            let video_id: u64 = rand.random::<u64>();
+            let result_arc: Arc<Mutex<VideoData>> = Arc::new(Mutex::new(VideoData::new(
+                video_id,
+                &input_file_canon.to_str().unwrap().to_string(),
+                &final_name,
+                description,
+                author_user_id,
+            )));
+
+            //Add to user:
+            let user_arc = match self.get_user(author_user_id) {
+                Some(u_arc) => u_arc,
+                None => return None,
+            };
+            let mut user_mutg = user_arc.lock().unwrap();
+            let user: &mut User = user_mutg.deref_mut();
+            user.add_video(video_id);
+
+            //Add to DataManager:
+            self.videos.insert(video_id, result_arc);
+            self.videos_by_name.insert(final_name, video_id);
+
+            return Some(video_id);
         }
 
         ///Save the data to the database files and folders.

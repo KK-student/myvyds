@@ -30,7 +30,9 @@ use crate::{
         video_processing::VideoProcessorManager,
     },
     management_console::{
-        ManagementConsole, text_based_management_console::TextBasedManagementConsole,
+        ManagementConsole,
+        string_input::{get_value_in_set, prompt, prompt_file},
+        text_based_management_console::{DataManagerUserContainer, TextBasedManagementConsole},
     },
     session_manager::SessionManager,
 };
@@ -82,14 +84,34 @@ pub fn _get_user_for_session_manager(user_id: &String, password_hash: &String) -
 static _GET_USER_FOR_SESSION_MANAGER_FUNC: fn(&String, &String) -> bool =
     _get_user_for_session_manager;
 
+static ON_FINISH_SUCCESS_FUNC: fn(u64) -> () = _on_finish_success_func;
+static ON_FINISH_FAIL_FUNC: fn(u64) -> () = _on_finish_fail_func;
+
 static DATA_PATH: &str = "./data";
 static DATA_MANAGER: std::sync::LazyLock<Mutex<DataManager>> =
     std::sync::LazyLock::new(|| -> Mutex<DataManager> { Mutex::new(DataManager::new(DATA_PATH)) });
-static PROCESSOR_MANAGER: VideoProcessorManager = VideoProcessorManager::new(DATA_PATH);
+static PROCESSOR_MANAGER: VideoProcessorManager<fn(u64) -> ()> =
+    VideoProcessorManager::new(DATA_PATH, ON_FINISH_SUCCESS_FUNC, ON_FINISH_FAIL_FUNC);
 static MANAGEMENT_CONSOLE: TextBasedManagementConsole =
     TextBasedManagementConsole::new(&DATA_MANAGER, &PROCESSOR_MANAGER);
 static SESSION_MANAGER: SessionManager<fn(&String, &String) -> bool> =
     SessionManager::new(&_GET_USER_FOR_SESSION_MANAGER_FUNC);
+
+pub fn _on_finish_proc_func(video_id: u64) {
+    let data_manager_mutg = DATA_MANAGER.lock().unwrap();
+    let data_manager = data_manager_mutg.deref();
+    let video_arc = data_manager.get_video(&video_id).unwrap();
+    let mut video_mutg = video_arc.lock().unwrap();
+    let video = video_mutg.deref_mut();
+    video.set_finished_processing(true);
+}
+pub fn _on_finish_success_func(video_id: u64) -> () {
+    _on_finish_proc_func(video_id);
+}
+
+pub fn _on_finish_fail_func(video_id: u64) -> () {
+    _on_finish_proc_func(video_id);
+}
 
 ///Gets a specific video file, serving the "/video/get_video_file/[video_id]/[video_seg_file]" endpoint. See the "Getting a video" section in the "./docs/SERVER_API.md" for more details.
 #[get("/video/get_video_file/{video_id}/{video_seg_file}")]
@@ -524,6 +546,44 @@ async fn main() -> std::io::Result<()> {
         MANAGEMENT_CONSOLE.launch(std::env::var("CARGO_PKG_VERSION").unwrap());
     }
 
+    //Testing code (for use in rust-gdb):
+    // {
+    //     let database_manager_user_container: DataManagerUserContainer =
+    //         DataManagerUserContainer { dm: &DATA_MANAGER };
+    //     //Add video:
+    //     let name: String = prompt(&"Enter the name of the new video".to_string());
+    //     let author_user_id: String = get_value_in_set(
+    //         &database_manager_user_container,
+    //         "Enter the user_id (aka username) of the author",
+    //     );
+    //     let description: String = prompt(&"Enter the description of the new video".to_string());
+    //     let input_file: std::path::PathBuf = prompt_file(
+    //         "Enter the file path of the video input file (for processing)",
+    //         false,
+    //     );
+    //     let mut data_manager_mutg = DATA_MANAGER.lock().unwrap();
+    //     let data_manager = data_manager_mutg.deref_mut();
+    //     let video_id: u64 =
+    //         match data_manager.add_video(&name, &author_user_id, &description, &input_file) {
+    //             Some(id) => id,
+    //             None => {
+    //                 panic!("Error: Failed to add video. ");
+    //             }
+    //         };
+    //
+    //     //Process video:
+    //     PROCESSOR_MANAGER.process(
+    //         video_id,
+    //         &input_file.to_str().unwrap().to_string(),
+    //         &data_manager
+    //             .get_video_dir(&video_id)
+    //             .to_str()
+    //             .unwrap()
+    //             .to_string(),
+    //     );
+    // }
+
+    //Launch Actix-web:
     match HttpServer::new(move || {
         App::new()
             // .service(hello)

@@ -39,7 +39,7 @@ pub mod video_processor;
 
 #[derive(Debug)]
 ///A struct that manages all of the video processors. All instances of this struct MUST have a 'static lifetime!
-pub struct VideoProcessorManager {
+pub struct VideoProcessorManager<FFin: Fn(u64) + std::marker::Sync + std::marker::Send + 'static> {
     local_video_processors: LazyLock<Mutex<HashMap<u64, Arc<Mutex<LocalVideoProcessor>>>>>,
     local_music_processors: LazyLock<Mutex<HashMap<u64, Arc<Mutex<LocalMusicProcessor>>>>>,
     fastest_local_video_processors: LazyLock<Mutex<Vec<u64>>>,
@@ -49,11 +49,18 @@ pub struct VideoProcessorManager {
     finished_processing: LazyLock<Mutex<HashMap<u64, u64>>>,
     failed_processing: LazyLock<Mutex<HashMap<u64, u64>>>, //TODO: Add support for storing error messages.
     data_path: &'static str,
+
+    on_finished_success_function: FFin,
+    on_finished_fail_function: FFin,
 }
 
-impl VideoProcessorManager {
+impl<FFin: Fn(u64) + std::marker::Sync + std::marker::Send + 'static> VideoProcessorManager<FFin> {
     ///Creates a new VideoProcessorManager with the specified data directory (data_path).
-    pub const fn new(data_path: &'static str) -> Self {
+    pub const fn new(
+        data_path: &'static str,
+        on_finish_success_function: FFin,
+        on_finish_fail_function: FFin,
+    ) -> Self {
         Self {
             local_video_processors: LazyLock::new(
                 || -> Mutex<HashMap<u64, Arc<Mutex<LocalVideoProcessor>>>> {
@@ -81,6 +88,8 @@ impl VideoProcessorManager {
                 Mutex::new(HashMap::new())
             }),
             data_path: data_path,
+            on_finished_success_function: on_finish_success_function,
+            on_finished_fail_function: on_finish_fail_function,
         }
     }
 
@@ -420,8 +429,8 @@ impl VideoProcessorManager {
             };
 
         //Get fastest available VideoProcessor:
-        let video_file_path_full_mutg = video_file_path_full_arc.lock().unwrap();
-        let video_file_path_full: &String = video_file_path_full_mutg.deref();
+        // let video_file_path_full_mutg = video_file_path_full_arc.lock().unwrap();
+        // let video_file_path_full: &String = video_file_path_full_mutg.deref();
         let fastlvps_mutg = self.fastest_local_video_processors.lock().unwrap();
         let fastlvps = fastlvps_mutg.deref();
         let fastlmps_mutg = self.fastest_local_music_processors.lock().unwrap();
@@ -508,41 +517,47 @@ impl VideoProcessorManager {
         video_file_path: &String,
         result_directory: &String,
     ) {
+        //Create result directory if missing:
+        std::fs::create_dir_all(result_directory).unwrap();
+
+        //Process:
+        let pr_id_opt = self.get_optimal_available_vp(2, video_file_path);
+        let pr_id: &u64 = match pr_id_opt {
+            Some(id) => &id.clone(),
+            None => return,
+        };
+        let pr_arc = self.get_processor(&pr_id).unwrap();
+        let mut pr_mutg = pr_arc.lock().unwrap();
+        let pr = pr_mutg.deref_mut();
         {
-            let pr_id_opt = self.get_optimal_available_vp(2, video_file_path);
-            let pr_id: &u64 = match pr_id_opt {
-                Some(id) => &id.clone(),
-                None => return,
-            };
-            let pr_arc = self.get_processor(&pr_id).unwrap();
-            let mut pr_mutg = pr_arc.lock().unwrap();
-            let pr = pr_mutg.deref_mut();
+            //Process the video.
             {
-                //Process the video.
-                {
-                    //Add to list of currently processing videos:
-                    let mut cp_mutg = self.currently_processing.lock().unwrap();
-                    let cp: &mut HashMap<u64, u64> = cp_mutg.deref_mut();
-                    cp.insert(video_id, pr.get_id());
-                }
-                let rx = pr
-                    .process(video_id, video_file_path.clone(), result_directory.clone())
-                    .unwrap();
-                let pr_id_copy: u64 = *pr_id;
-                thread::spawn(move || {
-                    let result = rx.recv().unwrap();
-                    println!("Received data from ffmpeg process!");
-                    if result {
-                        let mut fp_arc_clone_mutg = self.finished_processing.lock().unwrap();
-                        let fp_clone = fp_arc_clone_mutg.deref_mut();
-                        fp_clone.insert(video_id, pr_id_copy);
-                    } else {
-                        let mut fail_arc_clone_mutg = self.failed_processing.lock().unwrap();
-                        let failp_clone = fail_arc_clone_mutg.deref_mut();
-                        failp_clone.insert(video_id, pr_id_copy);
-                    }
-                });
+                //Add to list of currently processing videos:
+                let mut cp_mutg = self.currently_processing.lock().unwrap();
+                let cp: &mut HashMap<u64, u64> = cp_mutg.deref_mut();
+                cp.insert(video_id, pr.get_id());
             }
+            let rx = pr
+                .process(video_id, video_file_path.clone(), result_directory.clone())
+                .unwrap();
+            let pr_id_copy: u64 = *pr_id;
+            thread::spawn(move || {
+                let result = rx.recv().unwrap();
+                println!("Received data from ffmpeg process!");
+                if result {
+                    let mut fp_arc_clone_mutg = self.finished_processing.lock().unwrap();
+                    let fp_clone = fp_arc_clone_mutg.deref_mut();
+                    fp_clone.insert(video_id, pr_id_copy);
+
+                    (self.on_finished_success_function)(video_id);
+                } else {
+                    let mut fail_arc_clone_mutg = self.failed_processing.lock().unwrap();
+                    let failp_clone = fail_arc_clone_mutg.deref_mut();
+                    failp_clone.insert(video_id, pr_id_copy);
+
+                    (self.on_finished_fail_function)(video_id);
+                }
+            });
         }
     }
 

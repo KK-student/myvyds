@@ -7,11 +7,14 @@ use std::{
 use json_escape::escape_str;
 use serde_json::Value;
 
-use crate::file_handling::{
-    comment::Comment,
-    dirty_data::DirtyData,
-    likeable::Likeable,
-    saveable::{Saveable, make_json_from_saveable_list},
+use crate::{
+    file_handling::{
+        comment::Comment,
+        dirty_data::DirtyData,
+        likeable::Likeable,
+        saveable::{Saveable, make_json_from_saveable_list},
+    },
+    time::get_current_time,
 };
 
 ///Represents a video stored on disk.
@@ -31,6 +34,29 @@ pub struct VideoData {
 }
 
 impl VideoData {
+    ///Create a new VideoData that has not yet finished processing, has the uploaded time set to now, and has no comments, likes or dislikes.
+    pub fn new(
+        id: u64,
+        input_file: &String,
+        name: &String,
+        description: &String,
+        author: &String,
+    ) -> Self {
+        return Self {
+            id,
+            finished_processing: false,
+            input_file: input_file.clone(),
+            name: name.clone(),
+            description: description.clone(),
+            author: author.clone(),
+            uploaded_time: get_current_time(),
+            comments: Box::new(Vec::new()),
+            likes: 0,
+            dislikes: 0,
+            dirty: true,
+        };
+    }
+
     ///Get video id.
     pub fn get_id(&self) -> u64 {
         self.id

@@ -220,7 +220,7 @@ pub fn get_video_description(
             let has_audio: &mut BoolBox = has_audio_mutg.deref_mut();
 
             for stream_json in streams_json {
-                let stream_type = stream_json["codec_name"].as_str().unwrap().to_lowercase();
+                let stream_type = stream_json["codec_type"].as_str().unwrap().to_lowercase();
                 match stream_type.as_str() {
                     "video" => {
                         if has_video_stream.get() {
