@@ -138,7 +138,7 @@ async fn get_video_basic_info(url_query: Query<VideoIDQuery>) -> impl Responder 
         let data_manager: &DataManager = data_manager_mutg.deref();
         if data_manager.has_video_by_id(video_id) {
             //Get video:
-            let video_arc: Arc<Mutex<VideoData>> = data_manager.get_video(video_id);
+            let video_arc: Arc<Mutex<VideoData>> = data_manager.get_video(video_id).unwrap();
             let video_mutg = video_arc.lock().unwrap();
             let video: &VideoData = video_mutg.deref();
 
@@ -204,7 +204,7 @@ async fn get_comments_page(url_query: Query<GetCommentsPageQuery>) -> impl Respo
         let video_id: &u64 = &url_query.v;
         let page_index: &i64 = &url_query.page_index;
         if data_manager.has_video_by_id(video_id) {
-            let video_arc = data_manager.get_video(video_id);
+            let video_arc = data_manager.get_video(video_id).unwrap();
             let video_mutg = video_arc.lock().unwrap();
             let video: &VideoData = video_mutg.deref();
 

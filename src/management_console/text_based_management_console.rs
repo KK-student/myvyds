@@ -11,7 +11,9 @@ use crate::{
     file_handling::{
         comment::Comment,
         file_handling::DataManager,
+        likeable::Likeable,
         user::User,
+        video_data::VideoData,
         video_processing::{
             VideoProcessorManager,
             local_music_processor::LocalMusicProcessor,
@@ -130,6 +132,13 @@ add_user -> Add a new user.
 remove_user -> Remove a user. 
 edit_user -> Edit the info for a user. 
 
+Managing video data: 
+vvideos -> Show a list of all videos. 
+vvideo -> Show the basic information for a video. 
+add_video -> Add a new video. 
+remove_video -> Remove a video. 
+edit_video -> Edit a video. 
+
 To quit, press Ctrl+C. ";
             println!(
                 "Myvids v{} text-based management console: ",
@@ -192,6 +201,22 @@ To quit, press Ctrl+C. ";
                         user_obj.get_disliked_vids(),
                         user_obj.get_liked_comments(),
                         user_obj.get_disliked_comments()
+                    );
+                }
+                fn view_video_data_obj(video_data_obj: &VideoData) {
+                    println!(
+                        "id \"{}\":
+author: \"{}\"
+description: \"{}\"
+number of likes: \"{}\"
+number of dislikes: \"{}\"
+number of comments: \"{}\"",
+                        video_data_obj.get_id(),
+                        video_data_obj.get_author(),
+                        video_data_obj.get_description(),
+                        video_data_obj.get_likes(),
+                        video_data_obj.get_dislikes(),
+                        video_data_obj.get_num_comments(),
                     );
                 }
                 match input.as_str() {
@@ -578,6 +603,30 @@ To quit, press Ctrl+C. ";
                                 num => todo!("Error: Unimplemented menu option ({num})!"),
                             };
                         }
+                    }
+                    "vvideos" => {
+                        //View all video data:
+                        let data_manager_mutg = self.data_manager.lock().unwrap();
+                        let data_manager = data_manager_mutg.deref();
+                        data_manager.for_all_videos(
+                            |video_data_arc: Arc<Mutex<VideoData>>| -> () {
+                                let video_data_mutg = video_data_arc.lock().unwrap();
+                                let video_data: &VideoData = video_data_mutg.deref();
+                                view_video_data_obj(video_data);
+                            },
+                        );
+                    }
+                    "vvideo" => {
+                        let video_id: u64 = get_value_in_set::<u64>(
+                            &self.data_manager_video_data_container,
+                            "Enter the video id",
+                        );
+                        let data_manager_mutg = self.data_manager.lock().unwrap();
+                        let data_manager = data_manager_mutg.deref();
+                        let video_arc = data_manager.get_video(&video_id).unwrap();
+                        let video_mutg = video_arc.lock().unwrap();
+                        let video: &VideoData = video_mutg.deref();
+                        view_video_data_obj(video);
                     }
                     &_ => println!("Error: \"{input}\" is not a valid command. "),
                 };

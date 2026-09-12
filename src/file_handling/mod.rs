@@ -319,13 +319,21 @@ pub mod file_handling {
         }
 
         //Get an Arc<Mutex<>> pointer that points to the video in the DataManager by it's video_id.
-        pub fn get_video(&self, video_id: &u64) -> Arc<Mutex<VideoData>> {
-            Arc::clone(self.videos.get(video_id).unwrap())
+        pub fn get_video(&self, video_id: &u64) -> Option<Arc<Mutex<VideoData>>> {
+            // Arc::clone(self.videos.get(video_id).unwrap())
+            match self.videos.get(video_id) {
+                Some(v_arc) => Some(Arc::clone(v_arc)),
+                None => None,
+            }
         }
 
         //Get an Arc<Mutex<>> pointer that points to the video in the DataManager by it's name.
-        pub fn get_video_by_name(&self, name: &String) -> Arc<Mutex<VideoData>> {
-            self.get_video(self.videos_by_name.get(name).unwrap())
+        pub fn get_video_by_name(&self, name: &String) -> Option<Arc<Mutex<VideoData>>> {
+            // self.get_video(self.videos_by_name.get(name).unwrap())
+            match self.videos_by_name.get(name) {
+                Some(id) => self.get_video(id),
+                None => None,
+            }
         }
 
         //Get number of videos.
@@ -596,10 +604,9 @@ pub mod file_handling {
             let mut user_mutg = user_arc.lock().unwrap();
             let user: &mut User = user_mutg.deref_mut();
             //Get video:
-            let video_arc: Arc<Mutex<VideoData>> = if self.has_video_by_id(video_id) {
-                self.get_video(video_id)
-            } else {
-                return;
+            let video_arc: Arc<Mutex<VideoData>> = match self.get_video(video_id) {
+                Some(v_arc) => v_arc,
+                None => return,
             };
             let mut video_mutg = video_arc.lock().unwrap();
             let video: &mut VideoData = video_mutg.deref_mut();
@@ -639,10 +646,9 @@ pub mod file_handling {
                 None => return,
             };
             //Get the video arc:
-            let video_arc = if self.has_video_by_id(&video_id) {
-                self.get_video(&video_id)
-            } else {
-                return;
+            let video_arc = match self.get_video(&video_id) {
+                Some(v_arc) => v_arc,
+                None => return,
             };
             let mut video_mutg = video_arc.lock().unwrap();
             let video: &mut VideoData = video_mutg.deref_mut();
