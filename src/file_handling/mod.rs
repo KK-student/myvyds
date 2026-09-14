@@ -688,8 +688,9 @@ pub mod file_handling {
                 user_id,
                 text,
             )));
-            video.add_comment(comment_arc);
+            video.add_comment(Arc::clone(&comment_arc));
             user.add_comment(comment_id);
+            self.comments_by_id.insert(comment_id, comment_arc);
         }
 
         ///Remove a comment by it's comment id:
@@ -719,6 +720,86 @@ pub mod file_handling {
 
         pub fn get_comment(&self, comment_id: &u64) -> Option<&Arc<Mutex<Comment>>> {
             self.comments_by_id.get(comment_id)
+        }
+
+        ///Make the user with the specified user id (user_id) like the comment with the specified comment id (comment_id).
+        pub fn like_comment(&mut self, user_id: &String, comment_id: &u64) {
+            let user_arc = match self.get_user(user_id) {
+                Some(a) => a,
+                None => return,
+            };
+            let mut user_mutg = user_arc.lock().unwrap();
+            let user: &mut User = user_mutg.deref_mut();
+
+            let comment_arc = match self.get_comment(comment_id) {
+                Some(a) => a,
+                None => return,
+            };
+            let mut comment_mutg = comment_arc.lock().unwrap();
+            let comment: &mut Comment = comment_mutg.deref_mut();
+
+            user.like_comment(*comment_id);
+            comment.like();
+        }
+
+        ///Make the user with the specified user id (user_id) remove the like they made for the comment with the specified comment id (comment_id).
+        pub fn unlike_comment(&mut self, user_id: &String, comment_id: &u64) {
+            let user_arc = match self.get_user(user_id) {
+                Some(a) => a,
+                None => return,
+            };
+            let mut user_mutg = user_arc.lock().unwrap();
+            let user: &mut User = user_mutg.deref_mut();
+
+            let comment_arc = match self.get_comment(comment_id) {
+                Some(a) => a,
+                None => return,
+            };
+            let mut comment_mutg = comment_arc.lock().unwrap();
+            let comment: &mut Comment = comment_mutg.deref_mut();
+
+            user.remove_like_comment(*comment_id);
+            comment.unlike();
+        }
+
+        ///Make the user with the specified user id (user_id) dislike the comment with the specified comment id (comment_id).
+        pub fn dislike_comment(&mut self, user_id: &String, comment_id: &u64) {
+            let user_arc = match self.get_user(user_id) {
+                Some(a) => a,
+                None => return,
+            };
+            let mut user_mutg = user_arc.lock().unwrap();
+            let user: &mut User = user_mutg.deref_mut();
+
+            let comment_arc = match self.get_comment(comment_id) {
+                Some(a) => a,
+                None => return,
+            };
+            let mut comment_mutg = comment_arc.lock().unwrap();
+            let comment: &mut Comment = comment_mutg.deref_mut();
+
+            user.dislike_comment(*comment_id);
+            comment.dislike();
+        }
+
+        ///Make the user with the specified user id (user_id) remove the dislike they made for the comment with the specified comment id (comment_id).
+        pub fn undislike_comment(&mut self, user_id: &String, comment_id: &u64) {
+            let user_arc = match self.get_user(user_id) {
+                Some(a) => a,
+                None => return,
+            };
+            let mut user_mutg = user_arc.lock().unwrap();
+            let user: &mut User = user_mutg.deref_mut();
+
+            let comment_arc = match self.get_comment(comment_id) {
+                Some(a) => a,
+                None => return,
+            };
+            let mut comment_mutg = comment_arc.lock().unwrap();
+            let comment: &mut Comment = comment_mutg.deref_mut();
+
+            user.remove_dislike_comment(*comment_id);
+            comment.undislike();
         }
     }
 }

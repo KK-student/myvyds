@@ -122,7 +122,7 @@ impl VideoData {
         self.uploaded_time
     }
 
-    ///Set video uploaded time as seconds since epoch.
+    ///Get all of the top-level comments.
     pub fn get_comments(&self) -> Box<Vec<Arc<Mutex<Comment>>>> {
         self.comments.clone()
     }
@@ -239,8 +239,8 @@ impl VideoData {
     }
 
     ///Does an action (on_comment) on each comment (and it's replies) recursively.
-    pub fn for_each_comment_recursive<F: Fn(Arc<Mutex<Comment>>)>(&mut self, on_comment: &F) {
-        for comment_arc in self.comments.deref_mut() {
+    pub fn for_each_comment_recursive<F: Fn(Arc<Mutex<Comment>>)>(&self, on_comment: &F) {
+        for comment_arc in self.comments.deref() {
             on_comment(Arc::clone(comment_arc));
             let mut comment_mutg = comment_arc.lock().unwrap();
             let comment: &mut Comment = comment_mutg.deref_mut();

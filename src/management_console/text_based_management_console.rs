@@ -132,6 +132,9 @@ add_user -> Add a new user.
 remove_user -> Remove a user. 
 edit_user -> Edit the info for a user. 
 
+Managing comment: 
+vcomment -> View a comment. 
+
 Managing video data: 
 vvideos -> Show a list of all videos. 
 vvideo -> Show the basic information for a video. 
@@ -190,6 +193,7 @@ To quit, press Ctrl+C. ";
 \tsubscriptions: {:?}
 \tliked videos: {:?}
 \tdisliked videos: {:?}
+\tcomments: {:?}
 \tliked comments: {:?}
 \tdisliked comments: {:?}",
                         user_obj.get_user_id(),
@@ -199,26 +203,62 @@ To quit, press Ctrl+C. ";
                         user_obj.get_subscriptions(),
                         user_obj.get_liked_vids(),
                         user_obj.get_disliked_vids(),
+                        user_obj.get_comments(),
                         user_obj.get_liked_comments(),
                         user_obj.get_disliked_comments()
                     );
                 }
                 fn view_video_data_obj(video_data_obj: &VideoData) {
+                    let comment_ids_arc: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(Vec::new()));
+                    video_data_obj.for_each_comment_recursive(&|comment_arc: Arc<
+                        Mutex<Comment>,
+                    >|
+                     -> () {
+                        let comment_mutg = comment_arc.lock().unwrap();
+                        let comment: &Comment = comment_mutg.deref();
+
+                        let mut comment_ids_mutg = comment_ids_arc.lock().unwrap();
+                        let comment_ids: &mut Vec<u64> = comment_ids_mutg.deref_mut();
+                        comment_ids.push(comment.get_id());
+                    });
+                    let comment_ids_mutg = comment_ids_arc.lock().unwrap();
+                    let comment_ids: &Vec<u64> = comment_ids_mutg.deref();
                     println!(
                         "id \"{}\":
-author: \"{}\"
-description: \"{}\"
-number of likes: \"{}\"
-number of dislikes: \"{}\"
-number of comments: \"{}\"",
+\tauthor: \"{}\"
+\tdescription: \"{}\"
+\tnumber of likes: \"{}\"
+\tnumber of dislikes: \"{}\"
+\tnumber of comments: \"{}\"
+\tcomment ids: \"{:?}\"",
                         video_data_obj.get_id(),
                         video_data_obj.get_author(),
                         video_data_obj.get_description(),
                         video_data_obj.get_likes(),
                         video_data_obj.get_dislikes(),
                         video_data_obj.get_num_comments(),
+                        comment_ids
                     );
                 }
+                fn view_comment_obj(comment_obj: &Comment) {
+                    println!(
+                        "id {}: 
+\tauthor: \"{}\"
+\ttext: \"{}\"
+\ttime created (in seconds since epoch): {}
+\tedited: {}
+\tlikes: {}
+\tdislikes: {}",
+                        comment_obj.get_id(),
+                        comment_obj.get_author(),
+                        comment_obj.get_text(),
+                        comment_obj.get_creation_time(),
+                        comment_obj.is_edited(),
+                        comment_obj.get_likes(),
+                        comment_obj.get_dislikes(),
+                    );
+                }
+
                 match input.as_str() {
                     "h" => println!("{help_text}"),
                     "vprocs" => {
@@ -463,6 +503,10 @@ number of comments: \"{}\"",
                                     "Make comment",
                                     "Remove comment",
                                     "Edit comment",
+                                    "Like comment",
+                                    "Remove like for comment",
+                                    "Dislike comment",
+                                    "Remove dislike for comment",
                                     "Quit",
                                 ],
                                 1,
@@ -599,10 +643,62 @@ number of comments: \"{}\"",
                                     let comment: &mut Comment = comment_mutg.deref_mut();
                                     comment.set_text(&text, get_current_time());
                                 }
-                                9 => break,
+                                9 => {
+                                    //Like comment:
+                                    let comment_id: u64 = get_value_in_set(
+                                        &self.data_manager_comment_container,
+                                        "Enter the comment id of the comment you want to like",
+                                    );
+                                    let mut data_manager_mutg = self.data_manager.lock().unwrap();
+                                    let data_manager = data_manager_mutg.deref_mut();
+                                    data_manager.like_comment(&user_id, &comment_id);
+                                }
+                                10 => {
+                                    //Unlike comment:
+                                    let comment_id: u64 = get_value_in_set(
+                                        &self.data_manager_comment_container,
+                                        "Enter the comment id of the comment you want to remove a like for",
+                                    );
+                                    let mut data_manager_mutg = self.data_manager.lock().unwrap();
+                                    let data_manager = data_manager_mutg.deref_mut();
+                                    data_manager.unlike_comment(&user_id, &comment_id);
+                                }
+                                11 => {
+                                    //Dislike comment:
+                                    let comment_id: u64 = get_value_in_set(
+                                        &self.data_manager_comment_container,
+                                        "Enter the comment id of the comment you want to dislike",
+                                    );
+                                    let mut data_manager_mutg = self.data_manager.lock().unwrap();
+                                    let data_manager = data_manager_mutg.deref_mut();
+                                    data_manager.dislike_comment(&user_id, &comment_id);
+                                }
+                                12 => {
+                                    //Undislike comment:
+                                    let comment_id: u64 = get_value_in_set(
+                                        &self.data_manager_comment_container,
+                                        "Enter the comment id of the comment you want to remove a dislike for",
+                                    );
+                                    let mut data_manager_mutg = self.data_manager.lock().unwrap();
+                                    let data_manager = data_manager_mutg.deref_mut();
+                                    data_manager.undislike_comment(&user_id, &comment_id);
+                                }
+                                13 => break,
                                 num => todo!("Error: Unimplemented menu option ({num})!"),
                             };
                         }
+                    }
+                    "vcomment" => {
+                        //View a comment:
+                        let comment_id: u64 = get_value_in_set(
+                            &self.data_manager_comment_container,
+                            "Enter the comment id of the comment you want to view",
+                        );
+                        let data_manager_mutg = self.data_manager.lock().unwrap();
+                        let data_manager = data_manager_mutg.deref();
+                        let comment_arc = data_manager.get_comment(&comment_id).unwrap();
+                        let comment_mutg = comment_arc.lock().unwrap();
+                        view_comment_obj(comment_mutg.deref());
                     }
                     "vvideos" => {
                         //View all video data:
@@ -659,7 +755,6 @@ number of comments: \"{}\"",
                         };
 
                         //Process video:
-                        // let pm = self.processor_manager;
                         thread::spawn(move || -> () {
                             let result_directory: String = {
                                 let data_manager_mutg = self.data_manager.lock().unwrap();
@@ -676,15 +771,6 @@ number of comments: \"{}\"",
                                 &result_directory,
                             );
                         });
-                        // self.processor_manager.process(
-                        //     video_id,
-                        //     &input_file.to_str().unwrap().to_string(),
-                        //     &data_manager
-                        //         .get_video_dir(&video_id)
-                        //         .to_str()
-                        //         .unwrap()
-                        //         .to_string(),
-                        // );
                     }
                     &_ => println!("Error: \"{input}\" is not a valid command. "),
                 };
