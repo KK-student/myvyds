@@ -520,6 +520,13 @@ async fn signup(mut payload: Multipart) -> impl Responder {
         .body(session_id.to_be_bytes().to_vec());
 }
 
+#[post("/user/get_subscriptions")]
+async fn get_subscriptions(mut payload: Multipart) -> impl Responder {
+    let response401 = HttpResponse::Unauthorized().finish();
+    todo!("Implement get_subscriptions!");
+    return response401;
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     //Get command line args:
