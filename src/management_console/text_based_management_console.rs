@@ -142,6 +142,9 @@ add_video -> Add a new video.
 remove_video -> Remove a video. 
 edit_video -> Edit a video. 
 
+Session management: 
+vsessions -> Show a list of all active sessions (and when they expire). 
+
 To quit, press Ctrl+C. ";
             println!(
                 "Myvids v{} text-based management console: ",
@@ -771,6 +774,9 @@ To quit, press Ctrl+C. ";
                                 &result_directory,
                             );
                         });
+                    }
+                    "vsessions" => {
+                        todo!("Implement vsessions!");
                     }
                     &_ => println!("Error: \"{input}\" is not a valid command. "),
                 };
