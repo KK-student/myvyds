@@ -26,6 +26,7 @@ use crate::{
         password_input::{prompt_change_password, prompt_new_password},
         string_input::*,
     },
+    session_manager::SessionManager,
     time::get_current_time,
 };
 
@@ -79,19 +80,26 @@ impl Container<u64> for DataManagerCommentContainer {
 }
 
 ///A ManagementConsole that runs directly on the server and talks to the user via the server's terminal.
-pub struct TextBasedManagementConsole {
+pub struct TextBasedManagementConsole<
+    F: Fn(&String, &String) -> bool + std::marker::Send + std::marker::Sync + 'static,
+> {
     data_manager: &'static std::sync::LazyLock<Mutex<DataManager>>,
     data_manager_user_container: DataManagerUserContainer,
     data_manager_video_data_container: DataManagerVideoDataContainer,
     data_manager_comment_container: DataManagerCommentContainer,
     processor_manager: &'static VideoProcessorManager<fn(u64) -> ()>,
     processor_manager_container: VideoProcessorManagerContainer,
+
+    session_manager: &'static SessionManager<F>,
 }
 
-impl TextBasedManagementConsole {
+impl<F: Fn(&String, &String) -> bool + std::marker::Send + std::marker::Sync + 'static>
+    TextBasedManagementConsole<F>
+{
     pub const fn new(
         data_manager: &'static std::sync::LazyLock<Mutex<DataManager>>,
         processor_manager: &'static VideoProcessorManager<fn(u64) -> ()>,
+        session_manager: &'static SessionManager<F>,
     ) -> Self {
         return Self {
             data_manager,
@@ -102,11 +110,14 @@ impl TextBasedManagementConsole {
             processor_manager_container: VideoProcessorManagerContainer {
                 vpm: processor_manager,
             },
+            session_manager,
         };
     }
 }
 
-impl ManagementConsole for TextBasedManagementConsole {
+impl<F: Fn(&String, &String) -> bool + std::marker::Send + std::marker::Sync + 'static>
+    ManagementConsole for TextBasedManagementConsole<F>
+{
     fn launch(&'static self, pkg_verson: String) {
         thread::spawn(move || {
             let help_text = "General options: 
@@ -776,7 +787,21 @@ To quit, press Ctrl+C. ";
                         });
                     }
                     "vsessions" => {
-                        todo!("Implement vsessions!");
+                        let sessions_map = self.session_manager.get_all_sessions();
+                        for (user_id, user_sessions_list) in sessions_map {
+                            println!("user_id \"{}\": ", user_id);
+                            for session in user_sessions_list {
+                                println!("\tid: {}", session.get_id());
+                                println!(
+                                    "\t\ttime created (in seconds since epoch): {}",
+                                    session.get_time_created()
+                                );
+                                println!(
+                                    "\t\texpiry time (in seconds since epoch): {}",
+                                    session.get_time_created() + session.get_valid_time_length()
+                                );
+                            }
+                        }
                     }
                     &_ => println!("Error: \"{input}\" is not a valid command. "),
                 };

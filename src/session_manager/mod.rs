@@ -50,7 +50,7 @@ where
                     let mut sessions_mutg = self.sessions.lock().unwrap();
                     let sessions = sessions_mutg.deref_mut();
                     for (user_id, user_sessions_list) in sessions {
-                        self.remove_user_invalid_sessions(user_sessions_list);
+                        self.remove_user_expired_sessions(user_sessions_list);
                     }
                 }
                 //Sleep for 10min:
@@ -60,6 +60,7 @@ where
         });
     }
 
+    ///Logs a user in if the user id (user_id) and password (password) are correct.
     pub fn login(
         &'static self,
         user_id: &String,
@@ -96,7 +97,8 @@ where
         }
     }
 
-    pub fn remove_user_invalid_sessions(
+    ///Removes all expired sessions for a user with the user_sessions parameter being a mutable reference to the user's list of sessions.
+    pub fn remove_user_expired_sessions(
         &'static self,
         user_sessions: &mut Vec<Arc<Mutex<Session>>>,
     ) {
@@ -107,7 +109,7 @@ where
                 let session_arc = user_sessions.get(i).unwrap();
                 let session_mutg = session_arc.lock().unwrap();
                 let session = session_mutg.deref();
-                if !session.is_valid(&session.get_user_id()) {
+                if !session.is_not_expired() {
                     to_remove.push(i);
                 }
                 i += 1;
@@ -120,6 +122,7 @@ where
         }
     }
 
+    ///Checks whether or not a user with the specified user id (user_id) has a valid session with the specified session id (session_id).
     pub fn verify_session(&'static self, user_id: &String, session_id: u64) -> bool {
         //Remove the user's invalid session ids:
         let mut sessions_mutg = self.sessions.lock().unwrap();
@@ -127,17 +130,34 @@ where
         if !sessions.contains_key(user_id) {
             return false;
         }
-        self.remove_user_invalid_sessions(sessions.get_mut(user_id).unwrap());
+        self.remove_user_expired_sessions(sessions.get_mut(user_id).unwrap());
 
         //Check if there is a valid session for the user:
         for session_arc in sessions.get(user_id).unwrap() {
             let session_mutg = session_arc.lock().unwrap();
             let session = session_mutg.deref();
-            if session.is_valid(user_id) {
+            if session.is_valid(user_id, session_id) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    ///Get a DEEP COPY of all of the sessions.
+    pub fn get_all_sessions(&'static self) -> HashMap<String, Vec<Session>> {
+        let mut result: HashMap<String, Vec<Session>> = HashMap::new();
+
+        let sessions_mutg = self.sessions.lock().unwrap();
+        for (user_id, sessions_vec) in sessions_mutg.deref() {
+            let mut new_sessions_vec: Vec<Session> = Vec::new();
+            for session_arc in sessions_vec.iter() {
+                let session_mutg = session_arc.lock().unwrap();
+                new_sessions_vec.push(session_mutg.clone());
+            }
+            result.insert(user_id.clone(), new_sessions_vec);
+        }
+
+        return result;
     }
 }

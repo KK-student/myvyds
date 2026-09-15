@@ -92,10 +92,10 @@ static DATA_MANAGER: std::sync::LazyLock<Mutex<DataManager>> =
     std::sync::LazyLock::new(|| -> Mutex<DataManager> { Mutex::new(DataManager::new(DATA_PATH)) });
 static PROCESSOR_MANAGER: VideoProcessorManager<fn(u64) -> ()> =
     VideoProcessorManager::new(DATA_PATH, ON_FINISH_SUCCESS_FUNC, ON_FINISH_FAIL_FUNC);
-static MANAGEMENT_CONSOLE: TextBasedManagementConsole =
-    TextBasedManagementConsole::new(&DATA_MANAGER, &PROCESSOR_MANAGER);
 static SESSION_MANAGER: SessionManager<fn(&String, &String) -> bool> =
     SessionManager::new(&_GET_USER_FOR_SESSION_MANAGER_FUNC);
+static MANAGEMENT_CONSOLE: TextBasedManagementConsole<fn(&String, &String) -> bool> =
+    TextBasedManagementConsole::new(&DATA_MANAGER, &PROCESSOR_MANAGER, &SESSION_MANAGER);
 
 pub fn _on_finish_proc_func(video_id: u64) {
     let data_manager_mutg = DATA_MANAGER.lock().unwrap();
@@ -523,8 +523,32 @@ async fn signup(mut payload: Multipart) -> impl Responder {
 #[post("/user/get_subscriptions")]
 async fn get_subscriptions(mut payload: Multipart) -> impl Responder {
     let response401 = HttpResponse::Unauthorized().finish();
-    todo!("Implement get_subscriptions!");
-    return response401;
+
+    //Get DATA_MANAGER:
+    let data_manager_mutg = DATA_MANAGER.lock().unwrap();
+    let data_manager = data_manager_mutg.deref();
+
+    //Get and very user_id and session_id:
+    let mut parsed_form_data: HashMap<String, Vec<u8>> = HashMap::new();
+    parse_form_data(&mut payload, &mut parsed_form_data).await;
+    let (user_id, session_id) = match get_user_id_session_id(&parsed_form_data) {
+        Some(res) => res,
+        None => return response401,
+    };
+    if !SESSION_MANAGER.verify_session(&user_id, session_id) {
+        return response401;
+    }
+
+    //Get user object:
+    let user_arc: Arc<Mutex<User>> = data_manager.get_user(&user_id).unwrap();
+    let user_mutg = user_arc.lock().unwrap();
+    let user = user_mutg.deref();
+
+    //Return result:
+    let result: String = format!("{{\"subscriptions\": {:?}}}", user.get_subscriptions());
+    return HttpResponse::Ok()
+        .append_header(header::ContentType(mime::APPLICATION_JSON))
+        .body(result);
 }
 
 #[actix_web::main]
@@ -604,6 +628,7 @@ async fn main() -> std::io::Result<()> {
             .service(get_user_icon)
             .service(login_endpoint)
             .service(signup)
+            .service(get_subscriptions)
     })
     .bind(("127.0.0.1", 6000))
     {

@@ -2,7 +2,7 @@ use std::{hash::Hash, time::SystemTime};
 
 use crate::time::get_current_time;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Session {
     id: u64,
     user_id: String,
@@ -36,9 +36,14 @@ impl Session {
         self.valid_time_length
     }
 
-    pub fn is_valid(&self, user_id: &String) -> bool {
+    pub fn is_valid(&self, user_id: &String, session_id: u64) -> bool {
         return self.get_user_id().eq(user_id)
-            && get_current_time() <= (self.get_time_created() + self.get_valid_time_length());
+            && self.get_id() == session_id
+            && self.is_not_expired();
+    }
+
+    pub fn is_not_expired(&self) -> bool {
+        return get_current_time() <= (self.get_time_created() + self.get_valid_time_length());
     }
 }
 
