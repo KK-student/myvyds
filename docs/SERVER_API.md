@@ -274,7 +274,7 @@ Otherwise, server sends error response with the 404 error code.
 
 ### Editing a comment or reply: 
 
-1. Client sends a GET request to the server to the endpoint "/comment/edit?comment_id=[comment_id]" with the body of the request being a form with the fields "username"=[user's user_id], "session_id"=[user's current session_id], and "text"=[comment text]. 
+1. Client sends a GET request to the server to the endpoint "/comment/edit?comment_id=[comment_id]" with the body of the request being a form with the fields "username"=[user's user_id], "session_id"=[user's current session_id], and "new_text"=[comment text]. 
 
 2. 
 - If username and session_id are valid: 
