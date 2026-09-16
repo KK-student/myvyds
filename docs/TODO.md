@@ -1,4 +1,6 @@
-# Things I still need to implement into the API (x means done)
+# Things I still need to implement (x means done)
+
+# Backend
 ## [ ] Videos: 
 - [x] Getting a video.
 - [x] Getting video basic info.
@@ -40,3 +42,5 @@
 - [ ] Editing a comment or reply.
 - [ ] Adding a reply to a comment.
 - [ ] Removing a comment or reply.
+
+# Frontend (Still need to create a TODO list for this)
