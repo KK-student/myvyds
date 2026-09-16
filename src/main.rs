@@ -20,6 +20,7 @@ use actix_web::{
 };
 
 use crate::{
+    comment_main::get_comment_endpoint,
     file_handling::{
         comment::Comment,
         describable::Describable,
@@ -44,6 +45,7 @@ use crate::{
 
 use crate::file_handling::video_data::VideoData;
 
+mod comment_main;
 mod file_handling;
 mod management_console;
 mod session_manager;
@@ -434,6 +436,7 @@ async fn main() -> std::io::Result<()> {
             .service(get_user_comments)
             .service(get_liked_comments)
             .service(get_disliked_comments)
+            .service(get_comment_endpoint)
     })
     .bind(("127.0.0.1", 6000))
     {

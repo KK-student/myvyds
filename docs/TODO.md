@@ -35,7 +35,7 @@
 - [x] Getting user's disliked comments and replies.
 
 ## [ ] Comments: 
-- [ ] Getting a specific comment or reply.
+- [x] Getting a specific comment or reply.
 - [ ] Making a comment.
 - [ ] Editing a comment or reply.
 - [ ] Adding a reply to a comment.

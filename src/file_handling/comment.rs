@@ -342,6 +342,48 @@ impl Comment {
             reply.for_each_reply_recursive(on_comment);
         }
     }
+
+    pub fn display_json_string(&self, top_level: bool) -> String {
+        // println!("Trying display_json_string on: {:?}", self);
+        let result: String = format!(
+            "{{{}\"can_have_replies\": {}, \"author\": \"{}\", \"text\": \"{}\", \"creation_time\": {}, \"replies\": {}}}",
+            if top_level {
+                format!("\"video_id\": {}, ", self.get_video_id().unwrap())
+            } else {
+                "".to_string()
+            },
+            self.can_add_replies(),
+            self.get_author(),
+            self.get_text(),
+            self.get_creation_time(),
+            {
+                let mut replies_result: String = String::from("{");
+                let mut i = 0;
+                while i < self.replies.len() {
+                    if i > 0 {
+                        replies_result.push_str(", ");
+                    }
+                    let reply_arc = self.replies.get(i).unwrap();
+                    let reply_mutg = reply_arc.lock().unwrap();
+                    let reply: &Comment = reply_mutg.deref();
+                    replies_result.push_str(
+                        format!(
+                            "\"{}\": {}",
+                            reply.get_id(),
+                            reply.display_json_string(false)
+                        )
+                        .as_str(),
+                    );
+                    i += 1;
+                }
+
+                replies_result.push('}');
+                replies_result
+            },
+        );
+
+        return result;
+    }
 }
 
 impl DirtyData for Comment {

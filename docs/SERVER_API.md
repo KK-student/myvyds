@@ -246,7 +246,8 @@ Otherwise, server sends error response with the 404 error code.
 
 1. Client sends a GET request to server with path "/comment/get_comment?comment_id=[comment_id]". 
 
-2. If comment_id is valid, server sends OK response with the body being the comment data in the following JSON format: 
+2. 
+- If comment_id is valid: Server sends OK response with the body being the comment data in the following JSON format: 
 
 ```json
 {
@@ -258,6 +259,8 @@ Otherwise, server sends error response with the 404 error code.
   "replies": {[replies in the same format as the comment, except the replies do not have the "video_id" field]}
 }
 ```
+
+- Otherwise, server sends error message with the error code of 404 (Not Found). 
 
 ### Making a comment: 
 

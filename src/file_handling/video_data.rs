@@ -305,6 +305,7 @@ impl VideoData {
     where
         F: FnMut(u64, Arc<Mutex<Comment>>),
     {
+        //Parse "finished_processing":
         let finished_processing: bool = video_json["finished_processing"].as_bool().unwrap();
         let input_file: &str = if !finished_processing {
             video_json["input_file"].as_str().unwrap()
@@ -312,13 +313,14 @@ impl VideoData {
             ""
         };
 
+        //Parse other simple json values:
         let name: &str = video_json["name"].as_str().unwrap();
         let description: &str = video_json["description"].as_str().unwrap();
 
         let uploaded_time_json: &Value = &video_json["uploaded_time"];
         let uploaded_time: u64 = uploaded_time_json.as_u64().unwrap();
 
-        // unbug::prelude::breakpoint!();
+        //Parse comments and their replies:
         let mut comments: Box<Vec<Arc<Mutex<Comment>>>> = Box::new(Vec::new());
         for (comment_id, comment_json) in video_json["comments"].as_object().unwrap() {
             let comment_id_num: u64 = comment_id.parse::<u64>().unwrap();
@@ -329,7 +331,12 @@ impl VideoData {
                 default_message,
             )));
             comments.push(Arc::clone(&comment_rc));
-            // self.comments_by_id.insert(comment_id_num, Arc::clone(&comment_rc));
+            {
+                //Set comment video_id:
+                let mut comment_mutg = comment_rc.lock().unwrap();
+                let comment: &mut Comment = comment_mutg.deref_mut();
+                comment.set_video_id(video_id);
+            }
             on_comment(comment_id_num, Arc::clone(&comment_rc));
 
             //Add replies to comments_by_id:
@@ -337,6 +344,12 @@ impl VideoData {
                 Comment::get_children(Arc::clone(&comment_rc));
             let replies_map_mutg = replies_map_arc.lock().unwrap();
             for (reply_id, reply_arc) in replies_map_mutg.deref() {
+                {
+                    //Set reply video_id:
+                    let mut reply_mutg = reply_arc.lock().unwrap();
+                    let reply: &mut Comment = reply_mutg.deref_mut();
+                    reply.set_video_id(video_id);
+                }
                 on_comment(*reply_id, Arc::clone(reply_arc));
             }
         }
