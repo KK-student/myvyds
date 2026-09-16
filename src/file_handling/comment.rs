@@ -345,6 +345,8 @@ impl Comment {
 
     pub fn display_json_string(&self, top_level: bool) -> String {
         // println!("Trying display_json_string on: {:?}", self);
+        let author_escaped: String = escape_str(self.get_author().as_str()).collect::<String>();
+        let text_escaped: String = escape_str(self.get_text().as_str()).collect::<String>();
         let result: String = format!(
             "{{{}\"can_have_replies\": {}, \"author\": \"{}\", \"text\": \"{}\", \"creation_time\": {}, \"replies\": {}}}",
             if top_level {
@@ -353,8 +355,8 @@ impl Comment {
                 "".to_string()
             },
             self.can_add_replies(),
-            self.get_author(),
-            self.get_text(),
+            author_escaped,
+            text_escaped,
             self.get_creation_time(),
             {
                 let mut replies_result: String = String::from("{");

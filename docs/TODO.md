@@ -36,7 +36,7 @@
 
 ## [ ] Comments: 
 - [x] Getting a specific comment or reply.
-- [ ] Making a comment.
+- [x] Making a comment.
 - [ ] Editing a comment or reply.
 - [ ] Adding a reply to a comment.
 - [ ] Removing a comment or reply.
