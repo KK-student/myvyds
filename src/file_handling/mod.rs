@@ -656,19 +656,24 @@ pub mod file_handling {
             self.comments_by_id.contains_key(comment_id)
         }
 
-        ///Makes a comment for a video
-        pub fn make_comment(&mut self, user_id: &String, video_id: &u64, text: &String) {
+        ///Makes a comment for a video, returning the comment id of the newly created comment.
+        pub fn make_comment(
+            &mut self,
+            user_id: &String,
+            video_id: &u64,
+            text: &String,
+        ) -> Option<u64> {
             //Get user:
             let user_arc: Arc<Mutex<User>> = match self.get_user(user_id) {
                 Some(u_arc) => u_arc,
-                None => return,
+                None => return None,
             };
             let mut user_mutg = user_arc.lock().unwrap();
             let user: &mut User = user_mutg.deref_mut();
             //Get video:
             let video_arc: Arc<Mutex<VideoData>> = match self.get_video(video_id) {
                 Some(v_arc) => v_arc,
-                None => return,
+                None => return None,
             };
             let mut video_mutg = video_arc.lock().unwrap();
             let video: &mut VideoData = video_mutg.deref_mut();
@@ -691,6 +696,8 @@ pub mod file_handling {
             video.add_comment(Arc::clone(&comment_arc));
             user.add_comment(comment_id);
             self.comments_by_id.insert(comment_id, comment_arc);
+
+            return Some(comment_id);
         }
 
         ///Remove a comment by it's comment id:

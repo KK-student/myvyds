@@ -264,11 +264,11 @@ Otherwise, server sends error response with the 404 error code.
 
 ### Making a comment: 
 
-1. Client sends a GET request to the server to the endpoint "/comment/add?v=[video_id]" with the body of the request being a form with the fields "username"=[user's user_id], "session_id"=[user's current session_id], and "text"=[comment text]. 
+1. Client sends a POST request to the server to the endpoint "/comment/add?v=[video_id]" with the body of the request being a form with the fields "username"=[user's user_id], "session_id"=[user's current session_id], and "text"=[comment text]. 
 
 2. 
 - If username and session_id are valid: 
-  - If video_id is valid: Server creates the comment and responds with an OK message with the body being the comment_id as a u64 value. 
+  - If video_id is valid: Server creates the comment and responds with an OK message with the body being the comment_id of the newly created comment as a u64 value. 
   - Otherwise, server sends an error message with the error code 404. 
 - Otherwise, server sends error message with the error code 401 (Unauthorized). 
 
