@@ -18,6 +18,7 @@
   * [ ] Implemented SSHMusicProcessor. 
   * [ ] Implemented the upload video endpoint on the server. 
   * [ ] Implemented save_data function for VideoProcessorManager. 
+  * [ ] (Not optional) Add the ability for VideoProcessorManager to add videos that can't be processed right now to a queue and then processed later when possible. 
 - [x] Checking if a video is still being processed.
 - [ ] Editing a video.
 - [ ] Removing a video.
