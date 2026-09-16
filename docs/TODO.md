@@ -1,11 +1,11 @@
 # Things I still need to implement into the API (x means done)
 ## [ ] Videos: 
-- [x] Getting a video
-- [x] Getting video basic info
-- [x] Getting video comments (page by page)
-- [x] Getting all video comments
-- [x] Getting video thumbnail image
-- [ ] Uploading a video
+- [x] Getting a video.
+- [x] Getting video basic info.
+- [x] Getting video comments (page by page).
+- [x] Getting all video comments.
+- [x] Getting video thumbnail image.
+- [ ] Uploading a video.
   * [x] Implemented LocalVideoProcessor. 
   * [x] Implemented LocalMusicProcessor. 
   * [x] Implemented VideoProcessorManager. 
@@ -16,26 +16,27 @@
   * [ ] Implemented SSHMusicProcessor. 
   * [ ] Implemented the upload video endpoint on the server. 
   * [ ] Implemented save_data function for VideoProcessorManager. 
-- [x] Checking if a video is still being processed
-- [ ] Editing a video
-- [ ] Removing a video
+- [x] Checking if a video is still being processed.
+- [ ] Editing a video.
+- [ ] Removing a video.
 - [ ] Implemented live streaming using the ez-ffmpeg crate. 
 
-## [ ] Users: 
-- [x] Getting publicly-available user information
-- [x] Getting user icon
-- [x] Logging in
-- [x] Signing up
-- [x] Add the ability to create, delete, and edit user data in the TextBasedManagementConsole
-- [ ] Getting user's subscriptions
-- [ ] Getting user's liked videos
-- [ ] Getting user's disliked videos
-- [ ] Getting user's liked comments and replies
-- [ ] Getting user's disliked comments and replies
+## [x] Users: 
+- [x] Getting publicly-available user information.
+- [x] Getting user icon.
+- [x] Logging in.
+- [x] Signing up.
+- [x] Add the ability to create, delete, and edit user data in the TextBasedManagementConsole.
+- [x] Getting user's subscriptions.
+- [x] Getting user's liked videos.
+- [x] Getting user's disliked videos.
+- [x] Getting user's personal comments and replies.
+- [x] Getting user's liked comments and replies.
+- [x] Getting user's disliked comments and replies.
 
 ## [ ] Comments: 
-- [ ] Getting a specific comment or reply
-- [ ] Making a comment
-- [ ] Editing a comment or reply
-- [ ] Adding a reply to a comment
-- [ ] Removing a comment or reply
+- [ ] Getting a specific comment or reply.
+- [ ] Making a comment.
+- [ ] Editing a comment or reply.
+- [ ] Adding a reply to a comment.
+- [ ] Removing a comment or reply.

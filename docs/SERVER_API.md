@@ -196,6 +196,21 @@ Otherwise, server sends error response with the 404 error code.
 
 - Otherwise, server sends error message with the error code 401 (Unauthorized). 
 
+### Getting user's comments and replies: 
+
+1. Client sends a form to the server with the fields "username"=[user's user_id] and "session_id"=[user's session_id] to the endpoint "/user/get_user_comments".
+
+2. 
+- If username and session_id are valid: Server replies with an OK response with the body being the list of user's liked comments in the following JSON format: 
+
+```json
+{
+  "user_comments": [list of user's comments and replies as an array of comment_ids]
+}
+```
+
+- Otherwise, server sends error message with the error code 401 (Unauthorized). 
+
 ### Getting user's liked comments and replies: 
 
 1. Client sends a form to the server with the fields "username"=[user's user_id] and "session_id"=[user's session_id] to the endpoint "/user/get_liked_comments".
