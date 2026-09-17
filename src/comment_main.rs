@@ -87,3 +87,31 @@ async fn comment_add_endpoint(
         .append_header(header::ContentType(mime::APPLICATION_OCTET_STREAM))
         .body(comment_id.to_be_bytes().to_vec());
 }
+
+#[post("/comment/edit")]
+async fn comment_edit_endpoint(
+    query: Query<CommentIDQuery>,
+    mut payload: Multipart,
+) -> impl Responder {
+    let response401 = HttpResponse::Unauthorized().finish();
+    let response404 = HttpResponse::NotFound().finish();
+
+    //Get DATA_MANAGER:
+    let mut data_manager_mutg = DATA_MANAGER.lock().unwrap();
+    let data_manager = data_manager_mutg.deref_mut();
+
+    //Get and very user_id and session_id:
+    let mut parsed_form_data: HashMap<String, Vec<u8>> = HashMap::new();
+    parse_form_data(&mut payload, &mut parsed_form_data).await;
+    let (user_id, session_id) = match get_user_id_session_id(&parsed_form_data) {
+        Some(res) => res,
+        None => return response401,
+    };
+    if !SESSION_MANAGER.verify_session(&user_id, session_id) {
+        return response401;
+    }
+
+    todo!("Implement comment_edit_endpoint!");
+
+    return HttpResponse::Ok().finish();
+}
