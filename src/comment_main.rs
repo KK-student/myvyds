@@ -89,6 +89,7 @@ async fn comment_add_endpoint(
 }
 
 #[post("/comment/edit")]
+///Implements "Editing a comment or reply".
 async fn comment_edit_endpoint(
     query: Query<CommentIDQuery>,
     mut payload: Multipart,
@@ -111,7 +112,15 @@ async fn comment_edit_endpoint(
         return response401;
     }
 
-    todo!("Implement comment_edit_endpoint!");
+    //Get the text:
+    let new_text: String = match parsed_form_data.get("new_text") {
+        Some(tv) => String::from_utf8_lossy(tv.as_slice()).to_string(),
+        None => String::new(),
+    };
 
+    //Edit comment:
+    data_manager.edit_comment(&query.comment_id, &new_text);
+
+    //Return:
     return HttpResponse::Ok().finish();
 }

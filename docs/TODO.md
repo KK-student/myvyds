@@ -40,7 +40,7 @@
 ## [ ] Comments: 
 - [x] Getting a specific comment or reply.
 - [x] Making a comment.
-- [ ] Editing a comment or reply.
+- [x] Editing a comment or reply.
 - [ ] Adding a reply to a comment.
 - [ ] Removing a comment or reply.
 

@@ -20,7 +20,7 @@ use actix_web::{
 };
 
 use crate::{
-    comment_main::{comment_add_endpoint, get_comment_endpoint},
+    comment_main::{comment_add_endpoint, comment_edit_endpoint, get_comment_endpoint},
     file_handling::{
         comment::Comment,
         describable::Describable,
@@ -379,43 +379,6 @@ async fn main() -> std::io::Result<()> {
         MANAGEMENT_CONSOLE.launch(std::env::var("CARGO_PKG_VERSION").unwrap());
     }
 
-    //Testing code (for use in rust-gdb):
-    // {
-    //     let database_manager_user_container: DataManagerUserContainer =
-    //         DataManagerUserContainer { dm: &DATA_MANAGER };
-    //     //Add video:
-    //     let name: String = prompt(&"Enter the name of the new video".to_string());
-    //     let author_user_id: String = get_value_in_set(
-    //         &database_manager_user_container,
-    //         "Enter the user_id (aka username) of the author",
-    //     );
-    //     let description: String = prompt(&"Enter the description of the new video".to_string());
-    //     let input_file: std::path::PathBuf = prompt_file(
-    //         "Enter the file path of the video input file (for processing)",
-    //         false,
-    //     );
-    //     let mut data_manager_mutg = DATA_MANAGER.lock().unwrap();
-    //     let data_manager = data_manager_mutg.deref_mut();
-    //     let video_id: u64 =
-    //         match data_manager.add_video(&name, &author_user_id, &description, &input_file) {
-    //             Some(id) => id,
-    //             None => {
-    //                 panic!("Error: Failed to add video. ");
-    //             }
-    //         };
-    //
-    //     //Process video:
-    //     PROCESSOR_MANAGER.process(
-    //         video_id,
-    //         &input_file.to_str().unwrap().to_string(),
-    //         &data_manager
-    //             .get_video_dir(&video_id)
-    //             .to_str()
-    //             .unwrap()
-    //             .to_string(),
-    //     );
-    // }
-
     //Launch Actix-web:
     match HttpServer::new(move || {
         App::new()
@@ -438,6 +401,7 @@ async fn main() -> std::io::Result<()> {
             .service(get_disliked_comments)
             .service(get_comment_endpoint)
             .service(comment_add_endpoint)
+            .service(comment_edit_endpoint)
     })
     .bind(("127.0.0.1", 6000))
     {

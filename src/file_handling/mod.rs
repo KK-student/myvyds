@@ -808,5 +808,17 @@ pub mod file_handling {
             user.remove_dislike_comment(*comment_id);
             comment.undislike();
         }
+
+        ///Edit the comment with the specified comment id (comment_id), setting the new text to the given text (text parameter).
+        pub fn edit_comment(&mut self, comment_id: &u64, text: &String) {
+            let comment_arc = match self.get_comment(comment_id) {
+                Some(c_a) => c_a,
+                None => return,
+            };
+            let mut comment_mutg = comment_arc.lock().unwrap();
+            let comment: &mut Comment = comment_mutg.deref_mut();
+            comment.set_text(text, get_current_time());
+            comment.set_edited(true);
+        }
     }
 }
