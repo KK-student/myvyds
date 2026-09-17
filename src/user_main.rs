@@ -80,7 +80,7 @@ async fn get_public_info(query: Query<UserIdQuery>) -> impl Responder {
     let videos_string: String = make_json_list_from_u64_list(user.get_videos().deref());
     let comments_string: String = make_json_list_from_u64_list(user.get_comments().deref());
     let json_result: String = format!(
-        "{{\"time_created\": {}, \"description\": {}, \"videos\": {}, \"comments\": {}}}",
+        "{{\"time_created\": {}, \"description\": \"{}\", \"videos\": {}, \"comments\": {}}}",
         user.get_time_created(),
         description_escaped,
         videos_string,
