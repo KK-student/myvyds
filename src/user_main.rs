@@ -260,15 +260,19 @@ async fn get_liked_videos(mut payload: Multipart) -> impl Responder {
     let data_manager = data_manager_mutg.deref();
 
     //Get and very user_id and session_id:
-    let mut parsed_form_data: HashMap<String, Vec<u8>> = HashMap::new();
-    parse_form_data(&mut payload, &mut parsed_form_data).await;
-    let (user_id, session_id) = match get_user_id_session_id(&parsed_form_data) {
-        Some(res) => res,
+    // let mut parsed_form_data: HashMap<String, Vec<u8>> = HashMap::new();
+    // parse_form_data(&mut payload, &mut parsed_form_data).await;
+    // let (user_id, session_id) = match get_user_id_session_id(&parsed_form_data) {
+    //     Some(res) => res,
+    //     None => return response401,
+    // };
+    // if !SESSION_MANAGER.verify_session(&user_id, session_id) {
+    //     return response401;
+    // }
+    let (parsed_form_data, user_id) = match authenticate(&mut payload).await {
+        Some(data) => data,
         None => return response401,
     };
-    if !SESSION_MANAGER.verify_session(&user_id, session_id) {
-        return response401;
-    }
 
     //Get user object:
     let user_arc: Arc<Mutex<User>> = data_manager.get_user(&user_id).unwrap();
@@ -292,15 +296,19 @@ async fn get_disliked_videos(mut payload: Multipart) -> impl Responder {
     let data_manager = data_manager_mutg.deref();
 
     //Get and very user_id and session_id:
-    let mut parsed_form_data: HashMap<String, Vec<u8>> = HashMap::new();
-    parse_form_data(&mut payload, &mut parsed_form_data).await;
-    let (user_id, session_id) = match get_user_id_session_id(&parsed_form_data) {
-        Some(res) => res,
+    // let mut parsed_form_data: HashMap<String, Vec<u8>> = HashMap::new();
+    // parse_form_data(&mut payload, &mut parsed_form_data).await;
+    // let (user_id, session_id) = match get_user_id_session_id(&parsed_form_data) {
+    //     Some(res) => res,
+    //     None => return response401,
+    // };
+    // if !SESSION_MANAGER.verify_session(&user_id, session_id) {
+    //     return response401;
+    // }
+    let (parsed_form_data, user_id) = match authenticate(&mut payload).await {
+        Some(data) => data,
         None => return response401,
     };
-    if !SESSION_MANAGER.verify_session(&user_id, session_id) {
-        return response401;
-    }
 
     //Get user object:
     let user_arc: Arc<Mutex<User>> = data_manager.get_user(&user_id).unwrap();
@@ -324,15 +332,19 @@ async fn get_user_comments(mut payload: Multipart) -> impl Responder {
     let data_manager = data_manager_mutg.deref();
 
     //Get and very user_id and session_id:
-    let mut parsed_form_data: HashMap<String, Vec<u8>> = HashMap::new();
-    parse_form_data(&mut payload, &mut parsed_form_data).await;
-    let (user_id, session_id) = match get_user_id_session_id(&parsed_form_data) {
-        Some(res) => res,
+    // let mut parsed_form_data: HashMap<String, Vec<u8>> = HashMap::new();
+    // parse_form_data(&mut payload, &mut parsed_form_data).await;
+    // let (user_id, session_id) = match get_user_id_session_id(&parsed_form_data) {
+    //     Some(res) => res,
+    //     None => return response401,
+    // };
+    // if !SESSION_MANAGER.verify_session(&user_id, session_id) {
+    //     return response401;
+    // }
+    let (parsed_form_data, user_id) = match authenticate(&mut payload).await {
+        Some(data) => data,
         None => return response401,
     };
-    if !SESSION_MANAGER.verify_session(&user_id, session_id) {
-        return response401;
-    }
 
     //Get user object:
     let user_arc: Arc<Mutex<User>> = data_manager.get_user(&user_id).unwrap();
@@ -356,15 +368,19 @@ async fn get_liked_comments(mut payload: Multipart) -> impl Responder {
     let data_manager = data_manager_mutg.deref();
 
     //Get and very user_id and session_id:
-    let mut parsed_form_data: HashMap<String, Vec<u8>> = HashMap::new();
-    parse_form_data(&mut payload, &mut parsed_form_data).await;
-    let (user_id, session_id) = match get_user_id_session_id(&parsed_form_data) {
-        Some(res) => res,
+    // let mut parsed_form_data: HashMap<String, Vec<u8>> = HashMap::new();
+    // parse_form_data(&mut payload, &mut parsed_form_data).await;
+    // let (user_id, session_id) = match get_user_id_session_id(&parsed_form_data) {
+    //     Some(res) => res,
+    //     None => return response401,
+    // };
+    // if !SESSION_MANAGER.verify_session(&user_id, session_id) {
+    //     return response401;
+    // }
+    let (parsed_form_data, user_id) = match authenticate(&mut payload).await {
+        Some(data) => data,
         None => return response401,
     };
-    if !SESSION_MANAGER.verify_session(&user_id, session_id) {
-        return response401;
-    }
 
     //Get user object:
     let user_arc: Arc<Mutex<User>> = data_manager.get_user(&user_id).unwrap();
@@ -388,15 +404,19 @@ async fn get_disliked_comments(mut payload: Multipart) -> impl Responder {
     let data_manager = data_manager_mutg.deref();
 
     //Get and very user_id and session_id:
-    let mut parsed_form_data: HashMap<String, Vec<u8>> = HashMap::new();
-    parse_form_data(&mut payload, &mut parsed_form_data).await;
-    let (user_id, session_id) = match get_user_id_session_id(&parsed_form_data) {
-        Some(res) => res,
+    // let mut parsed_form_data: HashMap<String, Vec<u8>> = HashMap::new();
+    // parse_form_data(&mut payload, &mut parsed_form_data).await;
+    // let (user_id, session_id) = match get_user_id_session_id(&parsed_form_data) {
+    //     Some(res) => res,
+    //     None => return response401,
+    // };
+    // if !SESSION_MANAGER.verify_session(&user_id, session_id) {
+    //     return response401;
+    // }
+    let (parsed_form_data, user_id) = match authenticate(&mut payload).await {
+        Some(data) => data,
         None => return response401,
     };
-    if !SESSION_MANAGER.verify_session(&user_id, session_id) {
-        return response401;
-    }
 
     //Get user object:
     let user_arc: Arc<Mutex<User>> = data_manager.get_user(&user_id).unwrap();
