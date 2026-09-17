@@ -37,6 +37,9 @@
 - [x] Getting user's liked comments and replies.
 - [x] Getting user's disliked comments and replies.
 
+## [ ] Authentication: 
+- [ ] Refactor authentication code. 
+
 ## [ ] Comments: 
 - [x] Getting a specific comment or reply.
 - [x] Making a comment.

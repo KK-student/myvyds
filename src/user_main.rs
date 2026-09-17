@@ -36,6 +36,25 @@ pub fn get_user_id_session_id(form_data: &HashMap<String, Vec<u8>>) -> Option<(S
     return Some((user_id, session_id));
 }
 
+pub async fn authenticate(payload: &mut Multipart) -> Option<(HashMap<String, Vec<u8>>, String)> {
+    //Get DATA_MANAGER:
+    // let data_manager_mutg = DATA_MANAGER.lock().unwrap();
+    // let data_manager = data_manager_mutg.deref();
+
+    //Get and very user_id and session_id:
+    let mut parsed_form_data: HashMap<String, Vec<u8>> = HashMap::new();
+    parse_form_data(payload, &mut parsed_form_data).await;
+    let (user_id, session_id) = match get_user_id_session_id(&parsed_form_data) {
+        Some(res) => res,
+        None => return None,
+    };
+    if !SESSION_MANAGER.verify_session(&user_id, session_id) {
+        return None;
+    }
+
+    return Some((parsed_form_data, user_id));
+}
+
 #[derive(Deserialize)]
 struct UserIdQuery {
     user_id: String,
@@ -203,16 +222,21 @@ async fn get_subscriptions(mut payload: Multipart) -> impl Responder {
     let data_manager_mutg = DATA_MANAGER.lock().unwrap();
     let data_manager = data_manager_mutg.deref();
 
-    //Get and very user_id and session_id:
-    let mut parsed_form_data: HashMap<String, Vec<u8>> = HashMap::new();
-    parse_form_data(&mut payload, &mut parsed_form_data).await;
-    let (user_id, session_id) = match get_user_id_session_id(&parsed_form_data) {
-        Some(res) => res,
+    // //Get and very user_id and session_id:
+    // let mut parsed_form_data: HashMap<String, Vec<u8>> = HashMap::new();
+    // parse_form_data(&mut payload, &mut parsed_form_data).await;
+    // let (user_id, session_id) = match get_user_id_session_id(&parsed_form_data) {
+    //     Some(res) => res,
+    //     None => return response401,
+    // };
+    // if !SESSION_MANAGER.verify_session(&user_id, session_id) {
+    //     return response401;
+    // }
+
+    let (parsed_form_data, user_id) = match authenticate(&mut payload).await {
+        Some(data) => data,
         None => return response401,
     };
-    if !SESSION_MANAGER.verify_session(&user_id, session_id) {
-        return response401;
-    }
 
     //Get user object:
     let user_arc: Arc<Mutex<User>> = data_manager.get_user(&user_id).unwrap();
