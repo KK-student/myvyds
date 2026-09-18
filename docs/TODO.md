@@ -38,7 +38,7 @@
 - [x] Getting user's disliked comments and replies.
 
 ## [ ] Authentication: 
-- [ ] Refactor authentication code. 
+- [x] Refactor authentication code. 
 
 ## [ ] Comments: 
 - [x] Getting a specific comment or reply.
