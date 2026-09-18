@@ -44,7 +44,7 @@
 - [x] Getting a specific comment or reply.
 - [x] Making a comment.
 - [x] Editing a comment or reply.
-- [ ] Adding a reply to a comment.
+- [x] Adding a reply to a comment.
 - [ ] Removing a comment or reply.
 
 # Frontend (Still need to create a TODO list for this)
