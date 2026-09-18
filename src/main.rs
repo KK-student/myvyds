@@ -20,7 +20,10 @@ use actix_web::{
 };
 
 use crate::{
-    comment_main::{comment_add_endpoint, comment_edit_endpoint, get_comment_endpoint},
+    comment_main::{
+        comment_add_endpoint, comment_add_reply_endpoint, comment_edit_endpoint,
+        get_comment_endpoint,
+    },
     file_handling::{
         comment::Comment,
         describable::Describable,
@@ -402,6 +405,7 @@ async fn main() -> std::io::Result<()> {
             .service(get_comment_endpoint)
             .service(comment_add_endpoint)
             .service(comment_edit_endpoint)
+            .service(comment_add_reply_endpoint)
     })
     .bind(("127.0.0.1", 6000))
     {

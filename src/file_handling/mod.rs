@@ -820,5 +820,45 @@ pub mod file_handling {
             comment.set_text(text, get_current_time());
             comment.set_edited(true);
         }
+
+        ///Add a reply to the comment with the specified comment id (comment_id), returning the comment id of the newly created reply if successful.
+        pub fn reply_comment(&mut self, comment_id: &u64, text: &String, author: &String) -> Option<u64> {
+            let result: Option<Arc<Mutex<Comment>>> = {
+                let comment_arc = match self.get_comment(comment_id) {
+                    Some(a) => a,
+                    None => return None,
+                };
+                let mut comment_mutg = comment_arc.lock().unwrap();
+                let comment: &mut Comment = comment_mutg.deref_mut();
+
+                let mut rng = rand::rng();
+                let reply_cid: u64 = rng.random::<u64>();
+                let reply_arc = Arc::new(Mutex::new(Comment::new_comment(reply_cid, comment.get_video_id(), comment.get_level() + 1, author, text)));
+
+            // return if comment.add_reply(Arc::clone(&reply_arc)) {
+            //     self.comments_by_id.insert(reply_cid, Arc::clone(&reply_arc));
+            //     Some(reply_cid)
+            // } else { None };
+            // };
+                let r: Option<Arc<Mutex<Comment>>> = if comment.add_reply(Arc::clone(&reply_arc)) {
+                    Some(reply_arc)
+                } else {
+                    None
+                };
+                r
+            };
+            return match result {
+                Some(reply_arc) => {
+                    let reply_id: u64 = {
+                        let reply_mutg = reply_arc.lock().unwrap();
+                        let reply: &Comment = reply_mutg.deref();
+                        reply.get_id()
+                    };
+                    self.comments_by_id.insert(reply_id, Arc::clone(&reply_arc));
+                    Some(reply_id)
+                },
+                None => None,
+            };
+        }
     }
 }

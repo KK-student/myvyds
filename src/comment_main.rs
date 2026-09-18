@@ -107,16 +107,7 @@ async fn comment_edit_endpoint(
     let mut data_manager_mutg = DATA_MANAGER.lock().unwrap();
     let data_manager = data_manager_mutg.deref_mut();
 
-    //Get and very user_id and session_id:
-    // let mut parsed_form_data: HashMap<String, Vec<u8>> = HashMap::new();
-    // parse_form_data(&mut payload, &mut parsed_form_data).await;
-    // let (user_id, session_id) = match get_user_id_session_id(&parsed_form_data) {
-    //     Some(res) => res,
-    //     None => return response401,
-    // };
-    // if !SESSION_MANAGER.verify_session(&user_id, session_id) {
-    //     return response401;
-    // }
+    //Authenticate:
     let (parsed_form_data, user_id) = match authenticate(&mut payload).await {
         Some(data) => data,
         None => return response401,
@@ -133,4 +124,47 @@ async fn comment_edit_endpoint(
 
     //Return:
     return HttpResponse::Ok().finish();
+}
+
+#[post("/comment/add_reply")]
+///Implements "Editing a comment or reply".
+async fn comment_add_reply_endpoint(
+    query: Query<CommentIDQuery>,
+    mut payload: Multipart,
+) -> impl Responder {
+    let response401 = HttpResponse::Unauthorized().finish();
+    let response404 = HttpResponse::NotFound().finish();
+    let response409 = HttpResponse::Conflict().finish();
+
+    //Get DATA_MANAGER:
+    let mut data_manager_mutg = DATA_MANAGER.lock().unwrap();
+    let data_manager = data_manager_mutg.deref_mut();
+
+    //Authenticate:
+    let (parsed_form_data, user_id) = match authenticate(&mut payload).await {
+        Some(data) => data,
+        None => return response401,
+    };
+
+    //Check if comment exists:
+    if !data_manager.has_comment(&query.comment_id) {
+        return response404;
+    }
+
+    //Get the text:
+    let text: String = match parsed_form_data.get("text") {
+        Some(tv) => String::from_utf8_lossy(tv.as_slice()).to_string(),
+        None => String::new(),
+    };
+
+    //Add the reply:
+    let reply_cid: u64 = match data_manager.reply_comment(&query.comment_id, &text, &user_id) {
+        Some(id) => id,
+        None => return response409,
+    };
+
+    //Return:
+    return HttpResponse::Ok()
+        .append_header(header::ContentType(mime::APPLICATION_OCTET_STREAM))
+        .body(reply_cid.to_be_bytes().to_vec());
 }
