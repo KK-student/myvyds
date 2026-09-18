@@ -526,6 +526,7 @@ To quit, press Ctrl+C. ";
                                 1,
                             ) {
                                 0 => {
+                                    //Set password: 
                                     let new_password: String = prompt_change_password(
                                         &format!(
                                             "Enter the new password for the user with the user_id \"{user_id}\""
@@ -555,6 +556,7 @@ To quit, press Ctrl+C. ";
                                     user.set_password_hash(&new_password_hash);
                                 }
                                 1 => {
+                                    //Set description: 
                                     let data_manager_mutg = self.data_manager.lock().unwrap();
                                     let data_manager = data_manager_mutg.deref();
                                     let user_arc = data_manager.get_user(&user_id).unwrap();
@@ -565,6 +567,7 @@ To quit, press Ctrl+C. ";
                                     ));
                                 }
                                 2 => {
+                                    //View subscriptions: 
                                     let data_manager_mutg = self.data_manager.lock().unwrap();
                                     let data_manager = data_manager_mutg.deref();
                                     let user_arc = data_manager.get_user(&user_id).unwrap();
@@ -584,6 +587,7 @@ To quit, press Ctrl+C. ";
                                     }
                                 }
                                 3 => {
+                                    //Subscribe: 
                                     let channel_user_id: String = get_value_in_set(
                                         &self.data_manager_user_container,
                                         "Enter user id (aka username)",
@@ -598,6 +602,7 @@ To quit, press Ctrl+C. ";
                                     user.add_subscription(&channel_user_id);
                                 }
                                 4 => {
+                                    //Unsubscribe: 
                                     let data_manager_mutg = self.data_manager.lock().unwrap();
                                     let data_manager = data_manager_mutg.deref();
                                     let user_arc = data_manager.get_user(&user_id).unwrap();
@@ -609,6 +614,7 @@ To quit, press Ctrl+C. ";
                                     user.remove_subscription(&channel_user_id);
                                 }
                                 5 => {
+                                    //View user: 
                                     let data_manager_mutg = self.data_manager.lock().unwrap();
                                     let data_manager = data_manager_mutg.deref();
                                     let user_arc = data_manager.get_user(&user_id).unwrap();
@@ -618,6 +624,7 @@ To quit, press Ctrl+C. ";
                                     view_user_obj(user);
                                 }
                                 6 => {
+                                    //Add comment: 
                                     let video_id: u64 = get_value_in_set(
                                         &self.data_manager_video_data_container,
                                         "Enter the video id of the video you want to comment to",
@@ -629,6 +636,7 @@ To quit, press Ctrl+C. ";
                                     data_manager.make_comment(&user_id, &video_id, &comment_text);
                                 }
                                 7 => {
+                                    //Remove comment: 
                                     let comment_id: u64 = get_value_in_set(
                                         &self.data_manager_comment_container,
                                         "Enter the comment id of the comment you want to remove",
@@ -638,9 +646,10 @@ To quit, press Ctrl+C. ";
                                     data_manager.remove_comment(&comment_id);
                                 }
                                 8 => {
+                                    //Edit comment: 
                                     let comment_id: u64 = get_value_in_set(
                                         &self.data_manager_comment_container,
-                                        "Enter the comment id of the comment you want to remove",
+                                        "Enter the comment id of the comment you want to edit",
                                     );
                                     let text: String =
                                         prompt(&"Enter the new text of the comment".to_string());
