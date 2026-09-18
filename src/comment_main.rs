@@ -127,7 +127,7 @@ async fn comment_edit_endpoint(
 }
 
 #[post("/comment/add_reply")]
-///Implements "Editing a comment or reply".
+///Implements "Adding a reply to a comment".
 async fn comment_add_reply_endpoint(
     query: Query<CommentIDQuery>,
     mut payload: Multipart,
