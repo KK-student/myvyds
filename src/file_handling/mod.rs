@@ -702,20 +702,65 @@ pub mod file_handling {
 
         ///Remove a comment by it's comment id:
         pub fn remove_comment(&mut self, comment_id: &u64) {
-            //Get the video_id of the video which the comment is in:
-            let video_id: u64 = match {
+            //Get the video_id of the video which the comment is in and the user id of the author:
+            let (video_id, author_uid) = {
                 let comment_arc = match self.comments_by_id.get(comment_id) {
                     Some(c_arc) => c_arc,
                     None => return,
                 };
                 let comment_mutg = comment_arc.lock().unwrap();
                 let comment: &Comment = comment_mutg.deref();
-                comment.get_video_id()
-            } {
-                Some(id) => id,
-                None => return,
+                let v_id: u64 = match { comment.get_video_id() } {
+                    Some(id) => id,
+                    None => return,
+                };
+                (v_id, comment.get_author())
             };
-            //Get the video arc:
+            //Remove all replies:
+            {
+                for reply_arc in {
+                    let comment_arc = self.comments_by_id.get(comment_id).unwrap();
+                    let mut comment_mutg = comment_arc.lock().unwrap();
+                    let comment: &mut Comment = comment_mutg.deref_mut();
+                    comment.get_replies()
+                }
+                .iter()
+                {
+                    let reply_mutg = reply_arc.lock().unwrap();
+                    let reply: &Comment = reply_mutg.deref();
+                    //Remove from self.comments_by_id:
+                    self.comments_by_id.remove(&reply.get_id());
+                    //Remove from user:
+                    let user_arc = self.get_user(&reply.get_author()).unwrap();
+                    let mut user_mutg = user_arc.lock().unwrap();
+                    let user: &mut User = user_mutg.deref_mut();
+                    user.remove_comment(reply.get_id());
+                    //Remove from video:
+                    match reply.get_video_id() {
+                        Some(vid) => {
+                            let video_arc = self.get_video(&vid).unwrap();
+                            let mut video_mutg = video_arc.lock().unwrap();
+                            let video: &mut VideoData = video_mutg.deref_mut();
+                            video.remove_comment_recursive(reply.get_id());
+                        }
+                        None => {}
+                    }
+                }
+                let comment_arc = self.comments_by_id.get(comment_id).unwrap();
+                let mut comment_mutg = comment_arc.lock().unwrap();
+                let comment = comment_mutg.deref_mut();
+                comment.remove_all_replies();
+            }
+            //Remove comment from self.comments_by_id:
+            self.comments_by_id.remove(comment_id);
+            //Remove comment from user:
+            {
+                let user_arc = self.get_user(&author_uid).unwrap();
+                let mut user_mutg = user_arc.lock().unwrap();
+                let user: &mut User = user_mutg.deref_mut();
+                user.remove_comment(*comment_id);
+            }
+            //Remove comment from video:
             let video_arc = match self.get_video(&video_id) {
                 Some(v_arc) => v_arc,
                 None => return,
@@ -822,7 +867,12 @@ pub mod file_handling {
         }
 
         ///Add a reply to the comment with the specified comment id (comment_id), returning the comment id of the newly created reply if successful.
-        pub fn reply_comment(&mut self, comment_id: &u64, text: &String, author: &String) -> Option<u64> {
+        pub fn reply_comment(
+            &mut self,
+            comment_id: &u64,
+            text: &String,
+            author: &String,
+        ) -> Option<u64> {
             let result: Option<Arc<Mutex<Comment>>> = {
                 let comment_arc = match self.get_comment(comment_id) {
                     Some(a) => a,
@@ -833,13 +883,19 @@ pub mod file_handling {
 
                 let mut rng = rand::rng();
                 let reply_cid: u64 = rng.random::<u64>();
-                let reply_arc = Arc::new(Mutex::new(Comment::new_comment(reply_cid, comment.get_video_id(), comment.get_level() + 1, author, text)));
+                let reply_arc = Arc::new(Mutex::new(Comment::new_comment(
+                    reply_cid,
+                    comment.get_video_id(),
+                    comment.get_level() + 1,
+                    author,
+                    text,
+                )));
 
-            // return if comment.add_reply(Arc::clone(&reply_arc)) {
-            //     self.comments_by_id.insert(reply_cid, Arc::clone(&reply_arc));
-            //     Some(reply_cid)
-            // } else { None };
-            // };
+                // return if comment.add_reply(Arc::clone(&reply_arc)) {
+                //     self.comments_by_id.insert(reply_cid, Arc::clone(&reply_arc));
+                //     Some(reply_cid)
+                // } else { None };
+                // };
                 let r: Option<Arc<Mutex<Comment>>> = if comment.add_reply(Arc::clone(&reply_arc)) {
                     Some(reply_arc)
                 } else {
@@ -856,7 +912,7 @@ pub mod file_handling {
                     };
                     self.comments_by_id.insert(reply_id, Arc::clone(&reply_arc));
                     Some(reply_id)
-                },
+                }
                 None => None,
             };
         }

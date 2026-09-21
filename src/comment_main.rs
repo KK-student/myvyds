@@ -168,3 +168,43 @@ async fn comment_add_reply_endpoint(
         .append_header(header::ContentType(mime::APPLICATION_OCTET_STREAM))
         .body(reply_cid.to_be_bytes().to_vec());
 }
+
+#[post("/comment/remove")]
+///Implements "Removing a comment or reply".
+async fn comment_remove_endpoint(
+    query: Query<CommentIDQuery>,
+    mut payload: Multipart,
+) -> impl Responder {
+    let response401 = HttpResponse::Unauthorized().finish();
+    let response404 = HttpResponse::NotFound().finish();
+
+    //Get DATA_MANAGER:
+    let mut data_manager_mutg = DATA_MANAGER.lock().unwrap();
+    let data_manager = data_manager_mutg.deref_mut();
+
+    //Authenticate:
+    let (parsed_form_data, user_id) = match authenticate(&mut payload).await {
+        Some(data) => data,
+        None => return response401,
+    };
+
+    //Check if comment exists:
+    if !data_manager.has_comment(&query.comment_id) {
+        return response404;
+    }
+
+    //Check if user is authorized to delete the comment:
+    {
+        let comment_arc = data_manager.get_comment(&query.comment_id).unwrap();
+        let comment_mutg = comment_arc.lock().unwrap();
+        let comment: &Comment = comment_mutg.deref();
+        if user_id != comment.get_author() {
+            return response401;
+        }
+    }
+
+    //Remove comment:
+    data_manager.remove_comment(&query.comment_id);
+
+    return HttpResponse::Ok().finish();
+}

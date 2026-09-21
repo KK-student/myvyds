@@ -3,3 +3,4 @@
 /data.old
 /docs/*.pdf
 *.swp
+/build-result.txt

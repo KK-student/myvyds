@@ -104,6 +104,7 @@ impl Comment {
         self.id
     }
 
+    ///Get the video id for this comment/reply.
     pub fn get_video_id(&self) -> Option<u64> {
         self.video_id
     }
