@@ -40,11 +40,11 @@
 ## [ ] Authentication: 
 - [x] Refactor authentication code. 
 
-## [ ] Comments: 
+## [x] Comments: 
 - [x] Getting a specific comment or reply.
 - [x] Making a comment.
 - [x] Editing a comment or reply.
 - [x] Adding a reply to a comment.
-- [ ] Removing a comment or reply.
+- [x] Removing a comment or reply.
 
 # Frontend (Still need to create a TODO list for this)
