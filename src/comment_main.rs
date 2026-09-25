@@ -9,10 +9,11 @@ use actix_web::{HttpResponse, Responder, get, http::header, mime, post, web::Que
 use serde::Deserialize;
 
 use crate::{
-    DATA_MANAGER, SESSION_MANAGER, VideoIDQuery,
+    DATA_MANAGER, SESSION_MANAGER,
     file_handling::comment::Comment,
     parse_form_data,
     user_main::{authenticate, get_user_id_session_id},
+    video_main::VideoIDQuery,
 };
 
 #[derive(Deserialize)]

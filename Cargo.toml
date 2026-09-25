@@ -17,4 +17,8 @@ tokio = {version = "1.53.1", features = ["fs"]}
 tokio-util = "0.7.19"
 
 [target.'cfg(unix)'.dependencies]
-nix = {version = "0.31.3", features = ["signal", "process"]}
+nix = {version = "0.31.3", features = ["signal", "process", "fs"]}
+
+[target.'cfg(windows)'.dependencies]
+#winapi = "0.3.9"
+windows = "0.62.2"

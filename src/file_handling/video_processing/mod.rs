@@ -3,12 +3,13 @@ use std::{
     io::Write,
     ops::{Deref, DerefMut},
     panic,
-    path::PathBuf,
+    path::{Path, PathBuf},
     str::FromStr,
     sync::{Arc, LazyLock, Mutex},
     thread::{self},
 };
 
+use rand::RngExt;
 use serde_json::Value;
 
 use crate::file_handling::{
@@ -399,6 +400,209 @@ impl<FFin: Fn(u64) + std::marker::Sync + std::marker::Send + 'static> VideoProce
         };
     }
 
+    #[cfg(target_family = "unix")]
+    /// Determines whether or not if there is a VideoProcessor that can handle the given video (file_bytes).
+    pub fn is_supported_file_data(&'static self, file_bytes: &Vec<u8>) -> bool {
+        // todo!("Finish this!");
+        use std::path::Path;
+
+        use nix::{
+            sys::{
+                stat::Mode,
+                sysinfo::{SysInfo, sysinfo},
+            },
+            unistd::mkfifo,
+        };
+        //Create parent directory if not exists:
+        let exec_name = std::env::current_exe().unwrap();
+        let bd_str;
+        let base_dir;
+
+        //Create video data pipe or regular file:
+        let mut rnd = rand::rng();
+        let pipe_path: PathBuf;
+
+        let sysinfo: SysInfo = sysinfo().unwrap();
+        let available_mem: u64 = sysinfo.ram_unused() + sysinfo.swap_free();
+        let is_low_mem: bool = available_mem < (file_bytes.len() as u64) * 2;
+        if is_low_mem {
+            //Create regular file.
+            bd_str = format!("{}/.tmp", std::env::home_dir().unwrap().to_str().unwrap());
+            base_dir = Path::new(&bd_str);
+            pipe_path = loop {
+                use rand::RngExt;
+
+                let p: PathBuf =
+                    PathBuf::from(&base_dir).join(format!("./{}", rnd.random::<u64>()));
+                if !std::fs::exists(&p).unwrap_or(true) {
+                    break p;
+                }
+            };
+            if !std::fs::exists(&base_dir).unwrap() {
+                std::fs::create_dir(&base_dir).unwrap();
+            }
+            let _ = std::fs::File::create(&pipe_path);
+        } else {
+            //Create POSIX pipe.
+            bd_str = format!("/tmp/{}", exec_name.to_str().unwrap());
+            base_dir = Path::new(&bd_str);
+            pipe_path = loop {
+                use rand::RngExt;
+
+                let p: PathBuf =
+                    PathBuf::from(&base_dir).join(format!("./{}", rnd.random::<u64>()));
+                if !std::fs::exists(&p).unwrap_or(true) {
+                    break p;
+                }
+            };
+            if !std::fs::exists(&base_dir).unwrap() {
+                std::fs::create_dir(&base_dir).unwrap();
+            }
+            match mkfifo(&pipe_path, Mode::S_IRWXU) {
+                Ok(_) => {}
+                Err(_) => return false,
+            };
+        }
+
+        //Get video description:
+        {
+            let mut pipe_file = std::fs::File::create(&pipe_path).unwrap();
+            pipe_file.write_all(file_bytes.as_slice()).unwrap();
+        }
+        let video_description = match get_video_description(pipe_path.to_str().unwrap()) {
+            Ok(res) => res,
+            Err(_) => return false,
+        };
+
+        //Remove the pipe file:
+        let _ = std::fs::remove_file(&pipe_path);
+
+        //Determine whether or not if there is a VideoProcessor that supports the given video data:
+        let found_arc: Arc<Mutex<BoolBox>> = Arc::new(Mutex::new(BoolBox::new(false)));
+        self.for_each_processor(
+            |proc_arc: Arc<Mutex<dyn VideoProcessor + 'static>>| -> bool {
+                let proc_mutg = proc_arc.lock().unwrap();
+                let proc: &dyn VideoProcessor = proc_mutg.deref();
+
+                //Determine if this VideoProcessor supports the given file data.
+                if proc.is_supported_file(&video_description) {
+                    let mut found_mutg = found_arc.lock().unwrap();
+                    let found: &mut BoolBox = found_mutg.deref_mut();
+                    found.set(true);
+                    return true;
+                }
+
+                false
+            },
+        );
+
+        //Return:
+        let found_mutg = found_arc.lock().unwrap();
+        let found: &BoolBox = found_mutg.deref();
+        found.get()
+    }
+
+    #[cfg(target_family = "windows")]
+    /// Determines whether or not if there is a VideoProcessor that can handle the given video (file_bytes).
+    pub fn is_supported_file_data(&'static self, file_bytes: &Vec<u8>) -> bool {
+        //Create parent directory if not exists:
+        let exec_name = std::env::current_exe().unwrap();
+        let bd_str = format!(
+            "{}/{}",
+            std::env::temp_dir().to_str().unwrap(),
+            exec_name.to_str().unwrap()
+        );
+        let base_dir = Path::new(bd_str.as_str());
+        if !std::fs::exists(&base_dir).unwrap() {
+            std::fs::create_dir(&base_dir).unwrap();
+        }
+
+        //Get video file path:
+        let mut rnd = rand::rng();
+        let video_file_path: PathBuf = loop {
+            let p = PathBuf::from(&base_dir).join(format!("./{}.dat", rnd.random::<u64>()));
+            if !std::fs::exists(&p).unwrap() {
+                break p;
+            }
+        };
+
+        //Write data:
+        {
+            let mut video_file = std::fs::File::create(&video_file_path).unwrap();
+            video_file.write_all(file_bytes.as_slice()).unwrap();
+        }
+
+        //Get video description:
+        let video_description = match get_video_description(video_file_path.to_str().unwrap()) {
+            Ok(res) => res,
+            Err(_) => return false,
+        };
+
+        //Remove the video file:
+        let _ = std::fs::remove_file(&video_file_path);
+
+        //Determine whether or not if there is a VideoProcessor that supports the given video data:
+        let found_arc: Arc<Mutex<BoolBox>> = Arc::new(Mutex::new(BoolBox::new(false)));
+        self.for_each_processor(
+            |proc_arc: Arc<Mutex<dyn VideoProcessor + 'static>>| -> bool {
+                let proc_mutg = proc_arc.lock().unwrap();
+                let proc: &dyn VideoProcessor = proc_mutg.deref();
+
+                //Determine if this VideoProcessor supports the given file data.
+                if proc.is_supported_file(&video_description) {
+                    let mut found_mutg = found_arc.lock().unwrap();
+                    let found: &mut BoolBox = found_mutg.deref_mut();
+                    found.set(true);
+                    return true;
+                }
+
+                false
+            },
+        );
+
+        //Return:
+        let found_mutg = found_arc.lock().unwrap();
+        let found: &BoolBox = found_mutg.deref();
+        found.get()
+    }
+
+    pub fn for_each_processor<F: Fn(Arc<Mutex<dyn VideoProcessor>>) -> bool>(
+        &'static self,
+        action: F,
+    ) {
+        //Video processors:
+        let flvps_mutg = self.fastest_local_video_processors.lock().unwrap();
+        let flvps = flvps_mutg.deref();
+        for lvp_id in flvps.iter() {
+            let lvp_arc = self.get_local_video_processor(lvp_id).unwrap();
+            if action(lvp_arc) {
+                return;
+            }
+        }
+
+        //Music processors:
+        let flmps_mutg = self.fastest_local_music_processors.lock().unwrap();
+        let flmps = flmps_mutg.deref();
+        for lmp_id in flmps.iter() {
+            if action(self.get_local_music_processor(lmp_id).unwrap()) {
+                return;
+            }
+        }
+    }
+
+    /// Guesses whether or not if there is enough space to processess the given video data (file_bytes) in the given output directory (output_directory).
+    pub fn has_enough_space(
+        &'static self,
+        file_bytes: &[u8],
+        output_directory: &std::path::Path,
+    ) -> bool {
+        let (num_blocks, block_size) = match get_available_fs_space(output_directory) {
+            Some(met) => met,
+            None => return false,
+        };
+        (file_bytes.len() as u64) <= num_blocks * block_size
+    }
+
     ///Get fastest available VideoProcessor. Returns the processor_id of the fastest available VideoProcessor.
     fn get_optimal_available_vp(
         &'static self,
@@ -762,4 +966,103 @@ impl<FFin: Fn(u64) + std::marker::Sync + std::marker::Send + 'static> VideoProce
             self.deactivate_processor(&vp_id);
         }
     }
+}
+
+fn is_directory(p: &PathBuf) -> bool {
+    let dir_canon: std::path::PathBuf = match std::fs::canonicalize(p) {
+        Ok(dir) => dir,
+        Err(_) => return false,
+    };
+    //Check if dir_canon is a directory:
+    match std::fs::metadata(&dir_canon) {
+        Ok(met) => {
+            if met.is_symlink() {
+                todo!("Symbolic links are not yet supported!");
+                return false;
+            } else if !met.is_dir() {
+                return false;
+            } else {
+                return true;
+            }
+        }
+        Err(_) => return false,
+    };
+}
+
+#[cfg(target_family = "unix")]
+/// Gets the total amount of available blocks and the block size.
+///
+/// Parameters:
+///
+///     `directory`: The directory to get the amount of available blocks and block size from.
+///
+/// Returns:
+///     - None: If `directory` is not actually a directory, the directory does not exist, or for whatever reason the metadata cannot be read.
+///     - Some((num_blocks, block_size)): When successful. First parameter in the tuple, `num_blocks` represents the number of available blocks as a u64 value. The second parameter, `block_size`, represents the block size in bytes for the given directory.
+pub fn get_available_fs_space(directory: &std::path::Path) -> Option<(u64, u64)> {
+    use nix::sys::statvfs::{self, Statvfs};
+
+    let dir_canon: std::path::PathBuf = match std::fs::canonicalize(directory) {
+        Ok(dir) => dir,
+        Err(_) => return None,
+    };
+
+    if !is_directory(&dir_canon) {
+        return None;
+    }
+
+    // let dir_command = Command::new("du");
+    let statvfs_obj: Statvfs = match statvfs::statvfs(&dir_canon) {
+        Ok(res) => res,
+        Err(_) => return None,
+    };
+
+    let blocks: u64 = statvfs_obj.blocks_available();
+    let block_size: u64 = statvfs_obj.block_size();
+    return Some((blocks, block_size));
+}
+
+#[cfg(target_family = "windows")]
+/// Gets the total amount of available blocks and the block size.
+///
+/// Parameters:
+///
+///     directory: The directory to get the amount of available blocks and block size from.
+///
+/// Returns:
+///     - None: If `directory` is not actually a directory, the directory does not exist, or for whatever reason the metadata cannot be read.
+///     - Some((num_blocks, block_size)): When successful. First parameter in the tuple, `num_blocks` represents the number of available blocks as a u64 value. The second parameter, `block_size`, represents the block size in bytes for the given directory.
+pub fn get_available_fs_space(directory: &std::path::Path) -> Option<(u64, u64)> {
+    use windows::Win32::Storage::FileSystem;
+
+    let dir_canon: std::path::PathBuf = match std::fs::canonicalize(directory) {
+        Ok(dir) => dir,
+        Err(_) => return None,
+    };
+
+    if !is_directory(&dir_canon) {
+        return None;
+    }
+
+    let mut free_bytes_available: u64 = 0;
+    let mut total_num_bytes: u64 = 0;
+    let mut total_num_free_bytes: u64 = 0;
+    unsafe {
+        match GetDiskFreeSpaceExW(
+            &dir_canon,
+            &mut free_bytes_available,
+            &mut total_num_bytes,
+            &mut total_free_bytes,
+        ) {
+            Ok(_) => {}
+            Err(_) => return None,
+        }
+    }
+    let met = match std::fs::metadata(&dir_canon) {
+        Ok(_) => {}
+        Err(_) => return None,
+    };
+    let block_size: u64 = met.blksize();
+
+    return Some((free_bytes_available / block_size, block_size));
 }

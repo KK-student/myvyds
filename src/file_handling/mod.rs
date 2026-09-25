@@ -369,7 +369,38 @@ pub mod file_handling {
             input_file_path: &std::path::PathBuf,
         ) -> Option<u64> {
             let mut rand = rand::rng();
+            let video_id: u64 = loop {
+                let num: u64 = rand.random::<u64>();
+                if !self.has_video_by_id(&num) {
+                    break num;
+                }
+            };
+            return match self.add_video_with_id(
+                name,
+                author_user_id,
+                description,
+                input_file_path,
+                &video_id,
+            ) {
+                Ok(_) => Some(video_id),
+                Err(_) => None,
+            };
+        }
 
+        pub fn add_video_with_id(
+            &mut self,
+            name: &String,
+            author_user_id: &String,
+            description: &String,
+            input_file_path: &std::path::PathBuf,
+            id: &u64,
+        ) -> Result<(), ()> {
+            //Check if a video with the given video id already exists:
+            if self.has_video_by_id(id) {
+                return Err(());
+            }
+
+            // Create final name for the video:
             let final_name: String = if !self.has_video_by_name(name) {
                 name.clone()
             } else {
@@ -378,9 +409,8 @@ pub mod file_handling {
 
             //Create the VideoData object:
             let input_file_canon = std::fs::canonicalize(input_file_path).unwrap();
-            let video_id: u64 = rand.random::<u64>();
             let result_arc: Arc<Mutex<VideoData>> = Arc::new(Mutex::new(VideoData::new(
-                video_id,
+                *id,
                 &input_file_canon.to_str().unwrap().to_string(),
                 &final_name,
                 description,
@@ -390,17 +420,17 @@ pub mod file_handling {
             //Add to user:
             let user_arc = match self.get_user(author_user_id) {
                 Some(u_arc) => u_arc,
-                None => return None,
+                None => return Err(()),
             };
             let mut user_mutg = user_arc.lock().unwrap();
             let user: &mut User = user_mutg.deref_mut();
-            user.add_video(video_id);
+            user.add_video(*id);
 
             //Add to DataManager:
-            self.videos.insert(video_id, result_arc);
-            self.videos_by_name.insert(final_name, video_id);
+            self.videos.insert(*id, result_arc);
+            self.videos_by_name.insert(final_name, *id);
 
-            return Some(video_id);
+            return Ok(());
         }
 
         ///Save the data to the database files and folders.
