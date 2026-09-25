@@ -23,6 +23,7 @@ use crate::file_handling::{
 
 pub mod local_music_processor;
 pub mod local_video_processor;
+pub mod thumbnail_processor;
 pub mod video_processor;
 
 // ///Safely gets a VideoProcessor from a VideoProcessorManager (self parameter) by it's id (processor_id parameter). It is to be used like this: get_processor_safe!(self, processor_id);
