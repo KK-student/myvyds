@@ -16,9 +16,10 @@
   * [ ] Implemented LocalArchiveMusicProcessor. 
   * [ ] Implemented SSHVideoProcessor. 
   * [ ] Implemented SSHMusicProcessor. 
-  * [ ] Implemented the upload video endpoint on the server. 
-  * [ ] Implemented save_data function for VideoProcessorManager. 
-  * [ ] (Not optional) Add the ability for VideoProcessorManager to add videos that can't be processed right now to a queue and then processed later when possible. 
+  * [x] Implemented the upload video endpoint on the server. 
+  * [x] Implemented save_data function for VideoProcessorManager. 
+  * [ ] (Not optional) Add the ability for VideoProcessorManager to add videos that can't be processed right now to a queue and then processed later when possible.
+  * [ ] (Not optional) Process the thumbnail videos and images before storing them. 
 - [x] Checking if a video is still being processed.
 - [ ] Editing a video.
 - [ ] Removing a video.
