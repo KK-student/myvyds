@@ -1,13 +1,10 @@
 use std::io;
 use std::io::Write;
 
-use argon2::{Argon2, PasswordHasher};
 use num_traits::Num;
 
 use std::collections::{HashMap, HashSet, LinkedList};
 use std::hash::Hash;
-
-use crate::file_handling::file_handling::file_stream_reader;
 
 ///Represents a set that can be used for the get_number_in_set function.
 pub trait Container<T: Eq + Hash> {
@@ -16,25 +13,25 @@ pub trait Container<T: Eq + Hash> {
 
 impl<T: Eq + Hash> Container<T> for HashSet<T> {
     fn contains_generic(&self, value: &T) -> bool {
-        return self.contains(value);
+        self.contains(value)
     }
 }
 
 impl<T: Eq + Hash> Container<T> for Vec<T> {
     fn contains_generic(&self, value: &T) -> bool {
-        return self.contains(value);
+        self.contains(value)
     }
 }
 
 impl<T: Eq + Hash> Container<T> for LinkedList<T> {
     fn contains_generic(&self, value: &T) -> bool {
-        return self.contains(value);
+        self.contains(value)
     }
 }
 
 impl<T: Eq + Hash, V> Container<T> for HashMap<T, V> {
     fn contains_generic(&self, value: &T) -> bool {
-        return self.contains_key(value);
+        self.contains_key(value)
     }
 }
 
@@ -44,13 +41,13 @@ pub fn get_input() -> String {
     let mut input_string: String = String::new();
     let _ = io::stdin().read_line(&mut input_string);
     let result: &str = input_string.trim_end();
-    return result.to_string();
+    result.to_string()
 }
 
 ///Prompts a user for a line of text.
 pub fn prompt(prompt: &String) -> String {
     print!("{prompt}: ");
-    return get_input();
+    get_input()
 }
 
 ///Prompts a single user for a number within a specified range. Min, max, and the resulting number can be of any type covered by the Num trait and must also implement the std::str::FromStr trait.
@@ -59,7 +56,7 @@ pub fn get_number_in_range<T: Num + std::str::FromStr + std::cmp::PartialOrd>(
     max: T,
     prompt: &str,
 ) -> T {
-    return loop {
+    loop {
         break match {
             print!("{prompt}: ");
             get_input().parse::<T>()
@@ -77,7 +74,7 @@ pub fn get_number_in_range<T: Num + std::str::FromStr + std::cmp::PartialOrd>(
                 continue;
             }
         };
-    };
+    }
 }
 
 ///Prompts a single user for a number that is in the specified set (list). Min, max, and the resulting number can be of any type covered by the Num trait and must also implement the std::str::FromStr trait.
@@ -85,7 +82,7 @@ pub fn get_value_in_set<T: std::str::FromStr + Eq + Hash>(
     list: &impl Container<T>,
     prompt: &str,
 ) -> T {
-    return loop {
+    loop {
         break match {
             print!("{prompt}: ");
             get_input().parse::<T>()
@@ -103,12 +100,12 @@ pub fn get_value_in_set<T: std::str::FromStr + Eq + Hash>(
                 continue;
             }
         };
-    };
+    }
 }
 
 ///Prompts the user for a number.
 pub fn get_number<T: Num + std::str::FromStr>(prompt: &str) -> T {
-    return loop {
+    loop {
         break match {
             print!("{prompt}: ");
             get_input().parse::<T>()
@@ -119,7 +116,7 @@ pub fn get_number<T: Num + std::str::FromStr>(prompt: &str) -> T {
                 continue;
             }
         };
-    };
+    }
 }
 
 ///Displays a menu (menu_items) with a specified message to be printed before the menu (before_message), the prompt text (prompt), and number of '\t' characters to be printed at the beginning of each line of the menu (num_indents).
@@ -148,7 +145,7 @@ pub fn get_menu_item(
         }
     }
 
-    return get_number_in_range(0, menu_items.len(), prompt);
+    get_number_in_range(0, menu_items.len(), prompt)
 }
 
 ///Prompts the user for either a yes or no answer.
@@ -194,7 +191,7 @@ fn is_file_writeable(file_path: &std::path::PathBuf) -> bool {
         Ok(m) => m,
         Err(_) => return false,
     };
-    return !metadata.permissions().readonly();
+    !metadata.permissions().readonly()
 }
 
 pub fn prompt_file(prompt_str: &str, write_permission: bool) -> std::path::PathBuf {

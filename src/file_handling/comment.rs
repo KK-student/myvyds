@@ -64,11 +64,11 @@ impl Comment {
         Comment {
             id: comment_id,
             video_id: None,
-            level: level,
+            level,
             author: default_value.clone(),
             text: text.to_string(),
-            creation_time: creation_time,
-            replies: replies,
+            creation_time,
+            replies,
             likes: 0,
             dislikes: 0,
             dirty: false,
@@ -84,9 +84,9 @@ impl Comment {
         author: &String,
         text: &String,
     ) -> Self {
-        return Comment {
+        Comment {
             id,
-            video_id: video_id,
+            video_id,
             level,
             author: author.clone(),
             text: text.clone(),
@@ -96,7 +96,7 @@ impl Comment {
             dislikes: 0,
             dirty: true,
             edited: false,
-        };
+        }
     }
 
     ///Get comment id.
@@ -166,7 +166,7 @@ impl Comment {
 
     ///Get a copy of the replies vector.
     pub fn get_replies(&self) -> Box<Vec<Arc<Mutex<Comment>>>> {
-        return Box::clone(&self.replies);
+        Box::clone(&self.replies)
     }
 
     ///Parse json comment indexes.
@@ -176,7 +176,7 @@ impl Comment {
             comments.push(comment_id.as_u64().unwrap());
         }
 
-        return comments;
+        comments
     }
 
     ///Get the replies as a HashMap where keys are comment ids and values are the comments themselves.
@@ -204,7 +204,7 @@ impl Comment {
             }
         }
 
-        return Arc::clone(&replies_arc);
+        Arc::clone(&replies_arc)
     }
 
     ///Determine if replies can be added.
@@ -232,7 +232,7 @@ impl Comment {
         }
 
         self.set_dirty(true);
-        return true;
+        true
     }
 
     fn get_reply_index(&self, reply_comment_id: u64) -> i64 {
@@ -245,7 +245,7 @@ impl Comment {
             }
         }
 
-        return -1;
+        -1
     }
 
     ///Recursively looks for a reply by it's id (reply_comment_id). Returns true if it exists and
@@ -265,7 +265,7 @@ impl Comment {
             }
         }
 
-        return false;
+        false
     }
 
     ///Recursively looks for a reply by it's id (reply_comment_id). Returns the reply if it exists
@@ -294,12 +294,12 @@ impl Comment {
     fn remove_top_reply(&mut self, reply_comment_id: u64) -> bool {
         let reply_index = self.get_reply_index(reply_comment_id);
         if reply_index < 0 {
-            return false;
+            false
         } else {
             let replies: &mut Vec<Arc<Mutex<Comment>>> = self.replies.deref_mut();
             replies.remove(reply_index as usize);
             self.set_dirty(true);
-            return true;
+            true
         }
     }
 
@@ -324,7 +324,7 @@ impl Comment {
             self.set_dirty(true);
         }
 
-        return result;
+        result
     }
 
     ///Removes all of the replies.
@@ -385,7 +385,7 @@ impl Comment {
             },
         );
 
-        return result;
+        result
     }
 }
 
@@ -426,7 +426,7 @@ impl Saveable for Comment {
 
         let replies_json_data = make_json_from_saveable_list(self.replies.deref());
 
-        return if pretty {
+        if pretty {
             format!(
                 "\"{}\": {{
 \t\"text\": \"{}\", 
@@ -446,7 +446,7 @@ impl Saveable for Comment {
                 self.get_creation_time(),
                 replies_json_data
             )
-        };
+        }
     }
 }
 
@@ -457,13 +457,13 @@ impl Describable for Comment {
 
         let replies_json_data = make_json_from_describable_list(self.replies.deref());
 
-        return format!(
+        format!(
             "\"{}\": {{\"author\": \"{}\", \"text\": \"{}\", \"creation_time\": {}, \"replies\": {}}}",
             self.get_id(),
             author_escaped,
             text_escaped,
             self.get_creation_time(),
             replies_json_data
-        );
+        )
     }
 }

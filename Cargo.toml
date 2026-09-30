@@ -8,6 +8,8 @@ actix-multipart = "0.8.1"
 actix-web = {version = "4.15.0"}
 argon2 = "0.6.0"
 futures = "0.3.34"
+image = {version = "0.25.10", default-features = false, features=["default-formats"]}
+imageproc = {version = "0.27.0", default-features = false}
 json-escape = {version = "0.3.1", features = ["alloc"]}
 num-traits = "0.2.19"
 rand = "0.10.2"

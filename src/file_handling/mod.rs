@@ -89,6 +89,7 @@
 pub mod comment;
 pub mod describable;
 mod dirty_data;
+pub mod from_json;
 pub mod likeable;
 pub mod saveable;
 pub mod user;
@@ -375,7 +376,7 @@ pub mod file_handling {
                     break num;
                 }
             };
-            return match self.add_video_with_id(
+            match self.add_video_with_id(
                 name,
                 author_user_id,
                 description,
@@ -384,7 +385,7 @@ pub mod file_handling {
             ) {
                 Ok(_) => Some(video_id),
                 Err(_) => None,
-            };
+            }
         }
 
         pub fn add_video_with_id(

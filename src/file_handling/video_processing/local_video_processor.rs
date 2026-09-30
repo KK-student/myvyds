@@ -119,7 +119,7 @@ impl VideoProcessor for LocalVideoProcessor {
         }
     }
 
-    fn process(
+    fn process_video(
         &mut self,
         video_id: u64,
         video_file_path: String,

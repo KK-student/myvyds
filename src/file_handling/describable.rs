@@ -19,7 +19,7 @@ pub fn make_json_from_describable_list(list: &Vec<Arc<Mutex<impl Describable>>>)
     }
 
     result.push('}');
-    return result;
+    result
 }
 
 pub trait Describable {

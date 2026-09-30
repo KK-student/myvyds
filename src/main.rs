@@ -2,22 +2,13 @@
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
-    path::PathBuf,
-    str::FromStr,
-    sync::{Arc, Mutex},
+    sync::Mutex,
 };
 
-use actix_multipart::{Field, Multipart};
-use argon2::{Argon2, PasswordHasher};
+use actix_multipart::Multipart;
 use futures::TryStreamExt;
-use serde::Deserialize;
 
-use actix_web::{
-    App, HttpResponse, HttpServer, Responder, get,
-    http::header,
-    mime, post,
-    web::{self, Bytes, Query},
-};
+use actix_web::{App, HttpServer};
 
 use crate::{
     comment_main::{
@@ -25,32 +16,25 @@ use crate::{
         comment_remove_endpoint, get_comment_endpoint,
     },
     file_handling::{
-        comment::Comment,
-        describable::Describable,
-        file_handling::{DataManager, read_small_file},
-        likeable::Likeable,
-        saveable::make_json_list_from_u64_list,
-        user::User,
-        video_processing::VideoProcessorManager,
+        file_handling::DataManager,
+        video_processing::{
+            VideoProcessorManager, local_thumbnail_video_processor::LocalThumbnailImageProcessor,
+        },
     },
     management_console::{
-        ManagementConsole,
-        string_input::{get_value_in_set, prompt, prompt_file},
-        text_based_management_console::{DataManagerUserContainer, TextBasedManagementConsole},
+        ManagementConsole, text_based_management_console::TextBasedManagementConsole,
     },
     session_manager::SessionManager,
     user_main::{
         get_disliked_comments, get_disliked_videos, get_liked_comments, get_liked_videos,
-        get_public_info, get_subscriptions, get_user_comments, get_user_icon,
-        get_user_id_session_id, login_endpoint, signup,
+        get_public_info, get_subscriptions, get_user_comments, get_user_icon, login_endpoint,
+        signup,
     },
     video_main::{
         get_comments_page, get_video_basic_info, get_video_file, get_video_thumbnail_image,
         is_currently_processing, video_upload_endpoint,
     },
 };
-
-use crate::file_handling::video_data::VideoData;
 
 mod comment_main;
 mod file_handling;
@@ -94,7 +78,7 @@ pub fn _get_user_for_session_manager(user_id: &String, password_hash: &String) -
     };
     let user_mutg = user_arc.lock().unwrap();
     let user = user_mutg.deref();
-    return user.check_password_hash(password_hash);
+    user.check_password_hash(password_hash)
 }
 
 static _GET_USER_FOR_SESSION_MANAGER_FUNC: fn(&String, &String) -> bool =
@@ -106,12 +90,14 @@ static ON_FINISH_FAIL_FUNC: fn(u64) -> () = _on_finish_fail_func;
 static DATA_PATH: &str = "./data";
 static DATA_MANAGER: std::sync::LazyLock<Mutex<DataManager>> =
     std::sync::LazyLock::new(|| -> Mutex<DataManager> { Mutex::new(DataManager::new(DATA_PATH)) });
-static PROCESSOR_MANAGER: VideoProcessorManager<fn(u64) -> ()> =
-    VideoProcessorManager::new(DATA_PATH, ON_FINISH_SUCCESS_FUNC, ON_FINISH_FAIL_FUNC);
 static SESSION_MANAGER: SessionManager<fn(&String, &String) -> bool> =
     SessionManager::new(&_GET_USER_FOR_SESSION_MANAGER_FUNC);
 static MANAGEMENT_CONSOLE: TextBasedManagementConsole<fn(&String, &String) -> bool> =
     TextBasedManagementConsole::new(&DATA_MANAGER, &PROCESSOR_MANAGER, &SESSION_MANAGER);
+
+type ThumbnailImageProccessorType = LocalThumbnailImageProcessor;
+static PROCESSOR_MANAGER: VideoProcessorManager<fn(u64) -> (), ThumbnailImageProccessorType> =
+    VideoProcessorManager::new(DATA_PATH, ON_FINISH_SUCCESS_FUNC, ON_FINISH_FAIL_FUNC);
 
 pub fn _on_finish_proc_func(video_id: u64) {
     let data_manager_mutg = DATA_MANAGER.lock().unwrap();

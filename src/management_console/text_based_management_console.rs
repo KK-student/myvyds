@@ -8,6 +8,7 @@ use std::{
 use argon2::{Argon2, PasswordHasher};
 
 use crate::{
+    ThumbnailImageProccessorType,
     file_handling::{
         comment::Comment,
         file_handling::DataManager,
@@ -31,7 +32,7 @@ use crate::{
 };
 
 struct VideoProcessorManagerContainer {
-    vpm: &'static VideoProcessorManager<fn(u64) -> ()>,
+    vpm: &'static VideoProcessorManager<fn(u64) -> (), ThumbnailImageProccessorType>,
 }
 
 impl Container<u64> for VideoProcessorManagerContainer {
@@ -87,7 +88,7 @@ pub struct TextBasedManagementConsole<
     data_manager_user_container: DataManagerUserContainer,
     data_manager_video_data_container: DataManagerVideoDataContainer,
     data_manager_comment_container: DataManagerCommentContainer,
-    processor_manager: &'static VideoProcessorManager<fn(u64) -> ()>,
+    processor_manager: &'static VideoProcessorManager<fn(u64) -> (), ThumbnailImageProccessorType>,
     processor_manager_container: VideoProcessorManagerContainer,
 
     session_manager: &'static SessionManager<F>,
@@ -98,7 +99,10 @@ impl<F: Fn(&String, &String) -> bool + std::marker::Send + std::marker::Sync + '
 {
     pub const fn new(
         data_manager: &'static std::sync::LazyLock<Mutex<DataManager>>,
-        processor_manager: &'static VideoProcessorManager<fn(u64) -> ()>,
+        processor_manager: &'static VideoProcessorManager<
+            fn(u64) -> (),
+            ThumbnailImageProccessorType,
+        >,
         session_manager: &'static SessionManager<F>,
     ) -> Self {
         return Self {
@@ -526,7 +530,7 @@ To quit, press Ctrl+C. ";
                                 1,
                             ) {
                                 0 => {
-                                    //Set password: 
+                                    //Set password:
                                     let new_password: String = prompt_change_password(
                                         &format!(
                                             "Enter the new password for the user with the user_id \"{user_id}\""
@@ -556,7 +560,7 @@ To quit, press Ctrl+C. ";
                                     user.set_password_hash(&new_password_hash);
                                 }
                                 1 => {
-                                    //Set description: 
+                                    //Set description:
                                     let data_manager_mutg = self.data_manager.lock().unwrap();
                                     let data_manager = data_manager_mutg.deref();
                                     let user_arc = data_manager.get_user(&user_id).unwrap();
@@ -567,7 +571,7 @@ To quit, press Ctrl+C. ";
                                     ));
                                 }
                                 2 => {
-                                    //View subscriptions: 
+                                    //View subscriptions:
                                     let data_manager_mutg = self.data_manager.lock().unwrap();
                                     let data_manager = data_manager_mutg.deref();
                                     let user_arc = data_manager.get_user(&user_id).unwrap();
@@ -587,7 +591,7 @@ To quit, press Ctrl+C. ";
                                     }
                                 }
                                 3 => {
-                                    //Subscribe: 
+                                    //Subscribe:
                                     let channel_user_id: String = get_value_in_set(
                                         &self.data_manager_user_container,
                                         "Enter user id (aka username)",
@@ -602,7 +606,7 @@ To quit, press Ctrl+C. ";
                                     user.add_subscription(&channel_user_id);
                                 }
                                 4 => {
-                                    //Unsubscribe: 
+                                    //Unsubscribe:
                                     let data_manager_mutg = self.data_manager.lock().unwrap();
                                     let data_manager = data_manager_mutg.deref();
                                     let user_arc = data_manager.get_user(&user_id).unwrap();
@@ -614,7 +618,7 @@ To quit, press Ctrl+C. ";
                                     user.remove_subscription(&channel_user_id);
                                 }
                                 5 => {
-                                    //View user: 
+                                    //View user:
                                     let data_manager_mutg = self.data_manager.lock().unwrap();
                                     let data_manager = data_manager_mutg.deref();
                                     let user_arc = data_manager.get_user(&user_id).unwrap();
@@ -624,7 +628,7 @@ To quit, press Ctrl+C. ";
                                     view_user_obj(user);
                                 }
                                 6 => {
-                                    //Add comment: 
+                                    //Add comment:
                                     let video_id: u64 = get_value_in_set(
                                         &self.data_manager_video_data_container,
                                         "Enter the video id of the video you want to comment to",
@@ -636,7 +640,7 @@ To quit, press Ctrl+C. ";
                                     data_manager.make_comment(&user_id, &video_id, &comment_text);
                                 }
                                 7 => {
-                                    //Remove comment: 
+                                    //Remove comment:
                                     let comment_id: u64 = get_value_in_set(
                                         &self.data_manager_comment_container,
                                         "Enter the comment id of the comment you want to remove",
@@ -646,7 +650,7 @@ To quit, press Ctrl+C. ";
                                     data_manager.remove_comment(&comment_id);
                                 }
                                 8 => {
-                                    //Edit comment: 
+                                    //Edit comment:
                                     let comment_id: u64 = get_value_in_set(
                                         &self.data_manager_comment_container,
                                         "Enter the comment id of the comment you want to edit",

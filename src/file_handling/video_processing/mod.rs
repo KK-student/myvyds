@@ -1,5 +1,7 @@
 use std::{
+    any::{Any, TypeId},
     collections::HashMap,
+    fmt::Debug,
     io::Write,
     ops::{Deref, DerefMut},
     panic,
@@ -9,22 +11,65 @@ use std::{
     thread::{self},
 };
 
+use image::ImageError;
 use rand::RngExt;
 use serde_json::Value;
 
 use crate::file_handling::{
     file_handling::read_small_file,
+    from_json::FromJson,
     saveable::{make_json_from_saveable_list, make_json_list_from_saveable_list},
     video_processing::{
-        local_music_processor::LocalMusicProcessor, local_video_processor::LocalVideoProcessor,
+        local_music_processor::LocalMusicProcessor,
+        local_thumbnail_video_processor::LocalThumbnailImageProcessor,
+        local_video_processor::LocalVideoProcessor,
+        thumbnail_processor::{DynCloneBox, ThumbnailImageProcessor},
         video_processor::*,
     },
 };
 
 pub mod local_music_processor;
+pub mod local_thumbnail_video_processor;
 pub mod local_video_processor;
 pub mod thumbnail_processor;
 pub mod video_processor;
+
+struct TestStruct<Z: Clone> {
+    value: Option<Z>,
+}
+
+impl<Z: Clone> TestStruct<Z> {
+    pub const fn new(value: Option<Z>) -> Self {
+        Self { value }
+    }
+
+    pub fn set(&mut self, value: Option<Z>) {
+        self.value = value;
+    }
+
+    pub fn get(&self) -> Option<Z> {
+        match &self.value {
+            Some(val) => Some(val.clone()),
+            None => None,
+        }
+    }
+}
+
+impl<Z: Clone> Clone for TestStruct<Z> {
+    fn clone(&self) -> Self {
+        Self {
+            value: self.value.clone(),
+        }
+    }
+}
+
+impl<Z: Clone> Deref for TestStruct<Z> {
+    type Target = Option<Z>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
 
 // ///Safely gets a VideoProcessor from a VideoProcessorManager (self parameter) by it's id (processor_id parameter). It is to be used like this: get_processor_safe!(self, processor_id);
 // macro_rules! get_processor_safe {
@@ -39,13 +84,77 @@ pub mod video_processor;
 //     };
 // }
 
-#[derive(Debug)]
+// #[derive(Debug)]
+struct ArcBox<T: Any + std::marker::Sized + std::marker::Send + std::marker::Sync + Debug> {
+    value: Option<Arc<Mutex<Option<T>>>>,
+}
+
+impl<T: Any + std::marker::Sized + std::marker::Send + std::marker::Sync + Debug> ArcBox<T> {
+    pub fn set(&mut self, value: Arc<Mutex<Option<T>>>) {
+        self.value = Some(value);
+    }
+
+    pub fn get(&self) -> Arc<Mutex<Option<T>>> {
+        // self.value.clone()
+        match &self.value {
+            Some(val) => Arc::clone(val),
+            None => Arc::new(Mutex::new(None)),
+        }
+    }
+
+    pub const fn new(value: Arc<Mutex<Option<T>>>) -> Self {
+        Self { value: Some(value) }
+    }
+
+    pub const fn default_const() -> Self {
+        Self { value: None }
+    }
+
+    // pub fn initialize(&self, )
+}
+
+impl<T: Any + std::marker::Sized + std::marker::Send + std::marker::Sync + Debug> Debug
+    for ArcBox<T>
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ArcBox")
+            .field("value", &self.value)
+            .finish()
+    }
+}
+
+impl<T: Any + std::marker::Sized + std::marker::Send + std::marker::Sync + Debug> Default
+    for ArcBox<T>
+{
+    fn default() -> Self {
+        Self { value: None }
+    }
+}
+
+trait SendSyncSized: std::marker::Send + std::marker::Sync + std::marker::Sized {}
+// trait TIPSSSS: ThumbnailImageProcessor {}
+
+// #[derive(Debug)]
 ///A struct that manages all of the video processors. All instances of this struct MUST have a 'static lifetime!
-pub struct VideoProcessorManager<FFin: Fn(u64) + std::marker::Sync + std::marker::Send + 'static> {
+pub struct VideoProcessorManager<
+    FFin: Fn(u64) + std::marker::Sync + std::marker::Send + Debug + 'static,
+    THIP: ThumbnailImageProcessor
+        + std::marker::Send
+        + std::marker::Sync
+        + std::marker::Sized
+        + Clone
+        + Any,
+> {
     local_video_processors: LazyLock<Mutex<HashMap<u64, Arc<Mutex<LocalVideoProcessor>>>>>,
     local_music_processors: LazyLock<Mutex<HashMap<u64, Arc<Mutex<LocalMusicProcessor>>>>>,
     fastest_local_video_processors: LazyLock<Mutex<Vec<u64>>>,
     fastest_local_music_processors: LazyLock<Mutex<Vec<u64>>>,
+
+    // thumbnail_image_processor:
+    //     ArcBox<Box<dyn ThumbnailImageProcessor + std::marker::Send + std::marker::Sync>>,
+
+    // thumbnail_image_processor: LazyLock<Mutex<TestStruct<DynCloneBox<dyn ThumbnailImageProcessor>>>>,
+    thumbnail_image_processor: LazyLock<Mutex<TestStruct<THIP>>>,
 
     currently_processing: LazyLock<Mutex<HashMap<u64, u64>>>,
     finished_processing: LazyLock<Mutex<HashMap<u64, u64>>>,
@@ -56,7 +165,42 @@ pub struct VideoProcessorManager<FFin: Fn(u64) + std::marker::Sync + std::marker
     on_finished_fail_function: FFin,
 }
 
-impl<FFin: Fn(u64) + std::marker::Sync + std::marker::Send + 'static> VideoProcessorManager<FFin> {
+impl<
+    FFin: Fn(u64) + std::marker::Sync + std::marker::Send + Debug + 'static,
+    THIP: ThumbnailImageProcessor + std::marker::Send + std::marker::Sync + std::marker::Sized + Clone,
+> Debug for VideoProcessorManager<FFin, THIP>
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VideoProcessorManager")
+            .field("local_video_processors", &self.local_video_processors)
+            .field("local_music_processors", &self.local_music_processors)
+            .field(
+                "fastest_local_video_processors",
+                &self.fastest_local_video_processors,
+            )
+            .field(
+                "fastest_local_music_processors",
+                &self.fastest_local_music_processors,
+            )
+            // .field("thumbnail_image_processor", &self.thumbnail_image_processor)
+            .field("currently_processing", &self.currently_processing)
+            .field("finished_processing", &self.finished_processing)
+            .field("failed_processing", &self.failed_processing)
+            .field("data_path", &self.data_path)
+            .field(
+                "on_finished_success_function",
+                &self.on_finished_success_function,
+            )
+            .field("on_finished_fail_function", &self.on_finished_fail_function)
+            .finish()
+    }
+}
+
+impl<
+    FFin: Fn(u64) + std::marker::Sync + std::marker::Send + Debug + 'static,
+    THIP: ThumbnailImageProcessor + std::marker::Send + std::marker::Sync + std::marker::Sized + Clone,
+> VideoProcessorManager<FFin, THIP>
+{
     ///Creates a new VideoProcessorManager with the specified data directory (data_path).
     pub const fn new(
         data_path: &'static str,
@@ -92,6 +236,10 @@ impl<FFin: Fn(u64) + std::marker::Sync + std::marker::Send + 'static> VideoProce
             data_path: data_path,
             on_finished_success_function: on_finish_success_function,
             on_finished_fail_function: on_finish_fail_function,
+            // thumbnail_image_processor: ArcBox::default_const(),
+            thumbnail_image_processor: LazyLock::new(|| -> Mutex<TestStruct<THIP>> {
+                Mutex::new(TestStruct::new(None))
+            }),
         }
     }
 
@@ -125,6 +273,48 @@ impl<FFin: Fn(u64) + std::marker::Sync + std::marker::Send + 'static> VideoProce
                 local_music_processors_jobj,
             ))));
             // }
+        }
+        //Thumbnail image processor:
+        // self.thumbnail_image_processor = LazyLock::new(Self::new_thi_mutex(json_data));
+        // self.thumbnail_image_processor
+        //     .set(Arc::new(Mutex::new(Some({
+        //         let thumbnail_processor_jobj =
+        //             json_data["thumbnail_processor"].as_object().unwrap();
+        //         match thumbnail_processor_jobj
+        //             .get("type")
+        //             .unwrap()
+        //             .as_str()
+        //             .unwrap()
+        //         {
+        //             "local" => Box::new(LocalThumbnailImageProcessor::from_json(
+        //                 thumbnail_processor_jobj.get("options").unwrap(),
+        //             )),
+        //             &_ => unimplemented!("Invalid thumbnail processor type!"),
+        //         }
+        //     }))));
+        {
+            let mut thip_cont_mutg = self.thumbnail_image_processor.lock().unwrap();
+            let thip_cont = thip_cont_mutg.deref_mut();
+            thip_cont.set({
+                let thumbnail_processor_jobj =
+                    json_data["thumbnail_processor"].as_object().unwrap();
+                match thumbnail_processor_jobj
+                    .get("type")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                {
+                    "local" => {
+                        if TypeId::of::<THIP>() != TypeId::of::<LocalThumbnailImageProcessor>() {
+                            panic!("Invalid thumbnail processor type!");
+                        }
+                        Some(THIP::from_json(
+                            thumbnail_processor_jobj.get("options").unwrap(),
+                        ))
+                    }
+                    &_ => unimplemented!("Invalid thumbnail processor type!"),
+                }
+            });
         }
     }
 
@@ -743,7 +933,7 @@ impl<FFin: Fn(u64) + std::marker::Sync + std::marker::Send + 'static> VideoProce
                 cp.insert(video_id, pr.get_id());
             }
             let rx = pr
-                .process(video_id, video_file_path.clone(), result_directory.clone())
+                .process_video(video_id, video_file_path.clone(), result_directory.clone())
                 .unwrap();
             let pr_id_copy: u64 = *pr_id;
             thread::spawn(move || {
@@ -966,6 +1156,33 @@ impl<FFin: Fn(u64) + std::marker::Sync + std::marker::Send + 'static> VideoProce
         for vp_id in self.get_all_proc_ids() {
             self.deactivate_processor(&vp_id);
         }
+    }
+
+    pub async fn process_image<
+        // THIP: ThumbnailImageProcessor + std::marker::Sized,
+        ActSuc: Fn() + std::marker::Send + std::marker::Sync,
+        ActFail: Fn(ImageError) + std::marker::Send + std::marker::Sync,
+    >(
+        &'static self,
+        input_image: Vec<u8>,
+        output_directory: std::path::PathBuf,
+        on_success: &'static ActSuc,
+        on_fail: &'static ActFail,
+    ) -> () {
+        thread::spawn(move || -> () {
+            match {
+                // let image_proc_arc = self.thumbnail_image_processor.get().unwrap();
+                // let image_proc_mutg = image_proc_arc.lock().unwrap();
+                // let image_proc: &dyn ThumbnailImageProcessor = image_proc_mutg.deref().deref();
+                let thip_cont_mutg = self.thumbnail_image_processor.lock().unwrap();
+                let thip_cont = thip_cont_mutg.deref();
+                let image_proc = thip_cont.deref().as_ref().unwrap();
+                image_proc.process(input_image.as_slice(), &output_directory)
+            } {
+                Ok(_) => on_success(),
+                Err(e) => on_fail(e),
+            };
+        });
     }
 }
 

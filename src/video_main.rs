@@ -14,6 +14,7 @@ use actix_web::{
     mime, post,
     web::{self, Query},
 };
+use futures::FutureExt;
 use rand::RngExt;
 use serde::Deserialize;
 
@@ -97,7 +98,7 @@ pub async fn get_video_basic_info(url_query: Query<VideoIDQuery>) -> impl Respon
         }
     }
 
-    return response_404;
+    response_404
 }
 
 #[get("/video/thumbnail_image")]
@@ -115,12 +116,12 @@ pub async fn get_video_thumbnail_image(url_query: Query<VideoIDQuery>) -> impl R
     }
     //Get thumbnail image:
     let thumbnail_image_path: String = format!("{}/media/{}/thumbnail.png", DATA_PATH, video_id);
-    return match read_small_file(thumbnail_image_path.as_str()) {
+    match read_small_file(thumbnail_image_path.as_str()) {
         Ok(contents) => HttpResponse::Ok()
             .append_header(header::ContentType(mime::IMAGE_PNG))
             .body(contents),
         Err(_) => response_404,
-    };
+    }
 }
 
 #[derive(Deserialize)]
@@ -173,14 +174,14 @@ pub async fn get_comments_page(url_query: Query<GetCommentsPageQuery>) -> impl R
                 let end = ((*page_index as u64) + 1) * page_size - 1;
                 // println!("start: {}, end: {}", start, end);
                 video.for_each_comment_range(start, end, on_comment);
-                response_string.push_str("}");
+                response_string.push('}');
 
                 return HttpResponse::Ok()
                     .append_header(header::ContentType(mime::APPLICATION_JSON))
                     .body(response_string);
             } else if *page_index == -2 {
                 video.for_each_comment_range(0, video.get_num_comments() - 1, on_comment);
-                response_string.push_str("}");
+                response_string.push('}');
 
                 return HttpResponse::Ok()
                     .append_header(header::ContentType(mime::APPLICATION_JSON))
@@ -189,7 +190,7 @@ pub async fn get_comments_page(url_query: Query<GetCommentsPageQuery>) -> impl R
         }
     }
 
-    return response_404;
+    response_404
 }
 
 ///Implements the "/video/is_currently_processing" endpoint.
@@ -218,33 +219,46 @@ pub async fn is_currently_processing(
             let fp: bool = PROCESSOR_MANAGER.is_finished_processing(&video_id);
             let failp: bool = PROCESSOR_MANAGER.is_failed_processing(&video_id);
 
-            let mut result_string: String = "".to_string();
-            if !cp && !fp && !failp {
-                result_string =
-                    format!("\"{{\"video_id\":{video_id}, \"processing_status\": 4}}\"");
-            } else if cp && !fp && !failp {
-                result_string =
-                    format!("\"{{\"video_id\":{video_id}, \"processing_status\": 1}}\"");
-            } else if !cp && fp && !failp {
-                result_string =
-                    format!("\"{{\"video_id\":{video_id}, \"processing_status\": 0}}\"");
-            } else if !cp && !fp && failp {
-                result_string = format!(
-                    "\"{{\"video_id\":{video_id}, \"processing_status\": 2, \"error_message\": \"{}\"}}\"",
-                    "Unknown error message (need to add support for error messages)"
-                );
-            } else {
-                todo!("Invalid combination of cp, fp, and failp. ");
-            }
+            // let result_string: String;
+            // if !cp && !fp && !failp {
+            //     result_string =
+            //         format!("\"{{\"video_id\":{video_id}, \"processing_status\": 4}}\"");
+            // } else if cp && !fp && !failp {
+            //     result_string =
+            //         format!("\"{{\"video_id\":{video_id}, \"processing_status\": 1}}\"");
+            // } else if !cp && fp && !failp {
+            //     result_string =
+            //         format!("\"{{\"video_id\":{video_id}, \"processing_status\": 0}}\"");
+            // } else if !cp && !fp && failp {
+            //     result_string = format!(
+            //         "\"{{\"video_id\":{video_id}, \"processing_status\": 2, \"error_message\": \"{}\"}}\"",
+            //         "Unknown error message (need to add support for error messages)"
+            //     );
+            // } else {
+            //     todo!("Invalid combination of cp, fp, and failp. ");
+            // }
             return HttpResponse::Ok()
                 .append_header(header::ContentType(mime::APPLICATION_JSON))
-                .body(result_string);
+                .body({if !cp && !fp && !failp {
+                    format!("\"{{\"video_id\":{video_id}, \"processing_status\": 4}}\"")
+                } else if cp && !fp && !failp {
+                    format!("\"{{\"video_id\":{video_id}, \"processing_status\": 1}}\"")
+                } else if !cp && fp && !failp {
+                    format!("\"{{\"video_id\":{video_id}, \"processing_status\": 0}}\"")
+                } else if !cp && !fp && failp {
+                    format!(
+                        "\"{{\"video_id\":{video_id}, \"processing_status\": 2, \"error_message\": \"{}\"}}\"",
+                        "Unknown error message (need to add support for error messages)"
+                    )
+                } else {
+                    todo!("Invalid combination of cp, fp, and failp. ");
+                }});
         } else {
             return response_404;
         }
     }
 
-    return HttpResponse::Ok().finish();
+    HttpResponse::Ok().finish()
 }
 
 #[post{"/video/upload"}]
@@ -366,11 +380,19 @@ pub async fn video_upload_endpoint(mut payload: Multipart) -> impl Responder {
         //Add the thumbnail image:
         // TODO: Needs to be processed as well, just like the thumbnail video, but for now I'm just storing it exactly as it was uploaded:
         {
-            let thumbnail_image_path = video_dir.join("./thumbnail.png");
-            let mut thumbnail_image_file = std::fs::File::create(thumbnail_image_path).unwrap();
-            thumbnail_image_file
-                .write_all(thumbnail_image_file_bytes.as_slice())
-                .unwrap();
+            // let thumbnail_image_path = video_dir.join("./thumbnail.png");
+            // let mut thumbnail_image_file = std::fs::File::create(thumbnail_image_path).unwrap();
+            // thumbnail_image_file
+            //     .write_all(thumbnail_image_file_bytes.as_slice())
+            //     .unwrap();
+            PROCESSOR_MANAGER
+                .process_image(
+                    thumbnail_image_file_bytes.clone(),
+                    video_dir.clone(),
+                    &|| -> () {},
+                    &|_| -> () {},
+                )
+                .now_or_never();
         }
     }
     //Process the video:

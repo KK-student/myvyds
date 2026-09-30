@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     ops::{Deref, DerefMut},
     sync::{Arc, Mutex},
 };
@@ -9,10 +8,7 @@ use actix_web::{HttpResponse, Responder, get, http::header, mime, post, web::Que
 use serde::Deserialize;
 
 use crate::{
-    DATA_MANAGER, SESSION_MANAGER,
-    file_handling::comment::Comment,
-    parse_form_data,
-    user_main::{authenticate, get_user_id_session_id},
+    DATA_MANAGER, file_handling::comment::Comment, user_main::authenticate,
     video_main::VideoIDQuery,
 };
 
@@ -38,9 +34,9 @@ async fn get_comment_endpoint(query: Query<CommentIDQuery>) -> impl Responder {
 
     let result: String = comment.display_json_string(true);
 
-    return HttpResponse::Ok()
+    HttpResponse::Ok()
         .append_header(header::ContentType(mime::APPLICATION_JSON))
-        .body(result);
+        .body(result)
 }
 
 #[post("/comment/add")]
@@ -90,9 +86,9 @@ async fn comment_add_endpoint(
     };
 
     //Return result:
-    return HttpResponse::Ok()
+    HttpResponse::Ok()
         .append_header(header::ContentType(mime::APPLICATION_OCTET_STREAM))
-        .body(comment_id.to_be_bytes().to_vec());
+        .body(comment_id.to_be_bytes().to_vec())
 }
 
 #[post("/comment/edit")]
@@ -114,6 +110,20 @@ async fn comment_edit_endpoint(
         None => return response401,
     };
 
+    //Check if comment exists:
+    if !data_manager.has_comment(&query.comment_id) {
+        return response404;
+    }
+
+    //Check if user is authorized to edit the comment:
+    {
+        let comment_arc = data_manager.get_comment(&query.comment_id).unwrap();
+        let comment_mutg = comment_arc.lock().unwrap();
+        if user_id != comment_mutg.deref().get_author() {
+            return response401;
+        }
+    }
+
     //Get the text:
     let new_text: String = match parsed_form_data.get("new_text") {
         Some(tv) => String::from_utf8_lossy(tv.as_slice()).to_string(),
@@ -124,7 +134,7 @@ async fn comment_edit_endpoint(
     data_manager.edit_comment(&query.comment_id, &new_text);
 
     //Return:
-    return HttpResponse::Ok().finish();
+    HttpResponse::Ok().finish()
 }
 
 #[post("/comment/add_reply")]
@@ -165,9 +175,9 @@ async fn comment_add_reply_endpoint(
     };
 
     //Return:
-    return HttpResponse::Ok()
+    HttpResponse::Ok()
         .append_header(header::ContentType(mime::APPLICATION_OCTET_STREAM))
-        .body(reply_cid.to_be_bytes().to_vec());
+        .body(reply_cid.to_be_bytes().to_vec())
 }
 
 #[post("/comment/remove")]
@@ -184,7 +194,7 @@ async fn comment_remove_endpoint(
     let data_manager = data_manager_mutg.deref_mut();
 
     //Authenticate:
-    let (parsed_form_data, user_id) = match authenticate(&mut payload).await {
+    let (_parsed_form_data, user_id) = match authenticate(&mut payload).await {
         Some(data) => data,
         None => return response401,
     };
@@ -207,5 +217,5 @@ async fn comment_remove_endpoint(
     //Remove comment:
     data_manager.remove_comment(&query.comment_id);
 
-    return HttpResponse::Ok().finish();
+    HttpResponse::Ok().finish()
 }

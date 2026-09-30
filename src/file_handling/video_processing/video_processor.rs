@@ -55,7 +55,7 @@ pub trait VideoProcessor: Saveable {
         Self: Sized;
 
     ///Process a video with the specified video id (video_id), input video file path (video_file_path), and output directory (result_directory) into MPEG_DASH format using ffmpeg.
-    fn process(
+    fn process_video(
         &mut self,
         video_id: u64,
         video_file_path: String,
