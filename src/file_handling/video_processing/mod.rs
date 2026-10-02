@@ -34,11 +34,11 @@ pub mod local_video_processor;
 pub mod thumbnail_processor;
 pub mod video_processor;
 
-struct TestStruct<Z: Clone> {
+pub struct MutableBox<Z: Clone> {
     value: Option<Z>,
 }
 
-impl<Z: Clone> TestStruct<Z> {
+impl<Z: Clone> MutableBox<Z> {
     pub const fn new(value: Option<Z>) -> Self {
         Self { value }
     }
@@ -55,7 +55,7 @@ impl<Z: Clone> TestStruct<Z> {
     }
 }
 
-impl<Z: Clone> Clone for TestStruct<Z> {
+impl<Z: Clone> Clone for MutableBox<Z> {
     fn clone(&self) -> Self {
         Self {
             value: self.value.clone(),
@@ -63,7 +63,7 @@ impl<Z: Clone> Clone for TestStruct<Z> {
     }
 }
 
-impl<Z: Clone> Deref for TestStruct<Z> {
+impl<Z: Clone> Deref for MutableBox<Z> {
     type Target = Option<Z>;
 
     fn deref(&self) -> &Self::Target {
@@ -154,12 +154,13 @@ pub struct VideoProcessorManager<
     //     ArcBox<Box<dyn ThumbnailImageProcessor + std::marker::Send + std::marker::Sync>>,
 
     // thumbnail_image_processor: LazyLock<Mutex<TestStruct<DynCloneBox<dyn ThumbnailImageProcessor>>>>,
-    thumbnail_image_processor: LazyLock<Mutex<TestStruct<THIP>>>,
+    thumbnail_image_processor: LazyLock<Mutex<MutableBox<THIP>>>,
 
     currently_processing: LazyLock<Mutex<HashMap<u64, u64>>>,
     finished_processing: LazyLock<Mutex<HashMap<u64, u64>>>,
     failed_processing: LazyLock<Mutex<HashMap<u64, u64>>>, //TODO: Add support for storing error messages.
-    data_path: &'static str,
+    // data_path: &'static str,
+    data_path: LazyLock<Mutex<MutableBox<String>>>,
 
     on_finished_success_function: FFin,
     on_finished_fail_function: FFin,
@@ -186,7 +187,7 @@ impl<
             .field("currently_processing", &self.currently_processing)
             .field("finished_processing", &self.finished_processing)
             .field("failed_processing", &self.failed_processing)
-            .field("data_path", &self.data_path)
+            .field("data_path", &self.get_data_dir())
             .field(
                 "on_finished_success_function",
                 &self.on_finished_success_function,
@@ -203,7 +204,7 @@ impl<
 {
     ///Creates a new VideoProcessorManager with the specified data directory (data_path).
     pub const fn new(
-        data_path: &'static str,
+        data_path: LazyLock<Mutex<MutableBox<String>>>,
         on_finish_success_function: FFin,
         on_finish_fail_function: FFin,
     ) -> Self {
@@ -233,12 +234,12 @@ impl<
             failed_processing: LazyLock::new(|| -> Mutex<HashMap<u64, u64>> {
                 Mutex::new(HashMap::new())
             }),
-            data_path: data_path,
+            data_path,
             on_finished_success_function: on_finish_success_function,
             on_finished_fail_function: on_finish_fail_function,
             // thumbnail_image_processor: ArcBox::default_const(),
-            thumbnail_image_processor: LazyLock::new(|| -> Mutex<TestStruct<THIP>> {
-                Mutex::new(TestStruct::new(None))
+            thumbnail_image_processor: LazyLock::new(|| -> Mutex<MutableBox<THIP>> {
+                Mutex::new(MutableBox::new(None))
             }),
         }
     }
@@ -248,7 +249,7 @@ impl<
     ///{"local_processors": [[local video processor JSON data (see the documentation for the LocalVideoProcessor struct)], ...]}
     pub fn load_data(&'static self) {
         //Load config file:
-        let config_file_path = std::path::PathBuf::from(self.data_path).join("processors.json");
+        let config_file_path = self.get_data_dir().join("./processors.json");
         println!(
             "Loading VideoProcessorManager data from \"{}\". ",
             config_file_path.to_str().unwrap()
@@ -293,6 +294,7 @@ impl<
         //         }
         //     }))));
         {
+            println!("Loading thumbnail processor data. ");
             let mut thip_cont_mutg = self.thumbnail_image_processor.lock().unwrap();
             let thip_cont = thip_cont_mutg.deref_mut();
             thip_cont.set({
@@ -316,6 +318,24 @@ impl<
                 }
             });
         }
+    }
+
+    ///Change the directory to which the VideoProcessorManager loads from and saves to.
+    pub fn set_data_dir(&'static self, data_dir: &std::path::Path) {
+        // let path_canon = std::fs::canonicalize(data_dir).unwrap();
+        let mut dp_mutg = self.data_path.lock().unwrap();
+        let dp = dp_mutg.deref_mut();
+        // dp.set(Some(path_canon.to_str().unwrap().to_string()));
+        dp.set(Some(data_dir.to_str().unwrap().to_string()));
+    }
+
+    ///Get the directory to which the VideoProcessorManager loads and and saves to.
+    pub fn get_data_dir(&self) -> std::path::PathBuf {
+        let dp_mutg = self.data_path.lock().unwrap();
+        let dp = dp_mutg.deref();
+        // let path_result = PathBuf::from(std::fs::canonicalize(dp.get().unwrap()).unwrap());
+        let path_result = PathBuf::from(dp.get().unwrap());
+        path_result
     }
 
     ///Save the VideoProcessorManager's data to disk (or wherever the data file is stored).
@@ -347,7 +367,7 @@ impl<
         );
 
         //Write processors.json file:
-        let mut result_path_buf = PathBuf::from_str(self.data_path).unwrap();
+        let mut result_path_buf = self.get_data_dir();
         result_path_buf.push("./processors.json");
         let result_path_canon = std::fs::canonicalize(result_path_buf).unwrap();
         let result_path_string: &String = &result_path_canon.to_string_lossy().to_string();

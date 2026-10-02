@@ -2,7 +2,7 @@
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
-    sync::Mutex,
+    sync::{LazyLock, Mutex},
 };
 
 use actix_multipart::Multipart;
@@ -18,7 +18,8 @@ use crate::{
     file_handling::{
         file_handling::DataManager,
         video_processing::{
-            VideoProcessorManager, local_thumbnail_video_processor::LocalThumbnailImageProcessor,
+            MutableBox, VideoProcessorManager,
+            local_thumbnail_video_processor::LocalThumbnailImageProcessor,
         },
     },
     management_console::{
@@ -40,6 +41,7 @@ mod comment_main;
 mod file_handling;
 mod management_console;
 mod session_manager;
+mod tests;
 mod time;
 mod user_main;
 mod video_main;
@@ -97,7 +99,13 @@ static MANAGEMENT_CONSOLE: TextBasedManagementConsole<fn(&String, &String) -> bo
 
 type ThumbnailImageProccessorType = LocalThumbnailImageProcessor;
 static PROCESSOR_MANAGER: VideoProcessorManager<fn(u64) -> (), ThumbnailImageProccessorType> =
-    VideoProcessorManager::new(DATA_PATH, ON_FINISH_SUCCESS_FUNC, ON_FINISH_FAIL_FUNC);
+    VideoProcessorManager::new(
+        LazyLock::new(|| -> Mutex<MutableBox<String>> {
+            Mutex::new(MutableBox::new(Some(DATA_PATH.to_string())))
+        }),
+        ON_FINISH_SUCCESS_FUNC,
+        ON_FINISH_FAIL_FUNC,
+    );
 
 pub fn _on_finish_proc_func(video_id: u64) {
     let data_manager_mutg = DATA_MANAGER.lock().unwrap();

@@ -5,6 +5,7 @@ use image::{
     ImageError, ImageFormat, ImageReader,
     imageops::{FilterType, resize},
 };
+use num_traits::AsPrimitive;
 use serde_json::Value;
 
 use crate::file_handling::{
@@ -207,11 +208,13 @@ impl FromJson for LocalThumbnailImageProcessor {
 
         let width: u32 = {
             let input = json_data.get("width").unwrap();
-            input.as_str().unwrap().parse::<u32>().unwrap()
+            // input.as_str().unwrap().parse::<u32>().unwrap()
+            input.as_u64().unwrap() as u32
         };
         let height: u32 = {
             let input = json_data.get("height").unwrap();
-            input.as_str().unwrap().parse::<u32>().unwrap()
+            // input.as_str().unwrap().parse::<u32>().unwrap()
+            input.as_u64().unwrap() as u32
         };
 
         Self::new(id, width, height, &output_format, &filter_type)
