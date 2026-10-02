@@ -1,1 +1,1 @@
-{"local_video_processors": [], "local_music_processors": []}
+{"local_video_processors": [], "local_music_processors": [], "thumbnail_processor": {"type": "local", "options": {"id": 0, "output_format": "png", "width": 720, "height": 720, "filter_type": "triangle"}}}
