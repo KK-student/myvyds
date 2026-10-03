@@ -3,14 +3,15 @@ pub mod test_functions {
     use std::{
         ops::{Deref, DerefMut},
         path::Path,
-        sync::{LazyLock, Mutex},
+        sync::{Arc, LazyLock, Mutex},
     };
 
     use argon2::{Algorithm::Argon2id, Argon2, PasswordHasher};
     use rand::{RngExt, distr::uniform::SampleRange};
 
     use crate::{
-        DATA_MANAGER, PROCESSOR_MANAGER, file_handling::video_processing::video_processor::BoolBox,
+        DATA_MANAGER, PROCESSOR_MANAGER,
+        file_handling::{user::User, video_processing::video_processor::BoolBox},
     };
 
     use super::*;
@@ -104,15 +105,66 @@ pub mod test_functions {
 
         let data_manager_mutg = DATA_MANAGER.lock().unwrap();
         let data_manager = data_manager_mutg.deref();
-        println!("All users: ");
-        data_manager.for_all_users(
-            |user_arc: std::sync::Arc<Mutex<crate::file_handling::user::User>>| -> () {
-                let user_mutg = user_arc.lock().unwrap();
-                let user = user_mutg.deref();
-                println!("{:?}", user);
-            },
-        );
+        // println!("All users: ");
+        // data_manager.for_all_users(
+        //     |user_arc: std::sync::Arc<Mutex<crate::file_handling::user::User>>| -> () {
+        //         let user_mutg = user_arc.lock().unwrap();
+        //         let user = user_mutg.deref();
+        //         println!("{:?}", user);
+        //     },
+        // );
 
         assert!(data_manager.has_user(&user_id));
+    }
+
+    #[test]
+    pub fn add_then_remove_user_test() {
+        let user_id = add_random_user().unwrap();
+        let mut data_manager_mutg = DATA_MANAGER.lock().unwrap();
+        let data_manager = data_manager_mutg.deref_mut();
+        assert!(data_manager.has_user(&user_id));
+
+        data_manager.remove_user(&user_id);
+        assert!(!data_manager.has_user(&user_id));
+    }
+
+    fn get_all_users() -> Arc<Mutex<Vec<String>>> {
+        let result_arc = Arc::new(Mutex::new(Vec::new()));
+
+        let data_manager_mutg = DATA_MANAGER.lock().unwrap();
+        let data_manager = data_manager_mutg.deref();
+        data_manager.for_all_users(|user_arc: Arc<Mutex<User>>| -> () {
+            let user_mutg = user_arc.lock().unwrap();
+            let user = user_mutg.deref();
+
+            let mut result_mutg = result_arc.lock().unwrap();
+            let result = result_mutg.deref_mut();
+            result.push(user.get_user_id());
+        });
+
+        result_arc
+    }
+
+    #[test]
+    pub fn remove_all_users_test() {
+        {
+            let users_arc = get_all_users();
+            let users_mutg = users_arc.lock().unwrap();
+
+            let mut dm_mutg = DATA_MANAGER.lock().unwrap();
+            let dm = dm_mutg.deref_mut();
+            for user_id in users_mutg.deref() {
+                dm.remove_user(user_id);
+            }
+        }
+
+        assert_eq!(
+            {
+                let u_arc = get_all_users();
+                let u_mutg = u_arc.lock().unwrap();
+                u_mutg.deref().len()
+            },
+            0
+        );
     }
 }
