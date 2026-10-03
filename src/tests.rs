@@ -6,6 +6,9 @@ pub mod test_functions {
         sync::{LazyLock, Mutex},
     };
 
+    use argon2::{Algorithm::Argon2id, Argon2, PasswordHasher};
+    use rand::{RngExt, distr::uniform::SampleRange};
+
     use crate::{
         DATA_MANAGER, PROCESSOR_MANAGER, file_handling::video_processing::video_processor::BoolBox,
     };
@@ -48,5 +51,68 @@ pub mod test_functions {
     #[test]
     pub fn test_loading() {
         initialize_data();
+    }
+
+    fn random_text(length: u64) -> String {
+        let mut rng = rand::rng();
+        let mut result = String::new();
+        {
+            let mut i = 0;
+            while i < length {
+                result.push(rng.random_range((' ' as u8)..('~' as u8)) as char);
+                i += 1;
+            }
+        }
+
+        result
+    }
+
+    fn add_random_user() -> Result<String, ()> {
+        initialize_data();
+        let mut data_manager_mutg = DATA_MANAGER.lock().unwrap();
+        let data_manager = data_manager_mutg.deref_mut();
+        let user_id: String = {
+            let mut rng = rand::rng();
+            loop {
+                let val: String = format!("random-user-{}", rng.random::<u64>());
+                if !data_manager.has_user(&val) {
+                    break val;
+                }
+            }
+        };
+        let password_hash: String = {
+            let argon2 = Argon2::default();
+            let password = random_text(32);
+            argon2
+                .hash_password(password.as_bytes())
+                .unwrap()
+                .to_string()
+        };
+        let description: String = "This is a randomly generated test user. ".to_string();
+        data_manager.add_user(&user_id, &password_hash, &description, 0);
+
+        if data_manager.has_user(&user_id) {
+            Ok(user_id)
+        } else {
+            Err(())
+        }
+    }
+
+    #[test]
+    pub fn add_random_user_test() {
+        let user_id = add_random_user().unwrap();
+
+        let data_manager_mutg = DATA_MANAGER.lock().unwrap();
+        let data_manager = data_manager_mutg.deref();
+        println!("All users: ");
+        data_manager.for_all_users(
+            |user_arc: std::sync::Arc<Mutex<crate::file_handling::user::User>>| -> () {
+                let user_mutg = user_arc.lock().unwrap();
+                let user = user_mutg.deref();
+                println!("{:?}", user);
+            },
+        );
+
+        assert!(data_manager.has_user(&user_id));
     }
 }
