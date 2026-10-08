@@ -6,9 +6,16 @@ use std::{
 };
 
 use actix_multipart::Multipart;
+#[cfg(test)]
+use actix_web::{HttpResponse, Responder, get};
 use futures::TryStreamExt;
 
-use actix_web::{App, HttpServer};
+use actix_web::{
+    App, Error, HttpResponseBuilder, HttpServer,
+    body::MessageBody,
+    dev::{ServiceFactory, ServiceRequest, ServiceResponse},
+    web::Data,
+};
 
 use crate::{
     comment_main::{
@@ -20,12 +27,14 @@ use crate::{
         video_processing::{
             MutableBox, VideoProcessorManager,
             local_thumbnail_video_processor::LocalThumbnailImageProcessor,
+            thumbnail_processor::{DynClone, DynCloneBox},
         },
     },
     management_console::{
         ManagementConsole, text_based_management_console::TextBasedManagementConsole,
     },
     session_manager::SessionManager,
+    tests::initialize_test_data,
     user_main::{
         get_disliked_comments, get_disliked_videos, get_liked_comments, get_liked_videos,
         get_public_info, get_subscriptions, get_user_comments, get_user_icon, login_endpoint,
@@ -33,7 +42,7 @@ use crate::{
     },
     video_main::{
         get_comments_page, get_video_basic_info, get_video_file, get_video_thumbnail_image,
-        is_currently_processing, video_upload_endpoint,
+        is_currently_processing, is_online, video_upload_endpoint,
     },
 };
 
@@ -45,6 +54,8 @@ mod tests;
 mod time;
 mod user_main;
 mod video_main;
+
+mod multipart_form;
 
 // #[get("/")]
 // async fn hello() -> impl Responder {
@@ -138,6 +149,61 @@ async fn parse_form_data(payload: &mut Multipart, result: &mut HashMap<String, V
     }
 }
 
+pub fn build_app() -> App<
+    impl ServiceFactory<
+        ServiceRequest,
+        Response = ServiceResponse<impl MessageBody>,
+        Config = (),
+        InitError = (),
+        Error = Error,
+    >,
+> {
+    let mut app = App::new()
+        .service(get_video_file)
+        .service(get_video_basic_info)
+        .service(get_comments_page)
+        .service(get_video_thumbnail_image)
+        .service(video_upload_endpoint)
+        .service(is_currently_processing)
+        .service(get_public_info)
+        .service(get_user_icon)
+        .service(login_endpoint)
+        .service(signup)
+        .service(get_subscriptions)
+        .service(get_liked_videos)
+        .service(get_disliked_videos)
+        .service(get_user_comments)
+        .service(get_liked_comments)
+        .service(get_disliked_comments)
+        .service(get_comment_endpoint)
+        .service(comment_add_endpoint)
+        .service(comment_edit_endpoint)
+        .service(comment_add_reply_endpoint)
+        .service(comment_remove_endpoint);
+    if cfg!(test) {
+        app = app.service(is_online);
+    }
+    app
+}
+
+impl DynClone for u16 {
+    fn clone_dyn(self_value: &Self) -> Self
+    where
+        Self: Sized + DynClone,
+    {
+        *self_value
+    }
+}
+
+static SERVER_PORT: LazyLock<Mutex<DynCloneBox<u16>>> =
+    LazyLock::new(|| -> Mutex<DynCloneBox<u16>> { Mutex::new(DynCloneBox::new(6000)) });
+
+pub fn get_server_port() -> u16 {
+    let sp_mutg = SERVER_PORT.lock().unwrap();
+    let sp_box = sp_mutg.deref();
+    *sp_box.deref()
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     //Get command line args:
@@ -165,34 +231,7 @@ async fn main() -> std::io::Result<()> {
     }
 
     //Launch Actix-web:
-    match HttpServer::new(move || {
-        App::new()
-            // .service(hello)
-            // .route("/watch", web::get().to(watch))
-            .service(get_video_file)
-            .service(get_video_basic_info)
-            .service(get_comments_page)
-            .service(get_video_thumbnail_image)
-            .service(video_upload_endpoint)
-            .service(is_currently_processing)
-            .service(get_public_info)
-            .service(get_user_icon)
-            .service(login_endpoint)
-            .service(signup)
-            .service(get_subscriptions)
-            .service(get_liked_videos)
-            .service(get_disliked_videos)
-            .service(get_user_comments)
-            .service(get_liked_comments)
-            .service(get_disliked_comments)
-            .service(get_comment_endpoint)
-            .service(comment_add_endpoint)
-            .service(comment_edit_endpoint)
-            .service(comment_add_reply_endpoint)
-            .service(comment_remove_endpoint)
-    })
-    .bind(("127.0.0.1", 6000))
-    {
+    match HttpServer::new(build_app).bind(("127.0.0.1", get_server_port())) {
         Ok(res) => res,
         Err(e) => {
             println!("Caught error from HttpServer.bind() function: {:#?}", e);

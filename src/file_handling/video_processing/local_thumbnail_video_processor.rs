@@ -1,20 +1,14 @@
-use std::{io::Cursor, str::FromStr};
+use std::io::Cursor;
 
-use actix_web::cookie::time::format_description::modifier::TrailingInput;
 use image::{
     ImageError, ImageFormat, ImageReader,
     imageops::{FilterType, resize},
 };
-use num_traits::AsPrimitive;
 use serde_json::Value;
 
 use crate::file_handling::{
-    self,
     from_json::FromJson,
-    video_processing::{
-        thumbnail_processor::{DynClone, ThumbnailImageProcessor},
-        video_processor::VideoProcessor,
-    },
+    video_processing::thumbnail_processor::{DynClone, ThumbnailImageProcessor},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -31,7 +25,7 @@ impl DynClone for LocalThumbnailImageProcessor {
     where
         Self: Sized + DynClone,
     {
-        self_val.clone()
+        *self_val
     }
 }
 

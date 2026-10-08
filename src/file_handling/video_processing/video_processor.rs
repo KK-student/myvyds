@@ -152,7 +152,7 @@ pub struct BoolBox {
 impl BoolBox {
     ///Creates a new BoolBox with the given value (value).
     pub fn new(value: bool) -> Self {
-        Self { value: value }
+        Self { value }
     }
 
     ///Gets the boolean value of the BoolBox.

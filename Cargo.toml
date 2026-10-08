@@ -18,9 +18,18 @@ serde_json = "1.0.151"
 tokio = {version = "1.53.1", features = ["fs"]}
 tokio-util = "0.7.19"
 
+# Test dependencies (to remove from this section later): 
+curl = {version = "0.4.50"}
+
 [target.'cfg(unix)'.dependencies]
 nix = {version = "0.31.3", features = ["signal", "process", "fs"]}
 
 [target.'cfg(windows)'.dependencies]
-#winapi = "0.3.9"
 windows = "0.62.2"
+
+[dev-dependencies]
+#reqwest = {version = "0.13.5", default-features = false, features=["multipart", "stream"]}
+pretty_assertions = {version = "1.4.1"}
+#attohttpc = {version = "0.31.0", features=["multipart-form"]}
+multipart = {version = "0.18.0" }
+curl = "0.4.50"

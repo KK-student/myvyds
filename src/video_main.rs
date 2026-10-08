@@ -31,6 +31,11 @@ use crate::{
     user_main::{authenticate, get_user_id_session_id},
 };
 
+#[get("/is_online")]
+pub async fn is_online() -> impl Responder {
+    HttpResponse::Ok().body("Sever is online!")
+}
+
 ///Gets a specific video file, serving the "/video/get_video_file/[video_id]/[video_seg_file]" endpoint. See the "Getting a video" section in the "./docs/SERVER_API.md" for more details.
 #[get("/video/get_video_file/{video_id}/{video_seg_file}")]
 pub async fn get_video_file(url_params: web::Path<(String, String)>) -> impl Responder {
