@@ -101,7 +101,7 @@ pub mod video_processing;
 use std::{
     collections::HashMap,
     fs::{self},
-    io::{ErrorKind, Write},
+    io::Write,
     ops::{Deref, DerefMut},
     path::PathBuf,
     str::FromStr,
@@ -126,15 +126,15 @@ pub async fn file_stream_reader(file_path_str: &str) -> Result<ReaderStream<File
     let video_file = match tokio::fs::File::open(&path_str).await {
         Ok(c) => c,
         Err(_) => {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Could not read the file \"{}\"", path_str),
-            ));
+            return Err(std::io::Error::other(format!(
+                "Could not read the file \"{}\"",
+                path_str
+            )));
         }
     };
     let video_stream = ReaderStream::new(video_file);
 
-    return Ok(video_stream);
+    Ok(video_stream)
 }
 
 ///Read a file and returns it's contents as a Vec of bytes if successful. If not, return an error. Do not use on large files as it will use up a lot of RAM! Note: This function prepends "./" to the beginning of the file path!
@@ -152,10 +152,10 @@ pub fn read_small_file(file_path_str: &str) -> Result<Vec<u8>, std::io::Error> {
     }
     match std::fs::read(file_path) {
         Ok(contents) => Ok(contents),
-        Err(_) => Err(std::io::Error::new(
-            ErrorKind::Other,
-            format!("The file \"{}\" cannot be read. ", file_path.display()),
-        )),
+        Err(_) => Err(std::io::Error::other(format!(
+            "The file \"{}\" cannot be read. ",
+            file_path.display()
+        ))),
     }
 }
 
@@ -172,14 +172,13 @@ pub struct DataManager {
 impl DataManager {
     ///Create a new DataManager, with the database in the data_path directory.
     pub fn new(data_path: &str) -> Self {
-        let data_manager = DataManager {
+        Self {
             users: HashMap::new(),
             videos: HashMap::new(),
             videos_by_name: HashMap::new(),
             comments_by_id: HashMap::new(),
             data_path: String::from_str(data_path).unwrap(),
-        };
-        return data_manager;
+        }
     }
 
     ///Set the data_path to point to another database.
@@ -210,10 +209,7 @@ impl DataManager {
 
     ///Whether or not if this DataManager has a user with the specified user id (user_id) or not.
     pub fn has_user(&self, user_id: &String) -> bool {
-        match self.get_user(user_id) {
-            Some(_) => true,
-            None => false,
-        }
+        self.get_user(user_id).is_some()
     }
 
     ///Remove the user with the specified user id (user_id). TODO: Need to test this.
@@ -330,7 +326,7 @@ impl DataManager {
         result.push(video_id.to_string());
 
         println!("Prints!");
-        return result;
+        result
     }
 
     //Get an Arc<Mutex<>> pointer that points to the video in the DataManager by it's name.
@@ -343,10 +339,7 @@ impl DataManager {
     }
 
     pub fn has_video_by_name(&self, name: &String) -> bool {
-        match self.get_video_by_name(name) {
-            Some(_) => true,
-            None => false,
-        }
+        self.get_video_by_name(name).is_some()
     }
 
     //Get number of videos.
@@ -424,7 +417,7 @@ impl DataManager {
         self.videos.insert(*id, result_arc);
         self.videos_by_name.insert(final_name, *id);
 
-        return Ok(());
+        Ok(())
     }
 
     ///Save the data to the database files and folders.
@@ -714,7 +707,7 @@ impl DataManager {
         user.add_comment(comment_id);
         self.comments_by_id.insert(comment_id, comment_arc);
 
-        return Some(comment_id);
+        Some(comment_id)
     }
 
     ///Remove a comment by it's comment id:
@@ -727,7 +720,7 @@ impl DataManager {
             };
             let comment_mutg = comment_arc.lock().unwrap();
             let comment: &Comment = comment_mutg.deref();
-            let v_id: u64 = match { comment.get_video_id() } {
+            let v_id: u64 = match comment.get_video_id() {
                 Some(id) => id,
                 None => return,
             };
@@ -920,7 +913,7 @@ impl DataManager {
             };
             r
         };
-        return match result {
+        match result {
             Some(reply_arc) => {
                 let reply_id: u64 = {
                     let reply_mutg = reply_arc.lock().unwrap();
@@ -931,6 +924,6 @@ impl DataManager {
                 Some(reply_id)
             }
             None => None,
-        };
+        }
     }
 }
