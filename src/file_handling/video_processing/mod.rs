@@ -5,8 +5,7 @@ use std::{
     io::Write,
     ops::{Deref, DerefMut},
     panic,
-    path::{Path, PathBuf},
-    str::FromStr,
+    path::PathBuf,
     sync::{Arc, LazyLock, Mutex},
     thread::{self},
 };
@@ -15,17 +14,19 @@ use image::ImageError;
 use rand::RngExt;
 use serde_json::Value;
 
-use crate::file_handling::{
-    file_handling::read_small_file,
-    from_json::FromJson,
-    saveable::{make_json_from_saveable_list, make_json_list_from_saveable_list},
-    video_processing::{
-        local_music_processor::LocalMusicProcessor,
-        local_thumbnail_video_processor::LocalThumbnailImageProcessor,
-        local_video_processor::LocalVideoProcessor,
-        thumbnail_processor::{DynCloneBox, ThumbnailImageProcessor},
-        video_processor::*,
+use crate::{
+    file_handling::{
+        file_handling::read_small_file,
+        from_json::FromJson,
+        saveable::make_json_list_from_saveable_list,
+        video_processing::{
+            local_music_processor::LocalMusicProcessor,
+            local_thumbnail_video_processor::LocalThumbnailImageProcessor,
+            local_video_processor::LocalVideoProcessor,
+            thumbnail_processor::ThumbnailImageProcessor, video_processor::*,
+        },
     },
+    misc::collections::MutableBox,
 };
 
 pub mod local_music_processor;
@@ -34,104 +35,7 @@ pub mod local_video_processor;
 pub mod thumbnail_processor;
 pub mod video_processor;
 
-pub struct MutableBox<Z: Clone> {
-    value: Option<Z>,
-}
-
-impl<Z: Clone> MutableBox<Z> {
-    pub const fn new(value: Option<Z>) -> Self {
-        Self { value }
-    }
-
-    pub fn set(&mut self, value: Option<Z>) {
-        self.value = value;
-    }
-
-    pub fn get(&self) -> Option<Z> {
-        match &self.value {
-            Some(val) => Some(val.clone()),
-            None => None,
-        }
-    }
-}
-
-impl<Z: Clone> Clone for MutableBox<Z> {
-    fn clone(&self) -> Self {
-        Self {
-            value: self.value.clone(),
-        }
-    }
-}
-
-impl<Z: Clone> Deref for MutableBox<Z> {
-    type Target = Option<Z>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.value
-    }
-}
-
-// ///Safely gets a VideoProcessor from a VideoProcessorManager (self parameter) by it's id (processor_id parameter). It is to be used like this: get_processor_safe!(self, processor_id);
-// macro_rules! get_processor_safe {
-//     ($self:expr, $processor_id:expr) => {
-//         match $self.get_local_video_processor(&$processor_id) {
-//             Some(vp_arc) => Some(vp_arc),
-//             None => match $self.get_local_music_processor(&$processor_id) {
-//                 Some(vp_arc) => Some(vp_arc),
-//                 None => None,
-//             },
-//         }
-//     };
-// }
-
-// #[derive(Debug)]
-struct ArcBox<T: Any + std::marker::Sized + std::marker::Send + std::marker::Sync + Debug> {
-    value: Option<Arc<Mutex<Option<T>>>>,
-}
-
-impl<T: Any + std::marker::Sized + std::marker::Send + std::marker::Sync + Debug> ArcBox<T> {
-    pub fn set(&mut self, value: Arc<Mutex<Option<T>>>) {
-        self.value = Some(value);
-    }
-
-    pub fn get(&self) -> Arc<Mutex<Option<T>>> {
-        // self.value.clone()
-        match &self.value {
-            Some(val) => Arc::clone(val),
-            None => Arc::new(Mutex::new(None)),
-        }
-    }
-
-    pub const fn new(value: Arc<Mutex<Option<T>>>) -> Self {
-        Self { value: Some(value) }
-    }
-
-    pub const fn default_const() -> Self {
-        Self { value: None }
-    }
-
-    // pub fn initialize(&self, )
-}
-
-impl<T: Any + std::marker::Sized + std::marker::Send + std::marker::Sync + Debug> Debug
-    for ArcBox<T>
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ArcBox")
-            .field("value", &self.value)
-            .finish()
-    }
-}
-
-impl<T: Any + std::marker::Sized + std::marker::Send + std::marker::Sync + Debug> Default
-    for ArcBox<T>
-{
-    fn default() -> Self {
-        Self { value: None }
-    }
-}
-
-trait SendSyncSized: std::marker::Send + std::marker::Sync + std::marker::Sized {}
+// trait SendSyncSized: std::marker::Send + std::marker::Sync + std::marker::Sized {}
 // trait TIPSSSS: ThumbnailImageProcessor {}
 
 // #[derive(Debug)]

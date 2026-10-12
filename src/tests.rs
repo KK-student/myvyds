@@ -174,14 +174,11 @@ pub mod actix_web_test_functions {
         time::Duration,
     };
 
-    use actix_web::web::Bytes;
     use curl::easy::Easy;
 
     use crate::{
-        file_handling::video_processing::{MutableBox, video_processor::BoolBox},
-        get_server_port,
-        multipart_form::MultipartFormBuilder,
-        tests::DEFAULT_PASSWORD,
+        file_handling::video_processing::video_processor::BoolBox, get_server_port,
+        misc::collections::MutableBox, tests::DEFAULT_PASSWORD,
     };
 
     static SERVER_INIT_STATE: LazyLock<Mutex<BoolBox>> =

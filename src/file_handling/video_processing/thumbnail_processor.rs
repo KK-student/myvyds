@@ -1,67 +1,11 @@
-use std::{
-    any::Any,
-    fmt::Debug,
-    ops::{Deref, DerefMut},
-};
+use std::{any::Any, fmt::Debug};
 
 use image::{ImageError, ImageFormat, imageops::FilterType};
 
-use crate::file_handling::{
-    from_json::FromJson, video_processing::video_processor::VideoProcessor,
+use crate::{
+    file_handling::{from_json::FromJson, video_processing::video_processor::VideoProcessor},
+    misc::collections::DynClone,
 };
-
-pub struct DynCloneBox<T: DynClone + ?Sized> {
-    value: Box<T>,
-}
-
-impl<T: DynClone> DynCloneBox<T> {
-    pub fn new(value: T) -> Self {
-        Self {
-            value: Box::new(value),
-        }
-    }
-
-    // pub fn get(&self) -> &<Self as Deref>::Target {
-    //     self.value.deref()
-    // }
-
-    pub fn get_box(&self) -> &Box<T> {
-        &self.value
-    }
-
-    pub fn get_box_mut(&mut self) -> &mut Box<T> {
-        &mut self.value
-    }
-}
-
-impl<T: DynClone> Clone for DynCloneBox<T> {
-    fn clone(&self) -> Self {
-        let data = self.value.deref();
-        Self {
-            value: Box::new(DynClone::clone_dyn(data)),
-        }
-    }
-}
-
-impl<T: DynClone> DerefMut for DynCloneBox<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.value.deref_mut()
-    }
-}
-
-impl<T: DynClone> Deref for DynCloneBox<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        self.value.deref()
-    }
-}
-
-pub trait DynClone {
-    fn clone_dyn(self_value: &Self) -> Self
-    where
-        Self: Sized + DynClone;
-}
 
 pub trait ThumbnailVideoProcessor: VideoProcessor + Debug {}
 

@@ -6,15 +6,13 @@ use std::{
 };
 
 use actix_multipart::Multipart;
-#[cfg(test)]
-use actix_web::{HttpResponse, Responder, get};
+
 use futures::TryStreamExt;
 
 use actix_web::{
-    App, Error, HttpResponseBuilder, HttpServer,
+    App, Error, HttpServer,
     body::MessageBody,
     dev::{ServiceFactory, ServiceRequest, ServiceResponse},
-    web::Data,
 };
 
 use crate::{
@@ -25,16 +23,14 @@ use crate::{
     file_handling::{
         file_handling::DataManager,
         video_processing::{
-            MutableBox, VideoProcessorManager,
-            local_thumbnail_video_processor::LocalThumbnailImageProcessor,
-            thumbnail_processor::{DynClone, DynCloneBox},
+            VideoProcessorManager, local_thumbnail_video_processor::LocalThumbnailImageProcessor,
         },
     },
     management_console::{
         ManagementConsole, text_based_management_console::TextBasedManagementConsole,
     },
+    misc::collections::{DynClone, DynCloneBox, MutableBox},
     session_manager::SessionManager,
-    tests::initialize_test_data,
     user_main::{
         get_disliked_comments, get_disliked_videos, get_liked_comments, get_liked_videos,
         get_public_info, get_subscriptions, get_user_comments, get_user_icon, login_endpoint,
@@ -49,13 +45,14 @@ use crate::{
 mod comment_main;
 mod file_handling;
 mod management_console;
+mod misc;
 mod session_manager;
 mod tests;
 mod time;
 mod user_main;
 mod video_main;
 
-mod multipart_form;
+// mod multipart_form;
 
 // #[get("/")]
 // async fn hello() -> impl Responder {

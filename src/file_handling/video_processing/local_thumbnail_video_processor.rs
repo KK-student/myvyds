@@ -6,9 +6,11 @@ use image::{
 };
 use serde_json::Value;
 
-use crate::file_handling::{
-    from_json::FromJson,
-    video_processing::thumbnail_processor::{DynClone, ThumbnailImageProcessor},
+use crate::{
+    file_handling::{
+        from_json::FromJson, video_processing::thumbnail_processor::ThumbnailImageProcessor,
+    },
+    misc::collections::DynClone,
 };
 
 #[derive(Debug, Clone, Copy)]
