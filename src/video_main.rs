@@ -21,11 +21,8 @@ use serde::Deserialize;
 use crate::{
     DATA_MANAGER, DATA_PATH, PROCESSOR_MANAGER, SESSION_MANAGER,
     file_handling::{
-        comment::Comment,
-        describable::Describable,
-        file_handling::{DataManager, read_small_file},
-        likeable::Likeable,
-        video_data::VideoData,
+        DataManager, comment::Comment, describable::Describable, likeable::Likeable,
+        read_small_file, video_data::VideoData,
     },
     parse_form_data,
     user_main::{authenticate, get_user_id_session_id},

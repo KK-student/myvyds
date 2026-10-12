@@ -11,13 +11,11 @@ use std::{
 };
 
 use image::ImageError;
-use rand::RngExt;
 use serde_json::Value;
 
 use crate::{
     file_handling::{
-        file_handling::read_small_file,
-        from_json::FromJson,
+        read_small_file,
         saveable::make_json_list_from_saveable_list,
         video_processing::{
             local_music_processor::LocalMusicProcessor,
@@ -34,9 +32,6 @@ pub mod local_thumbnail_video_processor;
 pub mod local_video_processor;
 pub mod thumbnail_processor;
 pub mod video_processor;
-
-// trait SendSyncSized: std::marker::Send + std::marker::Sync + std::marker::Sized {}
-// trait TIPSSSS: ThumbnailImageProcessor {}
 
 // #[derive(Debug)]
 ///A struct that manages all of the video processors. All instances of this struct MUST have a 'static lifetime!

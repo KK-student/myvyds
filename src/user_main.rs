@@ -13,9 +13,7 @@ use serde::Deserialize;
 
 use crate::{
     DATA_MANAGER, DATA_PATH, SESSION_MANAGER,
-    file_handling::{
-        file_handling::read_small_file, saveable::make_json_list_from_u64_list, user::User,
-    },
+    file_handling::{read_small_file, saveable::make_json_list_from_u64_list, user::User},
     parse_form_data,
 };
 

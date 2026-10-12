@@ -21,7 +21,7 @@ use crate::{
         comment_remove_endpoint, get_comment_endpoint,
     },
     file_handling::{
-        file_handling::DataManager,
+        DataManager,
         video_processing::{
             VideoProcessorManager, local_thumbnail_video_processor::LocalThumbnailImageProcessor,
         },

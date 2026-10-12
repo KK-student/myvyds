@@ -10,8 +10,8 @@ use argon2::{Argon2, PasswordHasher};
 use crate::{
     ThumbnailImageProccessorType,
     file_handling::{
+        DataManager,
         comment::Comment,
-        file_handling::DataManager,
         likeable::Likeable,
         user::User,
         video_data::VideoData,
