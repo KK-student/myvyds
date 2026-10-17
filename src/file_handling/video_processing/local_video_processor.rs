@@ -34,13 +34,114 @@ pub struct LocalVideoProcessor {
     max_gpu_tflops: u64,
 }
 
+impl Default for LocalVideoProcessor {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            active: Arc::new(Mutex::new(BoolBox::new(false))),
+            ffmpeg_options: [
+                "-map".to_string(),
+                "0".to_string(),
+                "-c:v:0".to_string(),
+                "libx264".to_string(),
+                "-b:v:0".to_string(),
+                "5000k".to_string(),
+                "-s:v:0".to_string(),
+                "1920x1080".to_string(),
+                "-map".to_string(),
+                "0".to_string(),
+                "-c:v:1".to_string(),
+                "libx264".to_string(),
+                "-b:v:1".to_string(),
+                "3000k".to_string(),
+                "-s:v:1".to_string(),
+                "1280x720".to_string(),
+                "-map".to_string(),
+                "0".to_string(),
+                "-c:v:2".to_string(),
+                "libx264".to_string(),
+                "-b:v:2".to_string(),
+                "1000k".to_string(),
+                "-s:v:2".to_string(),
+                "640x360".to_string(),
+                "-map".to_string(),
+                "0".to_string(),
+                "-c:v:3".to_string(),
+                "libvpx-vp9".to_string(),
+                "-b:v:3".to_string(),
+                "5000k".to_string(),
+                "-s:v:3".to_string(),
+                "1920x1080".to_string(),
+                "-map".to_string(),
+                "0".to_string(),
+                "-c:v:4".to_string(),
+                "libvpx-vp9".to_string(),
+                "-b:v:4".to_string(),
+                "3000k".to_string(),
+                "-s:v:4".to_string(),
+                "1280x720".to_string(),
+                "-map".to_string(),
+                "0".to_string(),
+                "-c:v:5".to_string(),
+                "libvpx-vp9".to_string(),
+                "-b:v:5".to_string(),
+                "1000k".to_string(),
+                "-s:v:5".to_string(),
+                "640x360".to_string(),
+                "-map".to_string(),
+                "0:a:0".to_string(),
+                "-c:a:0".to_string(),
+                "aac".to_string(),
+                "-b:a:0".to_string(),
+                "192k".to_string(),
+                "-map".to_string(),
+                "0:a:0".to_string(),
+                "-c:a:1".to_string(),
+                "aac".to_string(),
+                "-b:a:1".to_string(),
+                "128k".to_string(),
+                "-map".to_string(),
+                "0:a:0".to_string(),
+                "-c:a:2".to_string(),
+                "aac".to_string(),
+                "-b:a:2".to_string(),
+                "64k".to_string(),
+                "-map".to_string(),
+                "0:a:0".to_string(),
+                "-c:a:3".to_string(),
+                "libopus".to_string(),
+                "-b:a:3".to_string(),
+                "192k".to_string(),
+                "-map".to_string(),
+                "0:a:0".to_string(),
+                "-c:a:4".to_string(),
+                "libopus".to_string(),
+                "-b:a:4".to_string(),
+                "128k".to_string(),
+                "-map".to_string(),
+                "0:a:0".to_string(),
+                "-c:a:5".to_string(),
+                "libopus".to_string(),
+                "-b:a:5".to_string(),
+                "64k".to_string(),
+            ]
+            .to_vec(),
+            currently_processing: Arc::new(Mutex::new(HashSet::new())),
+            finished_processing: Arc::new(Mutex::new(HashSet::new())),
+            failed_processing: Arc::new(Mutex::new(HashMap::new())),
+            running_pids: Arc::new(Mutex::new(HashMap::new())),
+            max_gpu_tflops: 100,
+        }
+    }
+}
+
 impl LocalVideoProcessor {
     ///Create a new LocalVideoProcessor with the specified id (id parameter), ffmpeg options needed to convert the video file into MPEG_DASH format for streaming, excluding "-i [input_file]" and "-f dash ./output.mpd", as the ffmpeg_opts parameter, and the maximum amount of tflops the processor's GPU could do in a second.
     pub fn new_with_opts(id: u64, ffmpeg_opts: &Vec<String>, max_gpu_tflops: u64) -> Self
     where
         Self: Sized,
     {
-        return Self {
+        Self {
             id: id,
             active: Arc::new(Mutex::new(BoolBox::new(true))),
             ffmpeg_options: ffmpeg_opts.clone(),
@@ -50,7 +151,7 @@ impl LocalVideoProcessor {
             running_pids: Arc::new(Mutex::new(HashMap::new())),
 
             max_gpu_tflops: max_gpu_tflops,
-        };
+        }
     }
 }
 

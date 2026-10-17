@@ -112,6 +112,7 @@ use crate::{
     file_handling::{
         comment::*, dirty_data::*, likeable::*, saveable::Saveable, user::*, video_data::*,
     },
+    tests::TestingDefault,
     time::get_current_time,
 };
 
@@ -144,10 +145,7 @@ pub fn read_small_file(file_path_str: &str) -> Result<Vec<u8>, std::io::Error> {
     let file_path_buf = std::fs::canonicalize(&file_path_str_new).unwrap();
     let file_path = file_path_buf.as_path();
     if !file_path.exists() {
-        let err_str = format!(
-            "Error: The file \"{}\" does not exist. ",
-            file_path.display()
-        );
+        let err_str = format!("Error: The file \"{}\" does not exist. ", file_path_str_new);
         return Err(std::io::Error::new(std::io::ErrorKind::NotFound, err_str));
     }
     match std::fs::read(file_path) {
@@ -167,6 +165,18 @@ pub struct DataManager {
     videos_by_name: HashMap<String, u64>,
     comments_by_id: HashMap<u64, Arc<Mutex<Comment>>>,
     data_path: String,
+}
+
+impl TestingDefault for DataManager {
+    fn testing_default() -> Self {
+        Self {
+            users: HashMap::new(),
+            videos: HashMap::new(),
+            videos_by_name: HashMap::new(),
+            comments_by_id: HashMap::new(),
+            data_path: "/dev/null".to_string(),
+        }
+    }
 }
 
 impl DataManager {

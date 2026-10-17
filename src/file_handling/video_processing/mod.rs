@@ -6,7 +6,7 @@ use std::{
     ops::{Deref, DerefMut},
     panic,
     path::PathBuf,
-    sync::{Arc, LazyLock, Mutex},
+    sync::{Arc, LazyLock, Mutex, OnceLock},
     thread::{self},
 };
 
@@ -25,6 +25,7 @@ use crate::{
         },
     },
     misc::collections::MutableBox,
+    tests::TestingDefault,
 };
 
 pub mod local_music_processor;
@@ -33,10 +34,14 @@ pub mod local_video_processor;
 pub mod thumbnail_processor;
 pub mod video_processor;
 
+pub fn _on_finish_func(_vid: u64) -> () {}
+// static DEFAULT_ON_FINISH_SUCCESS_FUNC: fn(u64) -> () = _on_finish_func as fn(u64);
+static DEFAULT_ON_FINISH_FAIL_FUNC: fn(u64) -> () = _on_finish_func as fn(u64);
+
 // #[derive(Debug)]
 ///A struct that manages all of the video processors. All instances of this struct MUST have a 'static lifetime!
 pub struct VideoProcessorManager<
-    FFin: Fn(u64) + std::marker::Sync + std::marker::Send + Debug + 'static,
+    FFin: Fn(u64) + std::marker::Sync + std::marker::Send + Debug + Clone + 'static,
     THIP: ThumbnailImageProcessor
         + std::marker::Send
         + std::marker::Sync
@@ -61,12 +66,37 @@ pub struct VideoProcessorManager<
     // data_path: &'static str,
     data_path: LazyLock<Mutex<MutableBox<String>>>,
 
-    on_finished_success_function: FFin,
-    on_finished_fail_function: FFin,
+    on_finished_success_function: LazyLock<Mutex<MutableBox<FFin>>>,
+    on_finished_fail_function: LazyLock<Mutex<MutableBox<FFin>>>,
 }
 
 impl<
-    FFin: Fn(u64) + std::marker::Sync + std::marker::Send + Debug + 'static,
+    THIP: ThumbnailImageProcessor + std::marker::Send + std::marker::Sync + std::marker::Sized + Clone,
+> Default for VideoProcessorManager<fn(u64) -> (), THIP>
+{
+    fn default() -> Self {
+        Self::const_default()
+    }
+}
+
+impl<
+    THIP: ThumbnailImageProcessor + std::marker::Send + std::marker::Sync + std::marker::Sized + Clone,
+> TestingDefault for VideoProcessorManager<fn(u64) -> (), THIP>
+{
+    fn testing_default() -> Self {
+        // Self::new(
+        //     LazyLock::new(|| -> Mutex<MutableBox<String>> { Mutex::new(MutableBox::new(None)) }),
+        //     LazyLock::new(|| -> Mutex<MutableBox<fn(u64) -> ()>> {
+        //         Mutex::new(MutableBox::new(Some(DEFAULT_ON_FINISH_SUCCESS_FUNC)))
+        //     }),
+        //     DEFAULT_ON_FINISH_FAIL_FUNC,
+        // )
+        Self::default()
+    }
+}
+
+impl<
+    FFin: Fn(u64) + std::marker::Sync + std::marker::Send + Debug + Clone + 'static,
     THIP: ThumbnailImageProcessor + std::marker::Send + std::marker::Sync + std::marker::Sized + Clone,
 > Debug for VideoProcessorManager<FFin, THIP>
 {
@@ -97,16 +127,11 @@ impl<
 }
 
 impl<
-    FFin: Fn(u64) + std::marker::Sync + std::marker::Send + Debug + 'static,
+    FFin: Fn(u64) + std::marker::Sync + std::marker::Send + Clone + Debug + 'static,
     THIP: ThumbnailImageProcessor + std::marker::Send + std::marker::Sync + std::marker::Sized + Clone,
 > VideoProcessorManager<FFin, THIP>
 {
-    ///Creates a new VideoProcessorManager with the specified data directory (data_path).
-    pub const fn new(
-        data_path: LazyLock<Mutex<MutableBox<String>>>,
-        on_finish_success_function: FFin,
-        on_finish_fail_function: FFin,
-    ) -> Self {
+    pub const fn const_default() -> Self {
         Self {
             local_video_processors: LazyLock::new(
                 || -> Mutex<HashMap<u64, Arc<Mutex<LocalVideoProcessor>>>> {
@@ -133,13 +158,89 @@ impl<
             failed_processing: LazyLock::new(|| -> Mutex<HashMap<u64, u64>> {
                 Mutex::new(HashMap::new())
             }),
-            data_path,
-            on_finished_success_function: on_finish_success_function,
-            on_finished_fail_function: on_finish_fail_function,
+            // data_path: OnceLock::new(),
+            data_path: LazyLock::new(|| -> Mutex<MutableBox<String>> {
+                Mutex::new(MutableBox::new(None))
+            }),
+            on_finished_success_function: LazyLock::new(|| -> Mutex<MutableBox<FFin>> {
+                Mutex::new(MutableBox::new(None))
+            }),
+            on_finished_fail_function: LazyLock::new(|| -> Mutex<MutableBox<FFin>> {
+                Mutex::new(MutableBox::new(None))
+            }),
             // thumbnail_image_processor: ArcBox::default_const(),
             thumbnail_image_processor: LazyLock::new(|| -> Mutex<MutableBox<THIP>> {
                 Mutex::new(MutableBox::new(None))
             }),
+        }
+    }
+
+    ///Initialize the VideoProcessorManager.
+    ///
+    /// Parameters:
+    ///
+    /// - data_dir: The directory from which to read the config file(s) from.
+    ///
+    /// - on_finish_success_function: A function to execute when a video has SUCCESSFULLY finished processing.
+    ///
+    /// - on_finish_fail_function: A function to execute when a video has FAILED to process.
+    pub fn init(
+        &'static self,
+        data_dir: &std::path::Path,
+        on_finish_success_function: FFin,
+        on_finish_fail_function: FFin,
+    ) {
+        self.init_testing(on_finish_success_function, on_finish_fail_function, None);
+
+        let mut sdata_dir_mutg = self.data_path.lock().unwrap();
+        let data_dir_box = sdata_dir_mutg.deref_mut();
+        data_dir_box.set(Some(data_dir.to_str().unwrap().to_string()));
+    }
+
+    ///Initialize the VideoProcessorManager for use in the testing mode.
+    ///
+    /// Parameters:
+    ///
+    /// - on_finish_success_function: A function to execute when a video has SUCCESSFULLY finished processing.
+    ///
+    /// - on_finish_fail_function: A function to execute when a video has FAILED to process.
+    ///
+    /// - video_processors: An optional list of video processors to add.
+    pub fn init_testing(
+        &'static self,
+        on_finish_success_function: FFin,
+        on_finish_fail_function: FFin,
+        video_processors: Option<Vec<Box<dyn Any>>>,
+    ) {
+        let mut sfs_func_mutg = self.on_finished_success_function.lock().unwrap();
+        let fs_func_box = sfs_func_mutg.deref_mut();
+        fs_func_box.set(Some(on_finish_success_function));
+
+        let mut sff_func_mutg = self.on_finished_fail_function.lock().unwrap();
+        let ff_func_box = sff_func_mutg.deref_mut();
+        ff_func_box.set(Some(on_finish_fail_function));
+
+        if video_processors.is_some() {
+            for vp_box in video_processors.unwrap().iter() {
+                let vp = vp_box.deref();
+                let tid = vp.type_id();
+                if tid == TypeId::of::<LocalVideoProcessor>() {
+                    let vp_casted: LocalVideoProcessor =
+                        vp.downcast_ref::<LocalVideoProcessor>().unwrap().clone();
+                    let vp_arc: Arc<Mutex<LocalVideoProcessor>> = Arc::new(Mutex::new(vp_casted));
+                    self.add_local_video_processor(vp_arc);
+                } else if tid == TypeId::of::<LocalMusicProcessor>() {
+                    let vp_casted: LocalMusicProcessor =
+                        vp.downcast_ref::<LocalMusicProcessor>().unwrap().clone();
+                    let vp_arc: Arc<Mutex<LocalMusicProcessor>> = Arc::new(Mutex::new(vp_casted));
+                    self.add_local_music_processor(vp_arc);
+                } else {
+                    panic!(
+                        "Found a video processor with an unsupported type. Type id: {:?}",
+                        tid
+                    );
+                }
+            }
         }
     }
 
@@ -863,13 +964,26 @@ impl<
                     let fp_clone = fp_arc_clone_mutg.deref_mut();
                     fp_clone.insert(video_id, pr_id_copy);
 
-                    (self.on_finished_success_function)(video_id);
+                    {
+                        let fs_func_mutg = self.on_finished_success_function.lock().unwrap();
+                        let fs_func_box = fs_func_mutg.deref();
+                        if fs_func_box.get().is_some() {
+                            (fs_func_box.get().unwrap())(video_id);
+                        }
+                    }
                 } else {
                     let mut fail_arc_clone_mutg = self.failed_processing.lock().unwrap();
                     let failp_clone = fail_arc_clone_mutg.deref_mut();
                     failp_clone.insert(video_id, pr_id_copy);
 
-                    (self.on_finished_fail_function)(video_id);
+                    // (self.on_finished_fail_function)(video_id);
+                    {
+                        let ff_func_mutg = self.on_finished_fail_function.lock().unwrap();
+                        let ff_func_box = ff_func_mutg.deref();
+                        if ff_func_box.get().is_some() {
+                            (ff_func_box.get().unwrap())(video_id);
+                        }
+                    }
                 }
             });
         }

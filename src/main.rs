@@ -2,11 +2,12 @@
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
-    sync::{LazyLock, Mutex},
+    sync::{Arc, LazyLock, Mutex},
 };
 
 use actix_multipart::Multipart;
 
+use argon2::{Argon2, PasswordHasher};
 use futures::TryStreamExt;
 
 use actix_web::{
@@ -24,6 +25,7 @@ use crate::{
         DataManager,
         video_processing::{
             VideoProcessorManager, local_thumbnail_video_processor::LocalThumbnailImageProcessor,
+            local_video_processor::LocalVideoProcessor, video_processor::BoolBox,
         },
     },
     management_console::{
@@ -31,6 +33,7 @@ use crate::{
     },
     misc::collections::{DynClone, DynCloneBox, MutableBox},
     session_manager::SessionManager,
+    tests::DEFAULT_PASSWORD,
     user_main::{
         get_disliked_comments, get_disliked_videos, get_liked_comments, get_liked_videos,
         get_public_info, get_subscriptions, get_user_comments, get_user_icon, login_endpoint,
@@ -106,14 +109,16 @@ static MANAGEMENT_CONSOLE: TextBasedManagementConsole<fn(&String, &String) -> bo
     TextBasedManagementConsole::new(&DATA_MANAGER, &PROCESSOR_MANAGER, &SESSION_MANAGER);
 
 type ThumbnailImageProccessorType = LocalThumbnailImageProcessor;
+// static PROCESSOR_MANAGER: VideoProcessorManager<fn(u64) -> (), ThumbnailImageProccessorType> =
+//     VideoProcessorManager::new(
+//         LazyLock::new(|| -> Mutex<MutableBox<String>> {
+//             Mutex::new(MutableBox::new(Some(DATA_PATH.to_string())))
+//         }),
+//         ON_FINISH_SUCCESS_FUNC,
+//         ON_FINISH_FAIL_FUNC,
+//     );
 static PROCESSOR_MANAGER: VideoProcessorManager<fn(u64) -> (), ThumbnailImageProccessorType> =
-    VideoProcessorManager::new(
-        LazyLock::new(|| -> Mutex<MutableBox<String>> {
-            Mutex::new(MutableBox::new(Some(DATA_PATH.to_string())))
-        }),
-        ON_FINISH_SUCCESS_FUNC,
-        ON_FINISH_FAIL_FUNC,
-    );
+    VideoProcessorManager::const_default();
 
 pub fn _on_finish_proc_func(video_id: u64) {
     let data_manager_mutg = DATA_MANAGER.lock().unwrap();
@@ -130,6 +135,10 @@ pub fn _on_finish_success_func(video_id: u64) -> () {
 pub fn _on_finish_fail_func(video_id: u64) -> () {
     _on_finish_proc_func(video_id);
 }
+
+//Globally used command line options:
+// static TESTING_MODE: LazyLock<Mutex<BoolBox>> =
+//     LazyLock::new(|| -> Mutex<BoolBox> { Mutex::new(BoolBox::new(false)) });
 
 ///Given the multipart form data (payload), this parses all of the form data and stores it in the given HashMap (result).
 async fn parse_form_data(payload: &mut Multipart, result: &mut HashMap<String, Vec<u8>>) {
@@ -205,26 +214,64 @@ pub fn get_server_port() -> u16 {
 async fn main() -> std::io::Result<()> {
     //Get command line args:
     let args: Vec<String> = std::env::args().collect::<Vec<String>>();
+    //Get cli optionns:
+    let t_mode: bool = args.contains(&"--testing_mode".to_string());
+    let is_text_console: bool = args.contains(&"--text_console".to_string());
+
+    // if t_mode {
+    //     let mut testing_mode_mutg = TESTING_MODE.lock().unwrap();
+    //     let testing_mode_box = testing_mode_mutg.deref_mut();
+    //     testing_mode_box.set(true);
+    // }
+
     //Initialize PROCESSOR_MANAGER:
-    {
+    if !t_mode {
+        PROCESSOR_MANAGER.init(
+            std::path::Path::new(DATA_PATH),
+            ON_FINISH_SUCCESS_FUNC,
+            ON_FINISH_FAIL_FUNC,
+        );
         PROCESSOR_MANAGER.load_data();
+    } else {
+        PROCESSOR_MANAGER.init_testing(ON_FINISH_SUCCESS_FUNC, ON_FINISH_FAIL_FUNC, None);
+        PROCESSOR_MANAGER
+            .add_local_video_processor(Arc::new(Mutex::new(LocalVideoProcessor::default())));
     }
 
     //Initialize DATA_MANAGER:
     {
         let mut data_manager_guard = DATA_MANAGER.lock().unwrap();
         let data_manager: &mut DataManager = data_manager_guard.deref_mut();
-        data_manager.load_data();
-        // println!("DATA_MANAGER: \n{:#?}\n\n", data_manager);
-        data_manager.save_data();
+        if !t_mode {
+            data_manager.load_data();
+            // println!("DATA_MANAGER: \n{:#?}\n\n", data_manager);
+        } else {
+            data_manager.add_user(
+                &"sample_user_1".to_string(),
+                &{
+                    let argon2 = Argon2::default();
+                    argon2
+                        .hash_password(DEFAULT_PASSWORD.as_bytes())
+                        .unwrap()
+                        .to_string()
+                },
+                &"This is a sample user created only for testing purposes. ".to_string(),
+                0,
+            );
+        }
+        // data_manager.save_data();
     }
 
     // Start autodelete thread for SESSION_MANAGER:
-    SESSION_MANAGER.start_autodelete();
+    if !t_mode {
+        SESSION_MANAGER.start_autodelete();
+    }
 
     //Start ManagementConsole:
-    if args.contains(&"-text_console".to_string()) {
+    if is_text_console & !t_mode {
         MANAGEMENT_CONSOLE.launch(std::env::var("CARGO_PKG_VERSION").unwrap());
+    } else if is_text_console && t_mode {
+        panic!("Cannot use the \"--testing_mode\" option with the \"--text_console\" option!");
     }
 
     //Launch Actix-web:

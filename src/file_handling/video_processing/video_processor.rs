@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     collections::HashSet,
     mem,
     ops::{Deref, DerefMut},
@@ -48,7 +49,7 @@ pub fn cast_video_processor_arc<R: VideoProcessor, F: VideoProcessor>(
 }
 
 ///A trait for processing videos.
-pub trait VideoProcessor: Saveable {
+pub trait VideoProcessor: Saveable + Any {
     ///Create a new VideoProcessor (return type depends on struct implementing this trait) from the given JSON configuration data (config_json_data).
     fn new(config_json_data: &Value) -> Self
     where

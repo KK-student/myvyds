@@ -5,6 +5,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+#[derive(Debug)]
 pub struct DynCloneBox<T: DynClone + ?Sized> {
     value: Box<T>,
 }
@@ -58,6 +59,7 @@ pub trait DynClone {
         Self: Sized + DynClone;
 }
 
+#[derive(Debug)]
 pub struct MutableBox<Z: Clone> {
     value: Option<Z>,
 }
@@ -108,7 +110,6 @@ impl<Z: Clone> Deref for MutableBox<Z> {
 //     };
 // }
 
-// #[derive(Debug)]
 struct ArcBox<T: Any + std::marker::Sized + std::marker::Send + std::marker::Sync + Debug> {
     value: Option<Arc<Mutex<Option<T>>>>,
 }

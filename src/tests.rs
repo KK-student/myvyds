@@ -11,7 +11,11 @@ use crate::{
 static DATA_INIT_STATE: LazyLock<Mutex<BoolBox>> =
     LazyLock::new(|| -> Mutex<BoolBox> { Mutex::new(BoolBox::new(false)) });
 
-static DEFAULT_PASSWORD: &str = "password123456789";
+pub static DEFAULT_PASSWORD: &str = "password123456789";
+
+pub trait TestingDefault {
+    fn testing_default() -> Self;
+}
 
 pub fn initialize_test_data() {
     let mut i_mutg = DATA_INIT_STATE.lock().unwrap();
@@ -207,7 +211,7 @@ pub mod actix_web_test_functions {
             thread::spawn(|| {
                 println!("Initializing server: ");
                 let mut c = Command::new("cargo");
-                let run_cmd = c.arg("run");
+                let run_cmd = c.args(["run", "--", "--testing_mode"]);
                 let mut child_process = run_cmd.spawn().unwrap();
                 child_process.wait().unwrap();
             });

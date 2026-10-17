@@ -15,7 +15,7 @@ use crate::file_handling::{
     },
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LocalMusicProcessor {
     id: u64,
     active: Arc<Mutex<BoolBox>>,
@@ -29,6 +29,47 @@ pub struct LocalMusicProcessor {
     running_pids: Arc<Mutex<HashMap<u64, u32>>>, //Map of the pids of the ffmpeg commands used to process the videos.
 
     speed: u64,
+}
+
+impl Default for LocalMusicProcessor {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            active: Arc::new(Mutex::new(BoolBox::new(false))),
+            ffmpeg_options: [
+                "-strict".to_string(),
+                "experimental".to_string(),
+                "-c:v".to_string(),
+                "copy".to_string(),
+                "-map".to_string(),
+                "0:a:0".to_string(),
+                "-c:a:0".to_string(),
+                "flac".to_string(),
+                "-b:a:0".to_string(),
+                "192k".to_string(),
+                "-map".to_string(),
+                "0:a:0".to_string(),
+                "-c:a:1".to_string(),
+                "flac".to_string(),
+                "-b:a:1".to_string(),
+                "128k".to_string(),
+                "-map".to_string(),
+                "0:a:0".to_string(),
+                "-c:a:2".to_string(),
+                "flac".to_string(),
+                "-b:a:2".to_string(),
+                "64k".to_string(),
+                "-map_metadata".to_string(),
+                "0".to_string(),
+            ]
+            .to_vec(),
+            currently_processing: Arc::new(Mutex::new(HashSet::new())),
+            finished_processing: Arc::new(Mutex::new(HashSet::new())),
+            failed_processing: Arc::new(Mutex::new(HashMap::new())),
+            running_pids: Arc::new(Mutex::new(HashMap::new())),
+            speed: 100,
+        }
+    }
 }
 
 impl Saveable for LocalMusicProcessor {
