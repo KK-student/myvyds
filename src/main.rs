@@ -3,6 +3,8 @@ use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
     sync::{Arc, LazyLock, Mutex},
+    thread,
+    time::Duration,
 };
 
 use actix_multipart::Multipart;
@@ -265,6 +267,23 @@ async fn main() -> std::io::Result<()> {
     // Start autodelete thread for SESSION_MANAGER:
     if !t_mode {
         SESSION_MANAGER.start_autodelete();
+    }
+
+    // Start autosave thread for DATA_MANAGER:
+    if !t_mode {
+        thread::spawn(|| -> () {
+            thread::sleep(Duration::from_secs(5));
+            loop {
+                {
+                    println!("Autosaving data: ");
+                    let mut data_manager_mutg = DATA_MANAGER.lock().unwrap();
+                    let data_manager = data_manager_mutg.deref_mut();
+                    data_manager.save_data();
+                    println!("Data autosaved. ");
+                }
+                thread::sleep(Duration::from_mins(5));
+            }
+        });
     }
 
     //Start ManagementConsole:
