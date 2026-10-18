@@ -264,9 +264,18 @@ pub mod actix_web_test_functions {
 
     static SU1_SESSION_ID: LazyLock<Mutex<MutableBox<u64>>> =
         LazyLock::new(|| Mutex::new(MutableBox::new(None)));
+    static SU2_SESSION_ID_SIGNUP: LazyLock<Mutex<MutableBox<u64>>> =
+        LazyLock::new(|| Mutex::new(MutableBox::new(None)));
+    static DUMMY_SESSION_ID_SIGNUP: LazyLock<Mutex<MutableBox<u64>>> =
+        LazyLock::new(|| Mutex::new(MutableBox::new(None)));
 
-    #[actix_web::test]
-    pub async fn test_login() {
+    async fn login<F: Fn()>(
+        username: &str,
+        password: &str,
+        session_id_output: &'static LazyLock<Mutex<MutableBox<u64>>>,
+        wait_time_secs: u64,
+        after_wait_function: F,
+    ) {
         initialize_test_web().await;
 
         //Create the easy handle:
@@ -275,11 +284,11 @@ pub mod actix_web_test_functions {
         //Create the form:
         let mut form = curl::easy::Form::new();
         form.part("username")
-            .contents("sample_user_1".as_bytes())
+            .contents(username.as_bytes())
             .add()
             .unwrap();
         form.part("password")
-            .contents(DEFAULT_PASSWORD.as_bytes())
+            .contents(password.as_bytes())
             .add()
             .unwrap();
 
@@ -293,9 +302,9 @@ pub mod actix_web_test_functions {
         easy.httppost(form).unwrap();
 
         //Callback function:
-        easy.write_function(|data| {
+        easy.write_function(move |data| {
             println!("Response data: {:?}", data);
-            let mut sid_mut = SU1_SESSION_ID.lock().unwrap();
+            let mut sid_mut = session_id_output.lock().unwrap();
             let mut_box = sid_mut.deref_mut();
             if data.len() != 8 {
                 panic!("Invalid response size!");
@@ -321,19 +330,127 @@ pub mod actix_web_test_functions {
         easy.perform().unwrap();
 
         //Wait for 15s:
-        println!("Sleeping for 15s ...");
-        thread::sleep(Duration::from_secs(15));
+        println!("Sleeping for {}s ...", wait_time_secs);
+        thread::sleep(Duration::from_secs(wait_time_secs));
         println!("Finished sleeping. ");
+        after_wait_function();
+    }
 
-        {
-            let sid_mutg = SU1_SESSION_ID.lock().unwrap();
+    async fn signup<F: Fn()>(
+        username: &str,
+        password: &str,
+        session_id_output: &'static LazyLock<Mutex<MutableBox<u64>>>,
+        wait_time_secs: u64,
+        after_wait_function: F,
+    ) {
+        initialize_test_web().await;
+
+        //Create the easy handle:
+        let mut easy = Easy::new();
+
+        //Create the form:
+        let mut form = curl::easy::Form::new();
+        form.part("username")
+            .contents(username.as_bytes())
+            .add()
+            .unwrap();
+        form.part("password")
+            .contents(password.as_bytes())
+            .add()
+            .unwrap();
+
+        //Set the url:
+        easy.url(format!("http://127.0.0.1:{}/user/signup", get_server_port()).as_str())
+            .unwrap();
+
+        //Set POST data:
+        easy.post(true).unwrap();
+        easy.httppost(form).unwrap();
+
+        //Callback function:
+        easy.write_function(move |data| {
+            println!("Response data: {:?}", data);
+            let mut sid_mut = session_id_output.lock().unwrap();
+            let mut_box = sid_mut.deref_mut();
+            if data.len() != 8 {
+                panic!("Invalid response size!");
+            }
+            let id: u64 = u64::from_be_bytes({
+                let mut bytes: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
+                {
+                    let mut i = 0;
+                    while i < 8 {
+                        bytes[i] = data[i];
+                        i += 1;
+                    }
+                }
+                bytes
+            });
+            mut_box.set(Some(id));
+            println!("Session id: {id}");
+            Ok(data.len())
+        })
+        .unwrap();
+
+        //Perform the request:
+        easy.perform().unwrap();
+
+        //Wait for 15s:
+        println!("Sleeping for {}s ...", wait_time_secs);
+        thread::sleep(Duration::from_secs(wait_time_secs));
+        println!("Finished sleeping. ");
+        after_wait_function();
+    }
+
+    fn wait_for_session_id(
+        sid_lock: &'static LazyLock<Mutex<MutableBox<u64>>>,
+        on_some_func: impl Fn(u64),
+    ) -> impl Fn() {
+        move || -> () {
+            let sid_mutg = sid_lock.lock().unwrap();
             let sid_box = sid_mutg.deref();
             match sid_box.get() {
-                Some(_) => {}
+                Some(val) => {
+                    on_some_func(val);
+                }
                 None => {
-                    panic!("Either write function did not execute too long for response to arrive!")
+                    panic!(
+                        "Either write function did not execute or took too long for response to arrive!"
+                    )
                 }
             }
         }
+    }
+
+    #[actix_web::test]
+    pub async fn test_signup() {
+        signup(
+            "sample_user_2",
+            DEFAULT_PASSWORD,
+            &SU2_SESSION_ID_SIGNUP,
+            15,
+            wait_for_session_id(&SU2_SESSION_ID_SIGNUP, |_val: u64| -> () {}),
+        )
+        .await;
+        login(
+            "sample_user_2",
+            DEFAULT_PASSWORD,
+            &SU2_SESSION_ID_SIGNUP,
+            15,
+            wait_for_session_id(&SU2_SESSION_ID_SIGNUP, |_val: u64| -> () {}),
+        )
+        .await;
+    }
+
+    #[actix_web::test]
+    pub async fn test_login() {
+        login(
+            "sample_user_1",
+            DEFAULT_PASSWORD,
+            &SU1_SESSION_ID,
+            15,
+            wait_for_session_id(&SU1_SESSION_ID, |_val: u64| -> () {}),
+        )
+        .await;
     }
 }
