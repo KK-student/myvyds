@@ -7,7 +7,27 @@
 
 2. If video_id is valid, server sends OK response with the body being the contents of the "output.mpd" file for the video with the cooresponding video_id. Otherwise, server sends error response with error code 404. 
 
-3. Client then sends GET requests to server with path "/video/get_video_file/[video_id]/[MPEG_DASH segment file]" to get each MPEG_DASH segment file to play the video. If video_id is valid and the requested file exists, then server sends OK response with the body being the contents of the requested file. Otherwise, server sends error response with error code 404. 
+3. Client then sends GET requests to server with path "/video/get_video_file/[video_id]/[MPEG_DASH segment file]" to get each MPEG_DASH segment file to play the video. If video_id is valid and the requested file exists, then server sends OK response with the body being the contents of the requested file. Otherwise, server sends error response with error code 404.
+
+### Searching for videos based on their name:
+
+1. Client sends a GET request to the server with path "/video/search_vid_name?vid_name=[User's input from the search bar]".
+
+2. If `vid_name` is not empty: Server then sends an OK response with the list of up to 50 video id's that best match the search terms, in the following JSON format:
+```json
+  {
+    "result": [[video name]: {"id": [video_id of the video], "author": [author's user_id], "uploaded_time": [time uploaded in secs since epoch in u64]}],
+  }
+```
+Otherwise: Server sends an error response with the error code of 400. 
+
+### Getting a video by name:
+
+1. Client sends a GET request to the server with path "/video/get_vid_by_name?vid_name=[The name/title of the video]".
+2. If `vid_name` is not empty:
+  - If the video with the given video name exists: Server sends an OK response with the body of the response being the corresponding video's video_id as a u64 in binary big-endian format.
+  - Otherwise: Server sends an error response with the error code of 404. 
+Otherwise: Server sends an error response with the error code of 400. 
 
 ### Getting video basic info:
 

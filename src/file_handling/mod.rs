@@ -886,6 +886,14 @@ impl DataManager {
         comment.set_edited(true);
     }
 
+    ///Search for a video by it's name.
+    pub fn search_by_name(&self, name: &String) -> HashMap<String, (u64, String, u64)> {
+        let mut result: HashMap<String, (u64, String, u64)> = HashMap::new();
+        //TODO: Implement the TF-IDF algorithm.
+
+        result
+    }
+
     ///Add a reply to the comment with the specified comment id (comment_id), returning the comment id of the newly created reply if successful.
     pub fn reply_comment(
         &mut self,

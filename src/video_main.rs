@@ -411,3 +411,50 @@ pub async fn video_upload_endpoint(mut payload: Multipart) -> impl Responder {
         .append_header(header::ContentType(mime::APPLICATION_OCTET_STREAM))
         .body(video_id.to_be_bytes().to_vec())
 }
+
+#[derive(Deserialize, Debug)]
+struct VideoNameQuery {
+    vid_name: String,
+}
+
+#[get("/video/search_vid_name")]
+pub async fn search_by_name(v_name_query: Query<VideoNameQuery>) -> impl Responder {
+    let video_name: &String = &v_name_query.vid_name;
+    // println!("search_by_name called! video_name = \"{video_name}\". ");
+    if video_name.is_empty() {
+        return HttpResponse::BadRequest().finish();
+    }
+
+    let data_manager_mutg = DATA_MANAGER.lock().unwrap();
+    let data_manager = data_manager_mutg.deref();
+    //Search the database:
+    let result_map = data_manager.search_by_name(video_name);
+    //Format:
+    //"result": [[video name]: {"id": [video_id of the video], "author": [author's user_id], "uploaded_time": [time uploaded in secs since epoch in u64]}],
+    let mut result: String = "{\"result\": [".to_string();
+    {
+        let mut first = true;
+        for (res_vid_name, vid_info) in result_map {
+            if !first {
+                result.push(',');
+            }
+            let (id, author, time_uploaded) = vid_info;
+            result.push_str(
+                format!(
+                    "\"{}\": {{\"id\": {}, \"author\": \"{}\", \"uploaded_time\": {}}}",
+                    res_vid_name, id, author, time_uploaded
+                )
+                .as_str(),
+            );
+
+            if first {
+                first = false;
+            }
+        }
+    }
+    result.push_str("]}");
+
+    HttpResponse::Ok()
+        .append_header(header::ContentType(mime::APPLICATION_JSON))
+        .body(result)
+}

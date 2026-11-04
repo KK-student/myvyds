@@ -5,6 +5,7 @@ use std::{
 };
 
 use json_escape::escape_str;
+use posix_regex::PosixRegexBuilder;
 use serde_json::Value;
 
 use crate::{
@@ -425,4 +426,45 @@ impl Saveable for VideoData {
             )
         };
     }
+}
+
+fn materialize_matches(input: &str, matches: &Vec<Box<[Option<(usize, usize)>]>>) -> Vec<String> {
+    let mut result: Vec<String> = Vec::new();
+    for ends_opt_box in matches {
+        let ends_opt = ends_opt_box.first().unwrap();
+        if ends_opt.is_some() {
+            let (begin, end) = ends_opt.unwrap();
+            result.push(input[begin..end].to_string());
+        }
+    }
+
+    result
+}
+
+pub fn compute_term_frequencies(input: &str) -> HashMap<String, u64> {
+    let mut result: HashMap<String, u64> = HashMap::new();
+
+    //Split text into words:
+    let input_regexc = PosixRegexBuilder::new("[a-zA-Z0-9']\\{1,\\}".as_bytes());
+    let input_regexm = input_regexc.compile().unwrap();
+    let input_matches = input_regexm.matches(input.as_bytes(), None);
+    let imatches_strings = materialize_matches(input, &input_matches);
+
+    for word in imatches_strings {
+        let new_word: String = word
+            .trim_end_matches('\'')
+            .trim_start_matches('\'')
+            .to_string();
+
+        //Add word to results:
+        if !new_word.is_empty() {
+            if result.contains_key(&new_word) {
+                result.insert(new_word.clone(), result.get(&new_word).unwrap() + 1);
+            } else {
+                result.insert(new_word, 1);
+            }
+        }
+    }
+
+    result
 }

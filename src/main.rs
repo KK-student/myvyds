@@ -25,6 +25,7 @@ use crate::{
     },
     file_handling::{
         DataManager,
+        video_data::compute_term_frequencies,
         video_processing::{
             VideoProcessorManager, local_thumbnail_video_processor::LocalThumbnailImageProcessor,
             local_video_processor::LocalVideoProcessor, video_processor::BoolBox,
@@ -43,7 +44,7 @@ use crate::{
     },
     video_main::{
         get_comments_page, get_video_basic_info, get_video_file, get_video_thumbnail_image,
-        is_currently_processing, is_online, video_upload_endpoint,
+        is_currently_processing, is_online, search_by_name, video_upload_endpoint,
     },
 };
 
@@ -187,7 +188,8 @@ pub fn build_app() -> App<
         .service(comment_add_endpoint)
         .service(comment_edit_endpoint)
         .service(comment_add_reply_endpoint)
-        .service(comment_remove_endpoint);
+        .service(comment_remove_endpoint)
+        .service(search_by_name);
     if cfg!(test) {
         app = app.service(is_online);
     }
@@ -292,6 +294,11 @@ async fn main() -> std::io::Result<()> {
     } else if is_text_console && t_mode {
         panic!("Cannot use the \"--testing_mode\" option with the \"--text_console\" option!");
     }
+
+    // println!(
+    //     "Term frequencies: \n{:#?}",
+    //     compute_term_frequencies("Hello ''' \"'''World's'''\" !@#!fjfdjs%#$@#$    !")
+    // );
 
     //Launch Actix-web:
     match HttpServer::new(build_app).bind(("127.0.0.1", get_server_port())) {

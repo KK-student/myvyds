@@ -171,6 +171,8 @@ pub mod test_functions {
 #[cfg(test)]
 pub mod actix_web_test_functions {
     use std::{
+        fs::File,
+        io::BufReader,
         ops::{Deref, DerefMut},
         process::Command,
         sync::{LazyLock, Mutex},
@@ -179,6 +181,8 @@ pub mod actix_web_test_functions {
     };
 
     use curl::easy::Easy;
+    use nix::libc::MAP_HUGE_64KB;
+    use tokio_util::io::StreamReader;
 
     use crate::{
         file_handling::video_processing::video_processor::BoolBox, get_server_port,
@@ -452,5 +456,34 @@ pub mod actix_web_test_functions {
             wait_for_session_id(&SU1_SESSION_ID, |_val: u64| -> () {}),
         )
         .await;
+    }
+
+    fn is_main_logged_in() -> bool {
+        let su1_smutg = SU1_SESSION_ID.lock().unwrap();
+        let su1 = su1_smutg.deref();
+        su1.get().is_some()
+    }
+
+    #[actix_web::test]
+    pub async fn test_upload_mp4() {
+        //Log in if needed:
+        if !is_main_logged_in() {
+            login(
+                "sample_user_1",
+                DEFAULT_PASSWORD,
+                &SU1_SESSION_ID,
+                15,
+                || {},
+            )
+            .await;
+        }
+        let user_1s: u64 = {
+            let su1_mutg = SU1_SESSION_ID.lock().unwrap();
+            su1_mutg.deref().unwrap()
+        };
+
+        //Load data:
+        let mut data_reader =
+            BufReader::new(File::open("./testing_videos/sample-10s-720p.mp4").unwrap());
     }
 }
