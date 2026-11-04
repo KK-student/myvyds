@@ -25,7 +25,7 @@ use crate::{
     },
     file_handling::{
         DataManager,
-        video_data::compute_term_frequencies,
+        video_data::compute_word_counts,
         video_processing::{
             VideoProcessorManager, local_thumbnail_video_processor::LocalThumbnailImageProcessor,
             local_video_processor::LocalVideoProcessor, video_processor::BoolBox,

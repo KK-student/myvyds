@@ -369,6 +369,34 @@ impl VideoData {
             dirty: false,
         }));
     }
+
+    pub fn get_name_word_counts(&self) -> HashMap<String, u64> {
+        compute_word_counts(self.get_name().as_str())
+    }
+
+    pub fn get_description_word_counts(&self) -> HashMap<String, u64> {
+        compute_word_counts(self.get_description().as_str())
+    }
+
+    pub fn get_combined_word_counts(&self) -> HashMap<String, u64> {
+        let term_freq_parts = [
+            self.get_name_word_counts(),
+            self.get_description_word_counts(),
+        ];
+        let mut result: HashMap<String, u64> = HashMap::new();
+
+        for term_freqs in term_freq_parts {
+            for (word, count) in term_freqs {
+                if result.contains_key(&word) {
+                    result.insert(word.clone(), result.get(&word).unwrap() + count);
+                } else {
+                    result.insert(word.clone(), count);
+                }
+            }
+        }
+
+        result
+    }
 }
 
 impl Saveable for VideoData {
@@ -441,7 +469,7 @@ fn materialize_matches(input: &str, matches: &Vec<Box<[Option<(usize, usize)>]>>
     result
 }
 
-pub fn compute_term_frequencies(input: &str) -> HashMap<String, u64> {
+pub fn compute_word_counts(input: &str) -> HashMap<String, u64> {
     let mut result: HashMap<String, u64> = HashMap::new();
 
     //Split text into words:
