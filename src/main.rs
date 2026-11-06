@@ -25,16 +25,16 @@ use crate::{
     },
     file_handling::{
         DataManager,
-        video_data::compute_word_counts,
         video_processing::{
             VideoProcessorManager, local_thumbnail_video_processor::LocalThumbnailImageProcessor,
-            local_video_processor::LocalVideoProcessor, video_processor::BoolBox,
+            local_video_processor::LocalVideoProcessor,
         },
     },
     management_console::{
         ManagementConsole, text_based_management_console::TextBasedManagementConsole,
     },
-    misc::collections::{DynClone, DynCloneBox, MutableBox},
+    misc::collections::{DynClone, DynCloneBox},
+    search_engine::SearchEngine,
     session_manager::SessionManager,
     tests::DEFAULT_PASSWORD,
     user_main::{
@@ -50,8 +50,10 @@ use crate::{
 
 mod comment_main;
 mod file_handling;
+mod linear_algebra;
 mod management_console;
 mod misc;
+mod search_engine;
 mod session_manager;
 mod tests;
 mod time;
@@ -110,6 +112,8 @@ static SESSION_MANAGER: SessionManager<fn(&String, &String) -> bool> =
     SessionManager::new(&_GET_USER_FOR_SESSION_MANAGER_FUNC);
 static MANAGEMENT_CONSOLE: TextBasedManagementConsole<fn(&String, &String) -> bool> =
     TextBasedManagementConsole::new(&DATA_MANAGER, &PROCESSOR_MANAGER, &SESSION_MANAGER);
+static SEARCH_ENGINE: LazyLock<Mutex<SearchEngine>> =
+    LazyLock::new(|| -> Mutex<SearchEngine> { Mutex::new(SearchEngine::new()) });
 
 type ThumbnailImageProccessorType = LocalThumbnailImageProcessor;
 // static PROCESSOR_MANAGER: VideoProcessorManager<fn(u64) -> (), ThumbnailImageProccessorType> =

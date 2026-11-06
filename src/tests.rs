@@ -45,14 +45,20 @@ pub fn initialize_test_data() {
 #[cfg(test)]
 pub mod test_functions {
     use std::{
+        collections::HashMap,
         ops::{Deref, DerefMut},
         sync::{Arc, Mutex},
     };
 
     use argon2::{Argon2, PasswordHasher};
+    use libm::log10;
     use rand::RngExt;
 
-    use crate::{DATA_MANAGER, file_handling::user::User};
+    use crate::{
+        DATA_MANAGER,
+        file_handling::user::User,
+        search_engine::{compute_idfs, searchable::compute_term_frequencies},
+    };
 
     use super::*;
 
@@ -165,6 +171,90 @@ pub mod test_functions {
             },
             0
         );
+    }
+
+    const DOCUMENT_TEXTS: [&str; 3] = [
+        "the cats are in the house",
+        "the dogs are in the house and outside",
+        "the cats and dogs are friends",
+    ];
+    const DOCUMENT_WORDS: [&str; 9] = [
+        "the", "cats", "are", "in", "house", "dogs", "and", "outside", "friends",
+    ];
+
+    #[test]
+    pub fn test_tfidf_term_frequencies() {
+        assert_eq!(DOCUMENT_TEXTS.len(), 3);
+        assert_eq!(DOCUMENT_WORDS.len(), 9);
+
+        let o26: f64 = 2.0 / 6.0;
+        let o16: f64 = 1.0 / 6.0;
+        let o18: f64 = 1.0 / 8.0;
+        let correct_term_freqs: [[f64; 9]; 3] = [
+            [o26, o16, o16, o16, o16, 0.0, 0.0, 0.0, 0.0],
+            [0.25, 0.0, o18, o18, o18, o18, o18, o18, 0.0],
+            [o16, o16, o16, 0.0, 0.0, o16, o16, 0.0, o16],
+        ];
+
+        {
+            let mut di: usize = 0;
+            while di < DOCUMENT_TEXTS.len() {
+                let dtfs = compute_term_frequencies(DOCUMENT_TEXTS[di]).unwrap();
+                println!("dtfs: \n{:#?}", dtfs);
+
+                let mut wi: usize = 0;
+                while wi < DOCUMENT_WORDS.len() {
+                    let lhs = match dtfs.get(DOCUMENT_WORDS[wi]) {
+                        Some(val) => *val,
+                        None => 0.0,
+                    };
+                    let rhs = correct_term_freqs[di][wi];
+                    assert_eq!(lhs, rhs);
+                    wi += 1;
+                }
+                di += 1;
+            }
+        }
+    }
+
+    #[test]
+    pub fn test_tfidf_idfs() {
+        assert_eq!(DOCUMENT_TEXTS.len(), 3);
+        assert_eq!(DOCUMENT_WORDS.len(), 9);
+
+        let l3o2: f64 = log10(3.0 / 2.0);
+        let l3o1: f64 = log10(3.0 / 1.0);
+        let correct_idfs: [[f64; 9]; 3] = [
+            [0.0, l3o2, 0.0, l3o2, l3o2, 0.0, 0.0, 0.0, 0.0],
+            [0., 0., 0., l3o2, l3o2, l3o2, l3o2, l3o1, 0.],
+            [0., l3o2, 0., 0., 0., l3o2, l3o2, 0., l3o1],
+        ];
+
+        let document_tfs: [HashMap<String, f64>; 3] = [
+            compute_term_frequencies(DOCUMENT_TEXTS[0]).unwrap(),
+            compute_term_frequencies(DOCUMENT_TEXTS[1]).unwrap(),
+            compute_term_frequencies(DOCUMENT_TEXTS[2]).unwrap(),
+        ];
+        let computed_idfs = compute_idfs(&document_tfs);
+
+        let mut di: usize = 0;
+        while di < DOCUMENT_TEXTS.len() {
+            let mut wi: usize = 0;
+            while wi < DOCUMENT_WORDS.len() {
+                let word: &str = DOCUMENT_WORDS[wi];
+                print!("Document #{}, word = \"{word}\": ", di + 1);
+                assert_eq!(
+                    match computed_idfs.get(di).unwrap().get(&word.to_string()) {
+                        Some(val) => *val,
+                        None => 0.0,
+                    },
+                    correct_idfs[di][wi]
+                );
+                println!("OK. ");
+                wi += 1;
+            }
+            di += 1;
+        }
     }
 }
 
