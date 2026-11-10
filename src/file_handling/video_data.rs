@@ -14,6 +14,7 @@ use crate::{
         likeable::Likeable,
         saveable::{Saveable, make_json_from_saveable_list},
     },
+    search_engine::searchable::Searchable,
     time::get_current_time,
 };
 
@@ -31,6 +32,8 @@ pub struct VideoData {
     likes: u64,
     dislikes: u64,
     dirty: bool,
+
+    searchable_id: u64,
 }
 
 impl VideoData {
@@ -54,6 +57,7 @@ impl VideoData {
             likes: 0,
             dislikes: 0,
             dirty: true,
+            searchable_id: 0,
         };
     }
 
@@ -366,6 +370,7 @@ impl VideoData {
             likes: 0,
             dislikes: 0,
             dirty: false,
+            searchable_id: 0,
         }));
     }
 }
@@ -424,5 +429,23 @@ impl Saveable for VideoData {
                 comments_json
             )
         };
+    }
+}
+
+impl Searchable for VideoData {
+    fn set_searchable_id(&mut self, id: u64) {
+        self.searchable_id = id;
+    }
+
+    fn get_searchable_id(&self) -> u64 {
+        self.searchable_id
+    }
+
+    fn get_searchable_title(&self) -> String {
+        self.get_name()
+    }
+
+    fn get_searchable_contents(&self) -> String {
+        self.get_description()
     }
 }
