@@ -112,7 +112,7 @@ use crate::{
     file_handling::{
         comment::*, dirty_data::*, likeable::*, saveable::Saveable, user::*, video_data::*,
     },
-    search_engine::SearchEngine,
+    search_engine::{self, SearchEngine, searchable::Searchable},
     tests::{self, TestingDefault},
     time::get_current_time,
 };
@@ -227,7 +227,7 @@ impl DataManager {
         self.get_user(user_id).is_some()
     }
 
-    ///Remove the user with the specified user id (user_id). TODO: Need to test this.
+    ///Remove the user with the specified user id (user_id).
     pub fn remove_user(&mut self, user_id: &String) {
         if self.has_user(user_id) {
             //Remove user from users map:
@@ -244,29 +244,48 @@ impl DataManager {
     ///Remove the video with the specified video id (video_id).
     pub fn remove_video(&mut self, video_id: &u64) {
         if self.has_video_by_id(video_id) {
-            //Remove video from maps:
-            let deleted_video_arc: Arc<Mutex<VideoData>> = self.videos.remove(video_id).unwrap();
-            let mut deleted_video_mutg = deleted_video_arc.lock().unwrap();
-            let deleted_video: &mut VideoData = deleted_video_mutg.deref_mut();
-            //Remove all comments:
-            let comment_arcs_arc: Arc<Mutex<Vec<Arc<Mutex<Comment>>>>> =
-                Arc::new(Mutex::new(Vec::new()));
-            deleted_video.for_each_comment_recursive(&|comment_arc: Arc<Mutex<Comment>>| -> () {
-                let comment_arcs_aclone = Arc::clone(&comment_arcs_arc);
-                let mut comment_arcs_mutg = comment_arcs_aclone.lock().unwrap();
-                let comment_arcs: &mut Vec<Arc<Mutex<Comment>>> = comment_arcs_mutg.deref_mut();
-                comment_arcs.push(Arc::clone(&comment_arc));
-            });
-            let comment_arcs_mutg = comment_arcs_arc.lock().unwrap();
-            for c_arc in comment_arcs_mutg.deref() {
-                let mut c_mutg = c_arc.lock().unwrap();
-                let c = c_mutg.deref_mut();
-                c.remove_all_replies();
-                let c_id: u64 = c.get_id();
-                self.comments_by_id.remove(&c_id);
-                self.neutralize_comment(&c_id);
+            {
+                //Get video:
+                // let deleted_video_arc: Arc<Mutex<VideoData>> = self.videos.remove(video_id).unwrap();
+                let deleted_video_arc: Arc<Mutex<VideoData>> = self.get_video(video_id).unwrap();
+                let mut deleted_video_mutg = deleted_video_arc.lock().unwrap();
+                let deleted_video: &mut VideoData = deleted_video_mutg.deref_mut();
+                //Remove all comments:
+                let comment_arcs_arc: Arc<Mutex<Vec<Arc<Mutex<Comment>>>>> =
+                    Arc::new(Mutex::new(Vec::new()));
+                deleted_video.for_each_comment_recursive(
+                    &|comment_arc: Arc<Mutex<Comment>>| -> () {
+                        let comment_arcs_aclone = Arc::clone(&comment_arcs_arc);
+                        let mut comment_arcs_mutg = comment_arcs_aclone.lock().unwrap();
+                        let comment_arcs: &mut Vec<Arc<Mutex<Comment>>> =
+                            comment_arcs_mutg.deref_mut();
+                        comment_arcs.push(Arc::clone(&comment_arc));
+                    },
+                );
+                let comment_arcs_mutg = comment_arcs_arc.lock().unwrap();
+                for c_arc in comment_arcs_mutg.deref() {
+                    let mut c_mutg = c_arc.lock().unwrap();
+                    let c = c_mutg.deref_mut();
+                    c.remove_all_replies();
+                    let c_id: u64 = c.get_id();
+                    self.comments_by_id.remove(&c_id);
+                    self.neutralize_comment(&c_id);
+                }
+                self.neutralize_video(video_id);
             }
-            self.neutralize_video(video_id);
+            //Remove video from SearchEngine:
+            self.for_specific_video(video_id, |video_arc: Arc<Mutex<VideoData>>| -> () {
+                let mut search_engine_mutg = self.search_engine_ref.lock().unwrap();
+                let search_engine = search_engine_mutg.deref_mut();
+                let searchable_id: u64 = {
+                    let video_mutg = video_arc.lock().unwrap();
+                    let video_data = video_mutg.deref();
+                    video_data.get_searchable_id()
+                };
+                search_engine.remove_document(&searchable_id);
+            });
+            //Remove video from database:
+            self.videos.remove(video_id).unwrap();
         }
     }
 
@@ -432,7 +451,18 @@ impl DataManager {
         self.videos.insert(*id, result_arc);
         self.videos_by_name.insert(final_name, *id);
 
+        //Add to SearchEngine:
+        self.for_specific_video(id, |video_arc: Arc<Mutex<VideoData>>| -> () {
+            let mut search_engine_mutg = self.search_engine_ref.lock().unwrap();
+            let search_engine = search_engine_mutg.deref_mut();
+            search_engine.add_document(video_arc).unwrap();
+        });
+
         Ok(())
+    }
+
+    fn for_specific_video<F: Fn(Arc<Mutex<VideoData>>)>(&self, video_id: &u64, action: F) {
+        action(self.get_video(video_id).unwrap());
     }
 
     ///Save the data to the database files and folders.
