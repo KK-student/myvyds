@@ -113,7 +113,7 @@ static SESSION_MANAGER: SessionManager<fn(&String, &String) -> bool> =
 static MANAGEMENT_CONSOLE: TextBasedManagementConsole<fn(&String, &String) -> bool> =
     TextBasedManagementConsole::new(&DATA_MANAGER, &PROCESSOR_MANAGER, &SESSION_MANAGER);
 static SEARCH_ENGINE: LazyLock<Mutex<SearchEngine>> =
-    LazyLock::new(|| -> Mutex<SearchEngine> { Mutex::new(SearchEngine::new()) });
+    LazyLock::new(|| -> Mutex<SearchEngine> { Mutex::new(SearchEngine::default()) });
 
 type ThumbnailImageProccessorType = LocalThumbnailImageProcessor;
 // static PROCESSOR_MANAGER: VideoProcessorManager<fn(u64) -> (), ThumbnailImageProccessorType> =

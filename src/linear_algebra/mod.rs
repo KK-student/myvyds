@@ -1,19 +1,20 @@
 use libm::sqrt;
 
 #[derive(Debug)]
-pub struct MathError {
+pub struct GenericError {
     message: String,
 }
 
-impl MathError {
+impl GenericError {
     pub fn new(message: String) -> Self {
         Self { message }
     }
 }
 
-fn dot_product_cpu(a: &[f64], b: &[f64]) -> Result<f64, MathError> {
+///Uses the cpu to get the dot product of 2 vectors. Returns a GenericError if the vectors are not of the same length or the length is 0.
+fn dot_product_cpu(a: &[f64], b: &[f64]) -> Result<f64, GenericError> {
     if (a.len() != b.len()) || a.is_empty() || b.is_empty() {
-        return Err(MathError {
+        return Err(GenericError {
             message: "Invalid vector sizes!".to_string(),
         });
     }
@@ -28,11 +29,13 @@ fn dot_product_cpu(a: &[f64], b: &[f64]) -> Result<f64, MathError> {
     Ok(sum)
 }
 
-pub fn dot_product(a: &[f64], b: &[f64]) -> Result<f64, MathError> {
+///Get the dot product of 2 vectors. Returns a GenericError if the vectors are not of the same length or the length is 0.
+pub fn dot_product(a: &[f64], b: &[f64]) -> Result<f64, GenericError> {
     dot_product_cpu(a, b)
 }
 
-pub fn magnitude(a: &[f64]) -> Result<f64, MathError> {
+///Gets the magnitude of a vector.
+pub fn magnitude(a: &[f64]) -> Result<f64, GenericError> {
     let dp: f64 = match dot_product(a, a) {
         Ok(val) => val,
         Err(e) => return Err(e),
@@ -40,7 +43,8 @@ pub fn magnitude(a: &[f64]) -> Result<f64, MathError> {
     Ok(sqrt(dp))
 }
 
-pub fn cosine_similarity(a: &[f64], b: &[f64]) -> Result<f64, MathError> {
+///Gets the cosine similarity between two vectors.
+pub fn cosine_similarity(a: &[f64], b: &[f64]) -> Result<f64, GenericError> {
     let dp_ab: f64 = match dot_product(a, b) {
         Ok(val) => val,
         Err(e) => return Err(e),

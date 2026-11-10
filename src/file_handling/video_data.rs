@@ -14,7 +14,6 @@ use crate::{
         likeable::Likeable,
         saveable::{Saveable, make_json_from_saveable_list},
     },
-    search_engine::searchable::compute_word_counts,
     time::get_current_time,
 };
 
@@ -368,34 +367,6 @@ impl VideoData {
             dislikes: 0,
             dirty: false,
         }));
-    }
-
-    pub fn get_name_word_counts(&self) -> HashMap<String, u64> {
-        compute_word_counts(self.get_name().as_str()).0
-    }
-
-    pub fn get_description_word_counts(&self) -> HashMap<String, u64> {
-        compute_word_counts(self.get_description().as_str()).0
-    }
-
-    pub fn get_combined_word_counts(&self) -> HashMap<String, u64> {
-        let term_freq_parts = [
-            self.get_name_word_counts(),
-            self.get_description_word_counts(),
-        ];
-        let mut result: HashMap<String, u64> = HashMap::new();
-
-        for term_freqs in term_freq_parts {
-            for (word, count) in term_freqs {
-                if result.contains_key(&word) {
-                    result.insert(word.clone(), result.get(&word).unwrap() + count);
-                } else {
-                    result.insert(word.clone(), count);
-                }
-            }
-        }
-
-        result
     }
 }
 
