@@ -105,15 +105,17 @@ static _GET_USER_FOR_SESSION_MANAGER_FUNC: fn(&String, &String) -> bool =
 static ON_FINISH_SUCCESS_FUNC: fn(u64) -> () = _on_finish_success_func;
 static ON_FINISH_FAIL_FUNC: fn(u64) -> () = _on_finish_fail_func;
 
+static SEARCH_ENGINE: LazyLock<Mutex<SearchEngine>> =
+    LazyLock::new(|| -> Mutex<SearchEngine> { Mutex::new(SearchEngine::default()) });
 static DATA_PATH: &str = "./data";
 static DATA_MANAGER: std::sync::LazyLock<Mutex<DataManager>> =
-    std::sync::LazyLock::new(|| -> Mutex<DataManager> { Mutex::new(DataManager::new(DATA_PATH)) });
+    std::sync::LazyLock::new(|| -> Mutex<DataManager> {
+        Mutex::new(DataManager::new(DATA_PATH, &SEARCH_ENGINE))
+    });
 static SESSION_MANAGER: SessionManager<fn(&String, &String) -> bool> =
     SessionManager::new(&_GET_USER_FOR_SESSION_MANAGER_FUNC);
 static MANAGEMENT_CONSOLE: TextBasedManagementConsole<fn(&String, &String) -> bool> =
     TextBasedManagementConsole::new(&DATA_MANAGER, &PROCESSOR_MANAGER, &SESSION_MANAGER);
-static SEARCH_ENGINE: LazyLock<Mutex<SearchEngine>> =
-    LazyLock::new(|| -> Mutex<SearchEngine> { Mutex::new(SearchEngine::default()) });
 
 type ThumbnailImageProccessorType = LocalThumbnailImageProcessor;
 // static PROCESSOR_MANAGER: VideoProcessorManager<fn(u64) -> (), ThumbnailImageProccessorType> =

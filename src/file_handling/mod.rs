@@ -105,14 +105,15 @@ use std::{
     ops::{Deref, DerefMut},
     path::PathBuf,
     str::FromStr,
-    sync::{Arc, Mutex},
+    sync::{Arc, LazyLock, Mutex},
 };
 
 use crate::{
     file_handling::{
         comment::*, dirty_data::*, likeable::*, saveable::Saveable, user::*, video_data::*,
     },
-    tests::TestingDefault,
+    search_engine::SearchEngine,
+    tests::{self, TestingDefault},
     time::get_current_time,
 };
 
@@ -165,6 +166,8 @@ pub struct DataManager {
     videos_by_name: HashMap<String, u64>,
     comments_by_id: HashMap<u64, Arc<Mutex<Comment>>>,
     data_path: String,
+
+    search_engine_ref: &'static LazyLock<Mutex<SearchEngine>>,
 }
 
 impl TestingDefault for DataManager {
@@ -175,19 +178,21 @@ impl TestingDefault for DataManager {
             videos_by_name: HashMap::new(),
             comments_by_id: HashMap::new(),
             data_path: "/dev/null".to_string(),
+            search_engine_ref: &crate::tests::TESTING_DEFAULT_SEARCH_ENGINE,
         }
     }
 }
 
 impl DataManager {
     ///Create a new DataManager, with the database in the data_path directory.
-    pub fn new(data_path: &str) -> Self {
+    pub fn new(data_path: &str, search_engine_ref: &'static LazyLock<Mutex<SearchEngine>>) -> Self {
         Self {
             users: HashMap::new(),
             videos: HashMap::new(),
             videos_by_name: HashMap::new(),
             comments_by_id: HashMap::new(),
             data_path: String::from_str(data_path).unwrap(),
+            search_engine_ref,
         }
     }
 

@@ -6,10 +6,14 @@ use std::{
 
 use crate::{
     DATA_MANAGER, PROCESSOR_MANAGER, file_handling::video_processing::video_processor::BoolBox,
+    search_engine::SearchEngine,
 };
 
 static DATA_INIT_STATE: LazyLock<Mutex<BoolBox>> =
     LazyLock::new(|| -> Mutex<BoolBox> { Mutex::new(BoolBox::new(false)) });
+
+pub static TESTING_DEFAULT_SEARCH_ENGINE: LazyLock<Mutex<SearchEngine>> =
+    LazyLock::new(|| -> Mutex<SearchEngine> { Mutex::new(SearchEngine::default()) });
 
 pub static DEFAULT_PASSWORD: &str = "password123456789";
 

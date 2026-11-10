@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fmt::Debug,
     ops::{Deref, DerefMut},
     sync::{Arc, Mutex},
 };
@@ -178,5 +179,19 @@ impl SearchEngine {
 impl Default for SearchEngine {
     fn default() -> Self {
         SearchEngine::new(100_000_000)
+    }
+}
+
+impl Debug for SearchEngine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SearchEngine")
+            .field("documents", &self.documents)
+            .field("title_field", &self.title_field)
+            .field("body_field", &self.body_field)
+            .field("id_field", &self.id_field)
+            .field("schema", &self.schema)
+            .field("index", &self.index)
+            .field("searcher", &self.searcher)
+            .finish()
     }
 }
