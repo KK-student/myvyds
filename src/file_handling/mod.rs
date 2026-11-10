@@ -675,6 +675,13 @@ impl DataManager {
             });
         }
 
+        //Add videos to search engine:
+        self.for_all_videos(|video_data_arc: Arc<Mutex<VideoData>>| -> () {
+            let mut search_engine_ref_mutg = self.search_engine_ref.lock().unwrap();
+            let search_engine = search_engine_ref_mutg.deref_mut();
+            search_engine.add_document(video_data_arc).unwrap();
+        });
+
         println!("Data loaded. ");
     }
 
