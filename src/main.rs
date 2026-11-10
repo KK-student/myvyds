@@ -34,7 +34,7 @@ use crate::{
         ManagementConsole, text_based_management_console::TextBasedManagementConsole,
     },
     misc::collections::{DynClone, DynCloneBox},
-    search_engine::SearchEngine,
+    search_engine::SEARCH_ENGINE_DEFAULT_MEM_BUDGET,
     session_manager::SessionManager,
     tests::DEFAULT_PASSWORD,
     user_main::{
@@ -60,33 +60,6 @@ mod time;
 mod user_main;
 mod video_main;
 
-// mod multipart_form;
-
-// #[get("/")]
-// async fn hello() -> impl Responder {
-//     HttpResponse::Ok().body("Hello world!")
-// }
-//
-// async fn manual_hello() -> impl Responder {
-//     HttpResponse::Ok().body("Hey there!")
-// }
-
-// async fn get_lofi_music() -> impl Responder {
-//     let file_path_str = "./media/coding music synthwave beats to program to-fhL67fnDXcU-av.webm";
-//     let reader_stream: ReaderStream<tokio::fs::File> = match file_stream_reader(file_path_str).await
-//     {
-//         Ok(r) => r,
-//         Err(e) => {
-//             return HttpResponse::Ok()
-//                 .body(format!("<!DOCTYPE html><html><head><title>Error</title></head><body><p>Error: {}</p></body></html>", e.to_string()));
-//         }
-//     };
-//     return HttpResponse::Ok()
-//         .content_type(get_mime_type(std::path::Path::new(file_path_str)))
-//         //.insert_header(ContentDisposition::attachment(String::from(filename)))
-//         .streaming(reader_stream);
-// }
-
 pub fn _get_user_for_session_manager(user_id: &String, password_hash: &String) -> bool {
     let data_manager_mutg = DATA_MANAGER.lock().unwrap();
     let data_manager = data_manager_mutg.deref();
@@ -105,12 +78,13 @@ static _GET_USER_FOR_SESSION_MANAGER_FUNC: fn(&String, &String) -> bool =
 static ON_FINISH_SUCCESS_FUNC: fn(u64) -> () = _on_finish_success_func;
 static ON_FINISH_FAIL_FUNC: fn(u64) -> () = _on_finish_fail_func;
 
-static SEARCH_ENGINE: LazyLock<Mutex<SearchEngine>> =
-    LazyLock::new(|| -> Mutex<SearchEngine> { Mutex::new(SearchEngine::default()) });
 static DATA_PATH: &str = "./data";
 static DATA_MANAGER: std::sync::LazyLock<Mutex<DataManager>> =
     std::sync::LazyLock::new(|| -> Mutex<DataManager> {
-        Mutex::new(DataManager::new(DATA_PATH, &SEARCH_ENGINE))
+        Mutex::new(DataManager::new(
+            DATA_PATH,
+            SEARCH_ENGINE_DEFAULT_MEM_BUDGET,
+        ))
     });
 static SESSION_MANAGER: SessionManager<fn(&String, &String) -> bool> =
     SessionManager::new(&_GET_USER_FOR_SESSION_MANAGER_FUNC);
@@ -118,14 +92,6 @@ static MANAGEMENT_CONSOLE: TextBasedManagementConsole<fn(&String, &String) -> bo
     TextBasedManagementConsole::new(&DATA_MANAGER, &PROCESSOR_MANAGER, &SESSION_MANAGER);
 
 type ThumbnailImageProccessorType = LocalThumbnailImageProcessor;
-// static PROCESSOR_MANAGER: VideoProcessorManager<fn(u64) -> (), ThumbnailImageProccessorType> =
-//     VideoProcessorManager::new(
-//         LazyLock::new(|| -> Mutex<MutableBox<String>> {
-//             Mutex::new(MutableBox::new(Some(DATA_PATH.to_string())))
-//         }),
-//         ON_FINISH_SUCCESS_FUNC,
-//         ON_FINISH_FAIL_FUNC,
-//     );
 static PROCESSOR_MANAGER: VideoProcessorManager<fn(u64) -> (), ThumbnailImageProccessorType> =
     VideoProcessorManager::const_default();
 
@@ -137,17 +103,13 @@ pub fn _on_finish_proc_func(video_id: u64) {
     let video = video_mutg.deref_mut();
     video.set_finished_processing(true);
 }
-pub fn _on_finish_success_func(video_id: u64) -> () {
+pub fn _on_finish_success_func(video_id: u64) {
     _on_finish_proc_func(video_id);
 }
 
-pub fn _on_finish_fail_func(video_id: u64) -> () {
+pub fn _on_finish_fail_func(video_id: u64) {
     _on_finish_proc_func(video_id);
 }
-
-//Globally used command line options:
-// static TESTING_MODE: LazyLock<Mutex<BoolBox>> =
-//     LazyLock::new(|| -> Mutex<BoolBox> { Mutex::new(BoolBox::new(false)) });
 
 ///Given the multipart form data (payload), this parses all of the form data and stores it in the given HashMap (result).
 async fn parse_form_data(payload: &mut Multipart, result: &mut HashMap<String, Vec<u8>>) {

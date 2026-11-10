@@ -167,7 +167,8 @@ pub struct DataManager {
     comments_by_id: HashMap<u64, Arc<Mutex<Comment>>>,
     data_path: String,
 
-    search_engine_ref: &'static LazyLock<Mutex<SearchEngine>>,
+    // search_engine_ref: &'static LazyLock<Mutex<SearchEngine>>,
+    search_engine_arc: Arc<Mutex<SearchEngine>>,
 }
 
 impl TestingDefault for DataManager {
@@ -178,21 +179,22 @@ impl TestingDefault for DataManager {
             videos_by_name: HashMap::new(),
             comments_by_id: HashMap::new(),
             data_path: "/dev/null".to_string(),
-            search_engine_ref: &crate::tests::TESTING_DEFAULT_SEARCH_ENGINE,
+            // search_engine_ref: &crate::tests::TESTING_DEFAULT_SEARCH_ENGINE,
+            search_engine_arc: Arc::new(Mutex::new(SearchEngine::default())),
         }
     }
 }
 
 impl DataManager {
     ///Create a new DataManager, with the database in the data_path directory.
-    pub fn new(data_path: &str, search_engine_ref: &'static LazyLock<Mutex<SearchEngine>>) -> Self {
+    pub fn new(data_path: &str, memory_budget_in_bytes: usize) -> Self {
         Self {
             users: HashMap::new(),
             videos: HashMap::new(),
             videos_by_name: HashMap::new(),
             comments_by_id: HashMap::new(),
             data_path: String::from_str(data_path).unwrap(),
-            search_engine_ref,
+            search_engine_arc: Arc::new(Mutex::new(SearchEngine::new(memory_budget_in_bytes))),
         }
     }
 
@@ -275,7 +277,7 @@ impl DataManager {
             }
             //Remove video from SearchEngine:
             self.for_specific_video(video_id, |video_arc: Arc<Mutex<VideoData>>| -> () {
-                let mut search_engine_mutg = self.search_engine_ref.lock().unwrap();
+                let mut search_engine_mutg = self.search_engine_arc.lock().unwrap();
                 let search_engine = search_engine_mutg.deref_mut();
                 let searchable_id: u64 = {
                     let video_mutg = video_arc.lock().unwrap();
@@ -453,7 +455,7 @@ impl DataManager {
 
         //Add to SearchEngine:
         self.for_specific_video(id, |video_arc: Arc<Mutex<VideoData>>| -> () {
-            let mut search_engine_mutg = self.search_engine_ref.lock().unwrap();
+            let mut search_engine_mutg = self.search_engine_arc.lock().unwrap();
             let search_engine = search_engine_mutg.deref_mut();
             search_engine.add_document(video_arc).unwrap();
         });
@@ -707,7 +709,7 @@ impl DataManager {
 
         //Add videos to search engine:
         self.for_all_videos(|video_data_arc: Arc<Mutex<VideoData>>| -> () {
-            let mut search_engine_ref_mutg = self.search_engine_ref.lock().unwrap();
+            let mut search_engine_ref_mutg = self.search_engine_arc.lock().unwrap();
             let search_engine = search_engine_ref_mutg.deref_mut();
             search_engine.add_document(video_data_arc).unwrap();
         });

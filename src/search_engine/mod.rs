@@ -21,6 +21,8 @@ use crate::{
 
 pub mod searchable;
 
+pub static SEARCH_ENGINE_DEFAULT_MEM_BUDGET: usize = 100_000_000;
+
 pub struct SearchEngine {
     // documents: Vec<Arc<Mutex<dyn Searchable>>>,
     documents: HashMap<u64, Arc<Mutex<dyn Searchable>>>,
@@ -178,7 +180,7 @@ impl SearchEngine {
 
 impl Default for SearchEngine {
     fn default() -> Self {
-        SearchEngine::new(100_000_000)
+        SearchEngine::new(SEARCH_ENGINE_DEFAULT_MEM_BUDGET)
     }
 }
 
