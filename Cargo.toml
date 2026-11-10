@@ -19,6 +19,7 @@ tokio = {version = "1.53.1", features = ["fs"]}
 tokio-util = "0.7.19"
 posix-regex = {version = "0.1.4", features = ["no_std"]}
 libm = "0.2.16"
+tantivy = "0.27.0"
 
 # Test dependencies (to remove from this section later): 
 #curl = {version = "0.4.50"}
