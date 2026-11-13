@@ -35,6 +35,7 @@ use crate::{
         ManagementConsole, text_based_management_console::TextBasedManagementConsole,
     },
     misc::collections::{DynClone, DynCloneBox},
+    other_main::search_endpoint,
     session_manager::SessionManager,
     tests::DEFAULT_PASSWORD,
     user_main::{
@@ -44,7 +45,7 @@ use crate::{
     },
     video_main::{
         get_comments_page, get_video_basic_info, get_video_file, get_video_thumbnail_image,
-        is_currently_processing, is_online, search_by_name, video_upload_endpoint,
+        is_currently_processing, is_online, video_upload_endpoint,
     },
 };
 
@@ -53,6 +54,7 @@ mod file_handling;
 mod linear_algebra;
 mod management_console;
 mod misc;
+mod other_main;
 mod session_manager;
 mod tests;
 mod time;
@@ -153,7 +155,7 @@ pub fn build_app() -> App<
         .service(comment_edit_endpoint)
         .service(comment_add_reply_endpoint)
         .service(comment_remove_endpoint)
-        .service(search_by_name);
+        .service(search_endpoint);
     if cfg!(test) {
         app = app.service(is_online);
     }

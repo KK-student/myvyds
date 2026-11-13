@@ -967,6 +967,17 @@ impl DataManager {
         result
     }
 
+    ///Search for publicly available info:
+    pub fn search(
+        &self,
+        query_str: &str,
+        max_num_results: usize,
+    ) -> Vec<Arc<Mutex<dyn Searchable>>> {
+        let search_engine_mutg = self.search_engine_arc.lock().unwrap();
+        let search_engine = search_engine_mutg.deref();
+        search_engine.search(query_str, max_num_results)
+    }
+
     ///Add a reply to the comment with the specified comment id (comment_id), returning the comment id of the newly created reply if successful.
     pub fn reply_comment(
         &mut self,
