@@ -105,7 +105,7 @@ impl<F: Fn(&String, &String) -> bool + std::marker::Send + std::marker::Sync + '
         >,
         session_manager: &'static SessionManager<F>,
     ) -> Self {
-        return Self {
+        Self {
             data_manager,
             data_manager_user_container: DataManagerUserContainer { dm: data_manager },
             data_manager_video_data_container: DataManagerVideoDataContainer { dm: data_manager },
@@ -115,7 +115,7 @@ impl<F: Fn(&String, &String) -> bool + std::marker::Send + std::marker::Sync + '
                 vpm: processor_manager,
             },
             session_manager,
-        };
+        }
     }
 }
 
@@ -155,7 +155,7 @@ vvideos -> Show a list of all videos.
 vvideo -> Show the basic information for a video. 
 add_video -> Add a new video. 
 remove_video -> Remove a video. 
-edit_video -> Edit a video. 
+edit_video -> Edit a video. (Unimplemented)
 
 Session management: 
 vsessions -> Show a list of all active sessions (and when they expire). 
@@ -716,6 +716,9 @@ To quit, press Ctrl+C. ";
                                 num => todo!("Error: Unimplemented menu option ({num})!"),
                             };
                         }
+                        let mut data_manager_mutg = self.data_manager.lock().unwrap();
+                        let data_manager = data_manager_mutg.deref_mut();
+                        data_manager.update_user(&user_id);
                     }
                     "vcomment" => {
                         //View a comment:

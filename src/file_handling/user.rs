@@ -7,10 +7,12 @@ use std::{
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use json_escape::escape_str;
 use serde_json::Value;
+use simple_search_engine_lib::searchable::Searchable;
 
 use crate::file_handling::{
     comment::Comment,
     dirty_data::DirtyData,
+    document_type_ids::USER_TYPE_ID,
     saveable::{Saveable, make_json_list_from_strings, make_json_list_from_u64_list},
 };
 
@@ -31,6 +33,37 @@ pub struct User {
     disliked_comments: Box<Vec<u64>>,
 
     dirty: bool,
+
+    searchable_id: u64,
+}
+
+impl Searchable for User {
+    fn set_searchable_id(&mut self, id: u64) {
+        self.searchable_id = id;
+    }
+
+    fn get_searchable_id(&self) -> u64 {
+        self.searchable_id
+    }
+
+    fn get_searchable_title(&self) -> String {
+        self.get_user_id()
+    }
+
+    fn get_searchable_contents(&self) -> String {
+        self.get_description()
+    }
+
+    fn get_document_type(&self) -> u64 {
+        Self::get_class_document_type()
+    }
+
+    fn get_class_document_type() -> u64
+    where
+        Self: Sized,
+    {
+        USER_TYPE_ID
+    }
 }
 
 impl User {
@@ -148,6 +181,7 @@ impl User {
             liked_comments: liked_comments.clone(),
             disliked_comments: disliked_comments.clone(),
             dirty: false,
+            searchable_id: 0,
         }));
     }
 

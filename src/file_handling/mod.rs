@@ -230,6 +230,11 @@ impl DataManager {
         }
     }
 
+    ///Execute a function (action) on a specific user in the DataManager.
+    pub fn for_specific_user<F: Fn(Arc<Mutex<User>>)>(&self, user_id: &String, action: F) {
+        action(self.get_user(user_id).unwrap())
+    }
+
     ///Whether or not if this DataManager has a user with the specified user id (user_id) or not.
     pub fn has_user(&self, user_id: &String) -> bool {
         self.get_user(user_id).is_some()
@@ -238,14 +243,21 @@ impl DataManager {
     ///Remove the user with the specified user id (user_id).
     pub fn remove_user(&mut self, user_id: &String) {
         if self.has_user(user_id) {
-            //Remove user from users map:
-            let deleted_user_arc: Arc<Mutex<User>> = self.users.remove(user_id).unwrap();
-            let deleted_user_mutg = deleted_user_arc.lock().unwrap();
-            let deleted_user: &User = deleted_user_mutg.deref();
-            //Delete all videos and their comments:
-            for video_id in deleted_user.get_videos().iter() {
-                self.remove_video(video_id);
-            }
+            let searchable_id: u64 = {
+                //Remove user from users map:
+                let deleted_user_arc: Arc<Mutex<User>> = self.users.remove(user_id).unwrap();
+                let deleted_user_mutg = deleted_user_arc.lock().unwrap();
+                let deleted_user: &User = deleted_user_mutg.deref();
+                //Delete all videos and their comments:
+                for video_id in deleted_user.get_videos().iter() {
+                    self.remove_video(video_id);
+                }
+                deleted_user.get_searchable_id()
+            };
+            //Remove user from search engine:
+            let mut search_engine_mutg = self.search_engine_arc.lock().unwrap();
+            let search_engine = search_engine_mutg.deref_mut();
+            search_engine.remove_document_by_searchable_id(&searchable_id);
         }
     }
 
@@ -349,7 +361,11 @@ impl DataManager {
             &Box::new(Vec::new()),
         );
         //Add the new user:
-        self.users.insert(user_id.clone(), user_arc);
+        self.users.insert(user_id.clone(), user_arc.clone());
+        //Add the user to the SearchEngine:
+        let mut search_engine_mutg = self.search_engine_arc.lock().unwrap();
+        let search_engine = search_engine_mutg.deref_mut();
+        search_engine.add_document(user_arc);
     }
 
     //Get an Arc<Mutex<>> pointer that points to the video in the DataManager by it's video_id.
@@ -720,6 +736,12 @@ impl DataManager {
             let search_engine = search_engine_ref_mutg.deref_mut();
             search_engine.add_document(video_data_arc);
         });
+        //Add users to search engine:
+        self.for_all_users(|user_arc: Arc<Mutex<User>>| -> () {
+            let mut search_engine_ref_mutg = self.search_engine_arc.lock().unwrap();
+            let search_engine = search_engine_ref_mutg.deref_mut();
+            search_engine.add_document(user_arc);
+        });
 
         println!("Data loaded. ");
     }
@@ -937,36 +959,6 @@ impl DataManager {
         comment.set_edited(true);
     }
 
-    ///Search for an item by it's name.
-    pub fn search_video_by_name(
-        &self,
-        name: &str,
-        max_num_results: usize,
-    ) -> HashMap<String, (u64, String, u64)> {
-        let mut result: HashMap<String, (u64, String, u64)> = HashMap::new();
-        let search_engine_mutg = self.search_engine_arc.lock().unwrap();
-        let search_engine = search_engine_mutg.deref();
-        for search_result_arc in search_engine.search(name, max_num_results) {
-            let search_result_mutg = search_result_arc.lock().unwrap();
-            let search_result = search_result_mutg.deref();
-            // let title: String = search_result.get_searchable_title();
-            //TODO: Cast the search result into a VideoData object and add a function to the SearchEngine to search only for items of a specific type.
-            if dyn_searchable_is_type::<VideoData>(search_result) {
-                let video_data: &VideoData =
-                    cast_dyn_searchable::<VideoData>(search_result).unwrap();
-                let title = video_data.get_name();
-                let id: u64 = video_data.get_id();
-                let author = video_data.get_author();
-                let uploaded_time: u64 = video_data.get_uploaded_time();
-                result.insert(title, (id, author, uploaded_time));
-            } else {
-                unimplemented!("One or more of the search results is not a video!");
-            }
-        }
-
-        result
-    }
-
     ///Search for publicly available info:
     pub fn search(
         &self,
@@ -976,6 +968,36 @@ impl DataManager {
         let search_engine_mutg = self.search_engine_arc.lock().unwrap();
         let search_engine = search_engine_mutg.deref();
         search_engine.search(query_str, max_num_results)
+    }
+
+    ///Update a document in the SearchEngine.
+    pub fn update_document(&mut self, document_arc: Arc<Mutex<dyn Searchable>>) {
+        let mut search_engine_mutg = self.search_engine_arc.lock().unwrap();
+        let search_engine = search_engine_mutg.deref_mut();
+        search_engine.update_document(document_arc);
+    }
+
+    ///Update a document in the SearchEngine.
+    pub fn update_document_by_searchable_id(&mut self, searchable_id: &u64) {
+        let mut search_engine_mutg = self.search_engine_arc.lock().unwrap();
+        let search_engine = search_engine_mutg.deref_mut();
+        if search_engine.has_searchable_id(searchable_id) {
+            search_engine.update_document(search_engine.get_document_by_id(searchable_id).unwrap());
+        }
+    }
+
+    ///Updates a video in the SearchEngine.
+    pub fn update_video(&mut self, video_id: &u64) {
+        if self.has_video_by_id(video_id) {
+            self.update_document(self.get_video(video_id).unwrap());
+        }
+    }
+
+    ///Updates a user in the SearchEngine.
+    pub fn update_user(&mut self, user_id: &String) {
+        if self.has_user(user_id) {
+            self.update_document(self.get_user(user_id).unwrap());
+        }
     }
 
     ///Add a reply to the comment with the specified comment id (comment_id), returning the comment id of the newly created reply if successful.
