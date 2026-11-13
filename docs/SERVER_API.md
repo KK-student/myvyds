@@ -9,17 +9,35 @@
 
 3. Client then sends GET requests to server with path "/video/get_video_file/[video_id]/[MPEG_DASH segment file]" to get each MPEG_DASH segment file to play the video. If video_id is valid and the requested file exists, then server sends OK response with the body being the contents of the requested file. Otherwise, server sends error response with error code 404.
 
-### Searching for videos based on their name:
+### Searching for almost anything publicly available in the database:
 
-1. Client sends a GET request to the server with path "/video/search_vid_name?vid_name=[User's input from the search bar]".
+1. Client sends a GET request to the server with path "/search?query=[Search query in the format the tantivy crate uses]".
 
-2. If `vid_name` is not empty: Server then sends an OK response with the list of up to 50 video id's that best match the search terms, in the following JSON format:
+2. If `query` is not empty or invalid: Server then sends an OK response with the list of up to 150 best matches, in the following JSON format:
 ```json
-  {
-    "result": [[video name]: {"id": [video_id of the video], "author": [author's user_id], "uploaded_time": [time uploaded in secs since epoch in u64]}],
-  }
+{
+  "result": [{
+    "doc_type":[A u64 indicating the type document being represented (0 for video, 1 for comment/reply, 2 for user)],
+    "id":[The id the object being represented - either a u64 (if it's a video or comment/reply) or a string (if it's a user)]
+  }, ...]
+}
 ```
-Otherwise: Server sends an error response with the error code of 400. 
+Otherwise: Server sends an error response with the error code of 400.
+
+Available tantivy fields:
+
+- "title":
+    Type: String,
+    Description: The title of the document.
+- "body":
+    Type: String,
+    Description: The body of the document. For a comment, this is just the comment's text. For a user, this is just the user's description. For a video, this will be the description + a transcription of the video (if available).
+- "id":
+    Type: u64,
+    Description: An identifier that the search engine uses to keep track of all the documents. For internal use only. THIS IS NOT THE SAME AS A COMMENT, VIDEO, OR USER ID!
+- "doc_type":
+    Type: u64,
+    Description: Represents the type of document (0 for video, 1 for comment/reply, 2 for user). 
 
 ### Getting a video by name:
 
