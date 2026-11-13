@@ -89,6 +89,7 @@
 pub mod comment;
 pub mod describable;
 mod dirty_data;
+pub mod document_type_ids;
 pub mod from_json;
 pub mod likeable;
 pub mod saveable;
@@ -112,13 +113,16 @@ use crate::{
     file_handling::{
         comment::*, dirty_data::*, likeable::*, saveable::Saveable, user::*, video_data::*,
     },
-    search_engine::{self, SearchEngine, searchable::Searchable},
     tests::{self, TestingDefault},
     time::get_current_time,
 };
 
 use rand::RngExt;
 use serde_json::Value;
+use simple_search_engine_lib::{
+    SearchEngine,
+    searchable::{Searchable, cast_dyn_searchable, dyn_searchable_is_type},
+};
 use tokio::fs::File;
 use tokio_util::io::ReaderStream;
 
@@ -138,6 +142,8 @@ pub async fn file_stream_reader(file_path_str: &str) -> Result<ReaderStream<File
 
     Ok(video_stream)
 }
+
+pub static DEFAULT_MAX_SEARCH_RESULTS: usize = 50;
 
 ///Read a file and returns it's contents as a Vec of bytes if successful. If not, return an error. Do not use on large files as it will use up a lot of RAM! Note: This function prepends "./" to the beginning of the file path!
 pub fn read_small_file(file_path_str: &str) -> Result<Vec<u8>, std::io::Error> {
@@ -284,7 +290,8 @@ impl DataManager {
                     let video_data = video_mutg.deref();
                     video_data.get_searchable_id()
                 };
-                search_engine.remove_document(&searchable_id);
+                // search_engine.remove_document(&searchable_id);
+                search_engine.remove_document_by_searchable_id(&searchable_id);
             });
             //Remove video from database:
             self.videos.remove(video_id).unwrap();
@@ -457,7 +464,7 @@ impl DataManager {
         self.for_specific_video(id, |video_arc: Arc<Mutex<VideoData>>| -> () {
             let mut search_engine_mutg = self.search_engine_arc.lock().unwrap();
             let search_engine = search_engine_mutg.deref_mut();
-            search_engine.add_document(video_arc).unwrap();
+            search_engine.add_document(video_arc);
         });
 
         Ok(())
@@ -711,7 +718,7 @@ impl DataManager {
         self.for_all_videos(|video_data_arc: Arc<Mutex<VideoData>>| -> () {
             let mut search_engine_ref_mutg = self.search_engine_arc.lock().unwrap();
             let search_engine = search_engine_ref_mutg.deref_mut();
-            search_engine.add_document(video_data_arc).unwrap();
+            search_engine.add_document(video_data_arc);
         });
 
         println!("Data loaded. ");
@@ -930,10 +937,32 @@ impl DataManager {
         comment.set_edited(true);
     }
 
-    ///Search for a video by it's name.
-    pub fn search_by_name(&self, name: &String) -> HashMap<String, (u64, String, u64)> {
+    ///Search for an item by it's name.
+    pub fn search_video_by_name(
+        &self,
+        name: &str,
+        max_num_results: usize,
+    ) -> HashMap<String, (u64, String, u64)> {
         let mut result: HashMap<String, (u64, String, u64)> = HashMap::new();
-        //TODO: Implement the TF-IDF algorithm.
+        let search_engine_mutg = self.search_engine_arc.lock().unwrap();
+        let search_engine = search_engine_mutg.deref();
+        for search_result_arc in search_engine.search(name, max_num_results) {
+            let search_result_mutg = search_result_arc.lock().unwrap();
+            let search_result = search_result_mutg.deref();
+            // let title: String = search_result.get_searchable_title();
+            //TODO: Cast the search result into a VideoData object and add a function to the SearchEngine to search only for items of a specific type.
+            if dyn_searchable_is_type::<VideoData>(search_result) {
+                let video_data: &VideoData =
+                    cast_dyn_searchable::<VideoData>(search_result).unwrap();
+                let title = video_data.get_name();
+                let id: u64 = video_data.get_id();
+                let author = video_data.get_author();
+                let uploaded_time: u64 = video_data.get_uploaded_time();
+                result.insert(title, (id, author, uploaded_time));
+            } else {
+                unimplemented!("One or more of the search results is not a video!");
+            }
+        }
 
         result
     }

@@ -6,15 +6,16 @@ use std::{
 
 use json_escape::escape_str;
 use serde_json::Value;
+use simple_search_engine_lib::searchable::Searchable;
 
 use crate::{
     file_handling::{
         comment::Comment,
         dirty_data::DirtyData,
+        document_type_ids::VIDEO_DATA_TYPE_ID,
         likeable::Likeable,
         saveable::{Saveable, make_json_from_saveable_list},
     },
-    search_engine::searchable::Searchable,
     time::get_current_time,
 };
 
@@ -447,5 +448,16 @@ impl Searchable for VideoData {
 
     fn get_searchable_contents(&self) -> String {
         self.get_description()
+    }
+
+    fn get_document_type(&self) -> u64 {
+        Self::get_class_document_type()
+    }
+
+    fn get_class_document_type() -> u64
+    where
+        Self: Sized,
+    {
+        VIDEO_DATA_TYPE_ID
     }
 }

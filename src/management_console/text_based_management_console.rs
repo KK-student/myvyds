@@ -248,14 +248,16 @@ To quit, press Ctrl+C. ";
 \tnumber of likes: \"{}\"
 \tnumber of dislikes: \"{}\"
 \tnumber of comments: \"{}\"
-\tcomment ids: \"{:?}\"",
+\tcomment ids: \"{:?}\"
+\tname: \"{}\"",
                         video_data_obj.get_id(),
                         video_data_obj.get_author(),
                         video_data_obj.get_description(),
                         video_data_obj.get_likes(),
                         video_data_obj.get_dislikes(),
                         video_data_obj.get_num_comments(),
-                        comment_ids
+                        comment_ids,
+                        video_data_obj.get_name(),
                     );
                 }
                 fn view_comment_obj(comment_obj: &Comment) {

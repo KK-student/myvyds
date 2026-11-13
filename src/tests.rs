@@ -4,9 +4,10 @@ use std::{
     sync::{LazyLock, Mutex},
 };
 
+use simple_search_engine_lib::SearchEngine;
+
 use crate::{
     DATA_MANAGER, PROCESSOR_MANAGER, file_handling::video_processing::video_processor::BoolBox,
-    search_engine::SearchEngine,
 };
 
 static DATA_INIT_STATE: LazyLock<Mutex<BoolBox>> =
@@ -49,19 +50,19 @@ pub fn initialize_test_data() {
 #[cfg(test)]
 pub mod test_functions {
     use std::{
-        collections::HashMap,
         ops::{Deref, DerefMut},
         sync::{Arc, Mutex},
     };
 
     use argon2::{Argon2, PasswordHasher};
-    use libm::log10;
     use rand::RngExt;
+    use simple_search_engine_lib::searchable::Searchable;
 
     use crate::{
         DATA_MANAGER,
-        file_handling::user::User,
-        search_engine::{compute_idfs, searchable::compute_term_frequencies},
+        file_handling::{
+            DEFAULT_MAX_SEARCH_RESULTS, document_type_ids::SAMPLE_TEST_DOCUMENT_TYPE_ID, user::User,
+        },
     };
 
     use super::*;
@@ -177,88 +178,71 @@ pub mod test_functions {
         );
     }
 
-    const DOCUMENT_TEXTS: [&str; 3] = [
-        "the cats are in the house",
-        "the dogs are in the house and outside",
-        "the cats and dogs are friends",
-    ];
-    const DOCUMENT_WORDS: [&str; 9] = [
-        "the", "cats", "are", "in", "house", "dogs", "and", "outside", "friends",
-    ];
+    #[derive(Debug)]
+    struct SampleTestDocument {
+        id: u64,
+        title: String,
+        contents: String,
+    }
 
-    #[test]
-    pub fn test_tfidf_term_frequencies() {
-        assert_eq!(DOCUMENT_TEXTS.len(), 3);
-        assert_eq!(DOCUMENT_WORDS.len(), 9);
-
-        let o26: f64 = 2.0 / 6.0;
-        let o16: f64 = 1.0 / 6.0;
-        let o18: f64 = 1.0 / 8.0;
-        let correct_term_freqs: [[f64; 9]; 3] = [
-            [o26, o16, o16, o16, o16, 0.0, 0.0, 0.0, 0.0],
-            [0.25, 0.0, o18, o18, o18, o18, o18, o18, 0.0],
-            [o16, o16, o16, 0.0, 0.0, o16, o16, 0.0, o16],
-        ];
-
-        {
-            let mut di: usize = 0;
-            while di < DOCUMENT_TEXTS.len() {
-                let dtfs = compute_term_frequencies(DOCUMENT_TEXTS[di]).unwrap();
-                println!("dtfs: \n{:#?}", dtfs);
-
-                let mut wi: usize = 0;
-                while wi < DOCUMENT_WORDS.len() {
-                    let lhs = match dtfs.get(DOCUMENT_WORDS[wi]) {
-                        Some(val) => *val,
-                        None => 0.0,
-                    };
-                    let rhs = correct_term_freqs[di][wi];
-                    assert_eq!(lhs, rhs);
-                    wi += 1;
-                }
-                di += 1;
+    impl SampleTestDocument {
+        pub fn new(id: u64, title: String, contents: String) -> Self {
+            Self {
+                id,
+                title,
+                contents,
             }
         }
     }
 
-    #[test]
-    pub fn test_tfidf_idfs() {
-        assert_eq!(DOCUMENT_TEXTS.len(), 3);
-        assert_eq!(DOCUMENT_WORDS.len(), 9);
-
-        let l3o2: f64 = log10(3.0 / 2.0);
-        let l3o1: f64 = log10(3.0 / 1.0);
-        let correct_idfs: [[f64; 9]; 3] = [
-            [0.0, l3o2, 0.0, l3o2, l3o2, 0.0, 0.0, 0.0, 0.0],
-            [0., 0., 0., l3o2, l3o2, l3o2, l3o2, l3o1, 0.],
-            [0., l3o2, 0., 0., 0., l3o2, l3o2, 0., l3o1],
-        ];
-
-        let document_tfs: [HashMap<String, f64>; 3] = [
-            compute_term_frequencies(DOCUMENT_TEXTS[0]).unwrap(),
-            compute_term_frequencies(DOCUMENT_TEXTS[1]).unwrap(),
-            compute_term_frequencies(DOCUMENT_TEXTS[2]).unwrap(),
-        ];
-        let computed_idfs = compute_idfs(&document_tfs);
-
-        let mut di: usize = 0;
-        while di < DOCUMENT_TEXTS.len() {
-            let mut wi: usize = 0;
-            while wi < DOCUMENT_WORDS.len() {
-                let word: &str = DOCUMENT_WORDS[wi];
-                print!("Document #{}, word = \"{word}\": ", di + 1);
-                assert_eq!(
-                    match computed_idfs.get(di).unwrap().get(&word.to_string()) {
-                        Some(val) => *val,
-                        None => 0.0,
-                    },
-                    correct_idfs[di][wi]
-                );
-                println!("OK. ");
-                wi += 1;
-            }
-            di += 1;
+    impl Searchable for SampleTestDocument {
+        fn set_searchable_id(&mut self, id: u64) {
+            self.id = id;
         }
+
+        fn get_searchable_id(&self) -> u64 {
+            self.id
+        }
+
+        fn get_searchable_title(&self) -> String {
+            self.title.clone()
+        }
+
+        fn get_searchable_contents(&self) -> String {
+            self.contents.clone()
+        }
+
+        fn get_document_type(&self) -> u64 {
+            Self::get_class_document_type()
+        }
+
+        fn get_class_document_type() -> u64
+        where
+            Self: Sized,
+        {
+            SAMPLE_TEST_DOCUMENT_TYPE_ID
+        }
+    }
+
+    #[test]
+    pub fn test_search() {
+        let mut search_engine: SearchEngine = SearchEngine::default();
+
+        let mut sample_documents: Vec<Arc<Mutex<SampleTestDocument>>> = Vec::new();
+        sample_documents.push(Arc::new(Mutex::new(SampleTestDocument::new(
+            0,
+            "Lorem ipsum blah blah blah".to_string(),
+            "Lorem ipsum blah blah blah".to_string(),
+        ))));
+
+        for document_arc in sample_documents {
+            search_engine.add_document(document_arc);
+        }
+        println!("Search engine: \n{:#?}", search_engine);
+
+        let result = search_engine.search("blah", DEFAULT_MAX_SEARCH_RESULTS);
+        println!("Results: {:?}", result);
+        assert_ne!(result.len(), 0);
     }
 }
 

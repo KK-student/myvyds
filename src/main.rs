@@ -17,6 +17,7 @@ use actix_web::{
     body::MessageBody,
     dev::{ServiceFactory, ServiceRequest, ServiceResponse},
 };
+use simple_search_engine_lib::DEFAULT_MEMORY_BUDGET;
 
 use crate::{
     comment_main::{
@@ -34,7 +35,6 @@ use crate::{
         ManagementConsole, text_based_management_console::TextBasedManagementConsole,
     },
     misc::collections::{DynClone, DynCloneBox},
-    search_engine::SEARCH_ENGINE_DEFAULT_MEM_BUDGET,
     session_manager::SessionManager,
     tests::DEFAULT_PASSWORD,
     user_main::{
@@ -53,7 +53,6 @@ mod file_handling;
 mod linear_algebra;
 mod management_console;
 mod misc;
-mod search_engine;
 mod session_manager;
 mod tests;
 mod time;
@@ -81,10 +80,7 @@ static ON_FINISH_FAIL_FUNC: fn(u64) -> () = _on_finish_fail_func;
 static DATA_PATH: &str = "./data";
 static DATA_MANAGER: std::sync::LazyLock<Mutex<DataManager>> =
     std::sync::LazyLock::new(|| -> Mutex<DataManager> {
-        Mutex::new(DataManager::new(
-            DATA_PATH,
-            SEARCH_ENGINE_DEFAULT_MEM_BUDGET,
-        ))
+        Mutex::new(DataManager::new(DATA_PATH, DEFAULT_MEMORY_BUDGET))
     });
 static SESSION_MANAGER: SessionManager<fn(&String, &String) -> bool> =
     SessionManager::new(&_GET_USER_FOR_SESSION_MANAGER_FUNC);

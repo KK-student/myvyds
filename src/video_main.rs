@@ -21,8 +21,8 @@ use serde::Deserialize;
 use crate::{
     DATA_MANAGER, DATA_PATH, PROCESSOR_MANAGER, SESSION_MANAGER,
     file_handling::{
-        DataManager, comment::Comment, describable::Describable, likeable::Likeable,
-        read_small_file, video_data::VideoData,
+        DEFAULT_MAX_SEARCH_RESULTS, DataManager, comment::Comment, describable::Describable,
+        likeable::Likeable, read_small_file, video_data::VideoData,
     },
     parse_form_data,
     user_main::{authenticate, get_user_id_session_id},
@@ -428,7 +428,8 @@ pub async fn search_by_name(v_name_query: Query<VideoNameQuery>) -> impl Respond
     let data_manager_mutg = DATA_MANAGER.lock().unwrap();
     let data_manager = data_manager_mutg.deref();
     //Search the database:
-    let result_map = data_manager.search_by_name(video_name);
+    let result_map =
+        data_manager.search_video_by_name(video_name.as_str(), DEFAULT_MAX_SEARCH_RESULTS);
     //Format:
     //"result": [[video name]: {"id": [video_id of the video], "author": [author's user_id], "uploaded_time": [time uploaded in secs since epoch in u64]}],
     let mut result: String = "{\"result\": [".to_string();
