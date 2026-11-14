@@ -6,11 +6,13 @@ use std::{
 
 use json_escape::escape_str;
 use serde_json::Value;
+use simple_search_engine_lib::searchable::Searchable;
 
 use crate::{
     file_handling::{
         describable::{Describable, make_json_from_describable_list},
         dirty_data::DirtyData,
+        document_type_ids::COMMENT_TYPE_ID,
         likeable::Likeable,
         saveable::{Saveable, make_json_from_saveable_list},
     },
@@ -32,6 +34,8 @@ pub struct Comment {
 
     dirty: bool,
     edited: bool,
+
+    searchable_id: u64,
 }
 
 impl Comment {
@@ -73,6 +77,7 @@ impl Comment {
             dislikes: 0,
             dirty: false,
             edited: false,
+            searchable_id: 0,
         }
     }
 
@@ -96,6 +101,7 @@ impl Comment {
             dislikes: 0,
             dirty: true,
             edited: false,
+            searchable_id: 0,
         }
     }
 
@@ -465,5 +471,34 @@ impl Describable for Comment {
             self.get_creation_time(),
             replies_json_data
         )
+    }
+}
+
+impl Searchable for Comment {
+    fn set_searchable_id(&mut self, id: u64) {
+        self.searchable_id = id;
+    }
+
+    fn get_searchable_id(&self) -> u64 {
+        self.searchable_id
+    }
+
+    fn get_searchable_title(&self) -> String {
+        String::new()
+    }
+
+    fn get_searchable_contents(&self) -> String {
+        self.get_text()
+    }
+
+    fn get_document_type(&self) -> u64 {
+        Self::get_class_document_type()
+    }
+
+    fn get_class_document_type() -> u64
+    where
+        Self: Sized,
+    {
+        COMMENT_TYPE_ID
     }
 }

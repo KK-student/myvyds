@@ -661,16 +661,22 @@ To quit, press Ctrl+C. ";
                                         prompt(&"Enter the new text of the comment".to_string());
                                     let mut data_manager_mutg = self.data_manager.lock().unwrap();
                                     let data_manager = data_manager_mutg.deref_mut();
-                                    let comment_arc = match data_manager.get_comment(&comment_id) {
-                                        Some(c_arc) => c_arc,
-                                        None => {
-                                            println!("Error: Invalid comment id: {comment_id}");
-                                            continue;
-                                        }
-                                    };
-                                    let mut comment_mutg = comment_arc.lock().unwrap();
-                                    let comment: &mut Comment = comment_mutg.deref_mut();
-                                    comment.set_text(&text, get_current_time());
+                                    // let comment_arc = match data_manager.get_comment(&comment_id) {
+                                    //     Some(c_arc) => c_arc,
+                                    //     None => {
+                                    //         println!("Error: Invalid comment id: {comment_id}");
+                                    //         continue;
+                                    //     }
+                                    // };
+                                    // let mut comment_mutg = comment_arc.lock().unwrap();
+                                    // let comment: &mut Comment = comment_mutg.deref_mut();
+                                    // comment.set_text(&text, get_current_time());
+                                    if data_manager.has_comment(&comment_id) {
+                                        data_manager.edit_comment(&comment_id, &text);
+                                    } else {
+                                        println!("Error: Invalid comment id: {comment_id}");
+                                        continue;
+                                    }
                                 }
                                 9 => {
                                     //Like comment:

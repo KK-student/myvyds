@@ -223,6 +223,12 @@ impl DataManager {
         }
     }
 
+    pub fn for_all_comments<F: Fn(Arc<Mutex<Comment>>)>(&self, action: F) {
+        for comment_arc in self.comments_by_id.values() {
+            action(Arc::clone(comment_arc));
+        }
+    }
+
     ///Execute a function (action) on each user in the DataManager.
     pub fn for_all_users<F: Fn(Arc<Mutex<User>>)>(&self, action: F) {
         for user_arc in self.users.values() {
@@ -742,6 +748,12 @@ impl DataManager {
             let search_engine = search_engine_ref_mutg.deref_mut();
             search_engine.add_document(user_arc);
         });
+        //Add comments to search engine:
+        self.for_all_comments(|comment_arc: Arc<Mutex<Comment>>| -> () {
+            let mut search_engine_ref_mutg = self.search_engine_arc.lock().unwrap();
+            let search_engine = search_engine_ref_mutg.deref_mut();
+            search_engine.add_document(comment_arc);
+        });
 
         println!("Data loaded. ");
     }
@@ -788,16 +800,28 @@ impl DataManager {
         )));
         video.add_comment(Arc::clone(&comment_arc));
         user.add_comment(comment_id);
-        self.comments_by_id.insert(comment_id, comment_arc);
+        self.comments_by_id.insert(comment_id, comment_arc.clone());
+
+        //Add the comment to the SearchEngine:
+        let mut search_engine_mutg = self.search_engine_arc.lock().unwrap();
+        let search_engine = search_engine_mutg.deref_mut();
+        search_engine.add_document(comment_arc);
 
         Some(comment_id)
     }
 
     ///Remove a comment by it's comment id:
     pub fn remove_comment(&mut self, comment_id: &u64) {
+        let mut search_engine_mutg = self.search_engine_arc.lock().unwrap();
+        let search_engine = search_engine_mutg.deref_mut();
+
         //Get the video_id of the video which the comment is in and the user id of the author:
         let (video_id, author_uid) = {
-            let comment_arc = match self.comments_by_id.get(comment_id) {
+            // let comment_arc = match self.comments_by_id.get(comment_id) {
+            //     Some(c_arc) => c_arc,
+            //     None => return,
+            // };
+            let comment_arc = match self.get_comment(comment_id) {
                 Some(c_arc) => c_arc,
                 None => return,
             };
@@ -812,13 +836,25 @@ impl DataManager {
         //Remove all replies:
         {
             for reply_arc in {
-                let comment_arc = self.comments_by_id.get(comment_id).unwrap();
+                // let comment_arc = self.comments_by_id.get(comment_id).unwrap();
+                let comment_arc = self.get_comment(comment_id).unwrap();
                 let mut comment_mutg = comment_arc.lock().unwrap();
                 let comment: &mut Comment = comment_mutg.deref_mut();
                 comment.get_replies()
             }
             .iter()
             {
+                // Remove replies from SearchEngine:
+                {
+                    let searchable_id: u64 = {
+                        let reply_mutg = reply_arc.lock().unwrap();
+                        let reply = reply_mutg.deref();
+                        reply.get_searchable_id()
+                    };
+                    search_engine.remove_document_by_searchable_id(&searchable_id);
+                }
+
+                // Remove reply:
                 let reply_mutg = reply_arc.lock().unwrap();
                 let reply: &Comment = reply_mutg.deref();
                 //Remove from self.comments_by_id:
@@ -843,6 +879,16 @@ impl DataManager {
             let mut comment_mutg = comment_arc.lock().unwrap();
             let comment = comment_mutg.deref_mut();
             comment.remove_all_replies();
+        }
+        //Remove comment from SearchEngine:
+        {
+            let searchable_id: u64 = {
+                let comment_arc = self.get_comment(comment_id).unwrap();
+                let comment_mutg = comment_arc.lock().unwrap();
+                let comment = comment_mutg.deref();
+                comment.get_searchable_id()
+            };
+            search_engine.remove_document_by_searchable_id(&searchable_id);
         }
         //Remove comment from self.comments_by_id:
         self.comments_by_id.remove(comment_id);
@@ -949,14 +995,19 @@ impl DataManager {
 
     ///Edit the comment with the specified comment id (comment_id), setting the new text to the given text (text parameter).
     pub fn edit_comment(&mut self, comment_id: &u64, text: &String) {
-        let comment_arc = match self.get_comment(comment_id) {
-            Some(c_a) => c_a,
-            None => return,
-        };
-        let mut comment_mutg = comment_arc.lock().unwrap();
-        let comment: &mut Comment = comment_mutg.deref_mut();
-        comment.set_text(text, get_current_time());
-        comment.set_edited(true);
+        {
+            let comment_arc = match self.get_comment(comment_id) {
+                Some(c_a) => c_a,
+                None => return,
+            };
+            let mut comment_mutg = comment_arc.lock().unwrap();
+            let comment: &mut Comment = comment_mutg.deref_mut();
+            comment.set_text(text, get_current_time());
+            comment.set_edited(true);
+        }
+
+        //Update the comment in the search engine:
+        self.update_comment(comment_id);
     }
 
     ///Search for publicly available info:
@@ -993,6 +1044,19 @@ impl DataManager {
         }
     }
 
+    ///Updates a comment in the SearchEngine.
+    pub fn update_comment(&mut self, comment_id: &u64) {
+        if self.has_comment(comment_id) {
+            let searchable_id: u64 = {
+                let comment_arc = self.get_comment(comment_id).unwrap();
+                let comment_mutg = comment_arc.lock().unwrap();
+                let comment = comment_mutg.deref();
+                comment.get_searchable_id()
+            };
+            self.update_document_by_searchable_id(&searchable_id);
+        }
+    }
+
     ///Updates a user in the SearchEngine.
     pub fn update_user(&mut self, user_id: &String) {
         if self.has_user(user_id) {
@@ -1025,11 +1089,6 @@ impl DataManager {
                 text,
             )));
 
-            // return if comment.add_reply(Arc::clone(&reply_arc)) {
-            //     self.comments_by_id.insert(reply_cid, Arc::clone(&reply_arc));
-            //     Some(reply_cid)
-            // } else { None };
-            // };
             let r: Option<Arc<Mutex<Comment>>> = if comment.add_reply(Arc::clone(&reply_arc)) {
                 Some(reply_arc)
             } else {
@@ -1045,6 +1104,12 @@ impl DataManager {
                     reply.get_id()
                 };
                 self.comments_by_id.insert(reply_id, Arc::clone(&reply_arc));
+
+                //Add reply to SearchEngine:
+                let mut search_engine_mutg = self.search_engine_arc.lock().unwrap();
+                let search_engine = search_engine_mutg.deref_mut();
+                search_engine.add_document(reply_arc);
+
                 Some(reply_id)
             }
             None => None,

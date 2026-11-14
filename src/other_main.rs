@@ -13,7 +13,8 @@ use simple_search_engine_lib::searchable::Searchable;
 use crate::{
     DATA_MANAGER,
     file_handling::{
-        document_type_ids::{USER_TYPE_ID, VIDEO_DATA_TYPE_ID},
+        comment::Comment,
+        document_type_ids::{COMMENT_TYPE_ID, USER_TYPE_ID, VIDEO_DATA_TYPE_ID},
         user::User,
         video_data::VideoData,
     },
@@ -71,6 +72,16 @@ pub async fn search_endpoint(params: Query<SearchQuery>) -> impl Responder {
                     format!(
                         "{{\"doc_type\": {doc_type}, \"id\": \"{}\"}}",
                         escape_str(search_result_casted.get_user_id().as_str()).collect::<String>()
+                    )
+                    .as_str(),
+                );
+            } else if doc_type == COMMENT_TYPE_ID {
+                let search_result_casted: &Comment =
+                    search_result_any.downcast_ref::<Comment>().unwrap();
+                result.push_str(
+                    format!(
+                        "{{\"doc_type\": {doc_type}, \"id\": {}}}",
+                        search_result_casted.get_id()
                     )
                     .as_str(),
                 );
