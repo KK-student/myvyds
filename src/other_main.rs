@@ -5,7 +5,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use actix_web::{HttpResponse, Responder, get, web::Query};
+use actix_web::{HttpResponse, Responder, get, http::header, web::Query};
 use json_escape::escape_str;
 use serde::Deserialize;
 use simple_search_engine_lib::searchable::Searchable;
@@ -92,5 +92,7 @@ pub async fn search_endpoint(params: Query<SearchQuery>) -> impl Responder {
     }
 
     result.push_str("]}");
-    HttpResponse::Ok().body(result)
+    HttpResponse::Ok()
+        .append_header(("Access-Control-Allow-Origin".to_string(), "*".to_string()))
+        .body(result)
 }

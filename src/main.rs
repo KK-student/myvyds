@@ -7,6 +7,7 @@ use std::{
     time::Duration,
 };
 
+use actix_cors::Cors;
 use actix_multipart::Multipart;
 
 use argon2::{Argon2, PasswordHasher};
@@ -18,6 +19,7 @@ use actix_web::{
     dev::{ServiceFactory, ServiceRequest, ServiceResponse},
 };
 use simple_search_engine_lib::DEFAULT_MEMORY_BUDGET;
+use tantivy::time::Error::ConversionRange;
 
 use crate::{
     comment_main::{
@@ -133,7 +135,13 @@ pub fn build_app() -> App<
         Error = Error,
     >,
 > {
+    let cors = Cors::default()
+        .allow_any_origin()
+        .send_wildcard()
+        .allow_any_method()
+        .allow_any_header();
     let mut app = App::new()
+        .wrap(cors)
         .service(get_video_file)
         .service(get_video_basic_info)
         .service(get_comments_page)
@@ -159,6 +167,7 @@ pub fn build_app() -> App<
     if cfg!(test) {
         app = app.service(is_online);
     }
+    // app.wrap(cors.into())
     app
 }
 
@@ -172,7 +181,7 @@ impl DynClone for u16 {
 }
 
 static SERVER_PORT: LazyLock<Mutex<DynCloneBox<u16>>> =
-    LazyLock::new(|| -> Mutex<DynCloneBox<u16>> { Mutex::new(DynCloneBox::new(6000)) });
+    LazyLock::new(|| -> Mutex<DynCloneBox<u16>> { Mutex::new(DynCloneBox::new(5999)) });
 
 pub fn get_server_port() -> u16 {
     let sp_mutg = SERVER_PORT.lock().unwrap();
