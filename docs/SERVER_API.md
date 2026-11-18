@@ -68,7 +68,7 @@ Otherwise, server sends error response with error code 404.
 
 ### Getting video comments (page by page):
 
-1. Client sends a GET request to server with path "/video/get_comments_page?v=[video_id],page_index=[page_index]", where page_index is the index of the page in u64, starting from 0.
+1. Client sends a GET request to server with path "/video/get_comments_page?v=[video_id]&page_index=[page_index]", where page_index is the index of the page in u64, starting from 0.
 
 2. If video_id and page_index is valid, server sends OK response with the body being the list of comments (max 50 comments not including their replies) and their replies, in the following JSON format:
 
