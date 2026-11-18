@@ -15,6 +15,7 @@ use actix_web::{
     web::{self, Query},
 };
 use futures::FutureExt;
+use json_escape::escape_str;
 use rand::RngExt;
 use serde::Deserialize;
 
@@ -87,9 +88,9 @@ pub async fn get_video_basic_info(url_query: Query<VideoIDQuery>) -> impl Respon
             //Return video data:
             let result_string = format!(
                 "{{\"name\": \"{}\", \"description\": \"{}\", \"author\": \"{}\", \"uploaded_time\": {}, \"likes\": {}, \"dislikes\": {}}}",
-                video.get_name(),
-                video.get_description(),
-                video.get_author(),
+                escape_str(video.get_name().as_str()).collect::<String>(),
+                escape_str(video.get_description().as_str()).collect::<String>(),
+                escape_str(video.get_author().as_str()).collect::<String>(),
                 video.get_uploaded_time(),
                 video.get_likes(),
                 video.get_dislikes(),
