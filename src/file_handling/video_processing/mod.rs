@@ -6,7 +6,7 @@ use std::{
     ops::{Deref, DerefMut},
     panic,
     path::PathBuf,
-    sync::{Arc, LazyLock, Mutex, OnceLock},
+    sync::{Arc, LazyLock, Mutex},
     thread::{self},
 };
 
@@ -333,9 +333,7 @@ impl<
     pub fn get_data_dir(&self) -> std::path::PathBuf {
         let dp_mutg = self.data_path.lock().unwrap();
         let dp = dp_mutg.deref();
-        // let path_result = PathBuf::from(std::fs::canonicalize(dp.get().unwrap()).unwrap());
-        let path_result = PathBuf::from(dp.get().unwrap());
-        path_result
+        PathBuf::from(dp.get().unwrap())
     }
 
     ///Save the VideoProcessorManager's data to disk (or wherever the data file is stored).
@@ -486,7 +484,7 @@ impl<
                     None => None,
                 },
             };
-        return processor_arc_option;
+        processor_arc_option
     }
 
     pub fn get_local_video_processor(
@@ -495,11 +493,11 @@ impl<
     ) -> Option<Arc<Mutex<LocalVideoProcessor>>> {
         let localvp_mutg = self.local_video_processors.lock().unwrap();
         let localvp = localvp_mutg.deref();
-        return if localvp.contains_key(processor_id) {
+        if localvp.contains_key(processor_id) {
             Some(Arc::clone(localvp.get(processor_id).unwrap()))
         } else {
             None
-        };
+        }
     }
 
     pub fn get_local_music_processor(
@@ -508,11 +506,11 @@ impl<
     ) -> Option<Arc<Mutex<LocalMusicProcessor>>> {
         let localmp_mutg = self.local_music_processors.lock().unwrap();
         let localmp = localmp_mutg.deref();
-        return if localmp.contains_key(processor_id) {
+        if localmp.contains_key(processor_id) {
             Some(Arc::clone(localmp.get(processor_id).unwrap()))
         } else {
             None
-        };
+        }
     }
 
     ///Adds a new LocalVideoProcessor (processor_arc).
@@ -851,7 +849,7 @@ impl<
         let fastlmps_mutg = self.fastest_local_music_processors.lock().unwrap();
         let fastlmps = fastlmps_mutg.deref();
 
-        if fastlvps.len() == 0 && fastlmps.len() == 0 {
+        if fastlvps.is_empty() && fastlmps.is_empty() {
             return None;
         }
 
@@ -914,15 +912,15 @@ impl<
         }
 
         //Compare VideoProcessors and return the fastest.
-        if fastest_speeds.len() == 0 {
+        if fastest_speeds.is_empty() {
             return None;
         }
         fastest_speeds.sort();
-        return Some(
+        Some(
             *ids_by_speed
                 .get(fastest_speeds.get(fastest_speeds.len() - 1).unwrap())
                 .unwrap(),
-        );
+        )
     }
 
     ///Processes a video, converting it into the MPEG_DASH format, with the specified video id (video_id) and file path of the video (video_file_path) (corresponding to the video id), and ouputs the result into the specified directory (result_directory).
@@ -1011,14 +1009,14 @@ impl<
         for id in cp.keys() {
             result.push(*id);
         }
-        return result;
+        result
     }
 
     ///Check whether or not if the video with the specified video_id is currently processing:
     pub fn is_currently_processing(&'static self, video_id: &u64) -> bool {
         let cp_mutg = self.currently_processing.lock().unwrap();
         let cp = cp_mutg.deref();
-        return cp.contains_key(video_id);
+        cp.contains_key(video_id)
     }
 
     ///Get a COPY of the list of videos that have SUCCESSFULLY finished processing.
@@ -1029,14 +1027,14 @@ impl<
         for id in fp.keys() {
             result.push(*id);
         }
-        return result;
+        result
     }
 
     ///Check whether or not if the video with the specified video_id has SUCCESSFULLY finished processing:
     pub fn is_finished_processing(&'static self, video_id: &u64) -> bool {
         let fp_mutg = self.finished_processing.lock().unwrap();
         let fp = fp_mutg.deref();
-        return fp.contains_key(video_id);
+        fp.contains_key(video_id)
     }
 
     ///Get a COPY of the list of videos that have failed to process.
@@ -1047,14 +1045,14 @@ impl<
         for id in failp.keys() {
             result.push(*id);
         }
-        return result;
+        result
     }
 
     ///Check whether or not if the video with the specified video_id has failed to process.
     pub fn is_failed_processing(&'static self, video_id: &u64) -> bool {
         let failp_mutg = self.failed_processing.lock().unwrap();
         let failp = failp_mutg.deref();
-        return failp.contains_key(video_id);
+        failp.contains_key(video_id)
     }
 
     ///Deactivates and removes the processor with the specified id (processor_id), if it exists.
@@ -1118,10 +1116,7 @@ impl<
 
     ///Returns whether or not if the VideoProcessor with the specified id (processor_id) exists.
     pub fn has_processor(&'static self, processor_id: &u64) -> bool {
-        return match self.get_processor(processor_id) {
-            Some(_) => true,
-            None => false,
-        };
+        return self.get_processor(processor_id).is_some();
     }
 
     // ///Gets a DEEP COPY of the HashMap of all of the video processors.
@@ -1181,7 +1176,7 @@ impl<
             result.push(*lmp_id);
         }
 
-        return result;
+        result
     }
 
     ///Deactivates all of the video processors.
@@ -1229,15 +1224,15 @@ fn is_directory(p: &PathBuf) -> bool {
         Ok(met) => {
             if met.is_symlink() {
                 todo!("Symbolic links are not yet supported!");
-                return false;
+                false
             } else if !met.is_dir() {
-                return false;
+                false
             } else {
-                return true;
+                true
             }
         }
-        Err(_) => return false,
-    };
+        Err(_) => false,
+    }
 }
 
 #[cfg(target_family = "unix")]
@@ -1270,7 +1265,7 @@ pub fn get_available_fs_space(directory: &std::path::Path) -> Option<(u64, u64)>
 
     let blocks: u64 = statvfs_obj.blocks_available();
     let block_size: u64 = statvfs_obj.block_size();
-    return Some((blocks, block_size));
+    Some((blocks, block_size))
 }
 
 #[cfg(target_family = "windows")]

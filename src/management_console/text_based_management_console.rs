@@ -28,7 +28,6 @@ use crate::{
         string_input::*,
     },
     session_manager::SessionManager,
-    time::get_current_time,
 };
 
 struct VideoProcessorManagerContainer {
@@ -49,10 +48,7 @@ impl Container<String> for DataManagerUserContainer {
     fn contains_generic(&self, value: &String) -> bool {
         let data_manager_mutg = self.dm.lock().unwrap();
         let data_manager = data_manager_mutg.deref();
-        return match data_manager.get_user(value) {
-            Some(_) => true,
-            None => false,
-        };
+        data_manager.get_user(value).is_some()
     }
 }
 
@@ -64,7 +60,7 @@ impl Container<u64> for DataManagerVideoDataContainer {
     fn contains_generic(&self, value: &u64) -> bool {
         let data_manager_mutg = self.dm.lock().unwrap();
         let data_manager = data_manager_mutg.deref();
-        return data_manager.has_video_by_id(value);
+        data_manager.has_video_by_id(value)
     }
 }
 
@@ -76,7 +72,7 @@ impl Container<u64> for DataManagerCommentContainer {
     fn contains_generic(&self, value: &u64) -> bool {
         let data_manager_mutg = self.dm.lock().unwrap();
         let data_manager = data_manager_mutg.deref();
-        return data_manager.has_comment(value);
+        data_manager.has_comment(value)
     }
 }
 
@@ -484,7 +480,7 @@ To quit, press Ctrl+C. ";
                         let user_id: &String =
                             &prompt(&"Enter the user id (aka username)".to_string());
                         let description: &String = &prompt(&"Enter the description".to_string());
-                        let icon_id: u64 = get_number(&"Enter icon id".to_string());
+                        let icon_id: u64 = get_number("Enter icon id");
 
                         let password: String =
                             prompt_new_password(&"Enter the user's password".to_string());

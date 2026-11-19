@@ -106,23 +106,21 @@ use std::{
     ops::{Deref, DerefMut},
     path::PathBuf,
     str::FromStr,
-    sync::{Arc, LazyLock, Mutex},
+    sync::{Arc, Mutex},
 };
 
 use crate::{
     file_handling::{
-        comment::*, dirty_data::*, likeable::*, saveable::Saveable, user::*, video_data::*,
+        comment::*, dirty_data::DirtyData, likeable::Likeable, saveable::Saveable, user::*,
+        video_data::*,
     },
-    tests::{self, TestingDefault},
+    tests::TestingDefault,
     time::get_current_time,
 };
 
 use rand::RngExt;
 use serde_json::Value;
-use simple_search_engine_lib::{
-    SearchEngine,
-    searchable::{Searchable, cast_dyn_searchable, dyn_searchable_is_type},
-};
+use simple_search_engine_lib::{SearchEngine, searchable::Searchable};
 use tokio::fs::File;
 use tokio_util::io::ReaderStream;
 
@@ -542,7 +540,7 @@ impl DataManager {
                 i += 1;
             }
         }
-        videos_json_string.push_str("}");
+        videos_json_string.push('}');
 
         //Make directories if they do not exist.
         if !match fs::exists(data_path) {

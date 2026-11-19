@@ -45,7 +45,7 @@ pub fn cast_video_processor_arc<R: VideoProcessor, F: VideoProcessor>(
         vp_arc_casted = mem::transmute::<Arc<Mutex<F>>, Arc<Mutex<R>>>(processor_arc);
     }
 
-    return Arc::clone(&vp_arc_casted);
+    Arc::clone(&vp_arc_casted)
 }
 
 ///A trait for processing videos.
@@ -114,12 +114,7 @@ pub trait VideoProcessor: Saveable + Any {
 
     ///Check whether or not if this VideoProcessor supports a file with the specified file path.
     fn is_supported_file(&self, description: &VeryBasicVideoFileDescription) -> bool {
-        // let description: VeryBasicVideoFileDescription = match get_video_description(file_path_str)
-        // {
-        //     Ok(desc) => desc,
-        //     Err(e) => return Err(e),
-        // };
-        return if self.is_video_processor() {
+        if self.is_video_processor() {
             if !description.has_video_stream {
                 false
             } else if !description.has_audio {
@@ -140,7 +135,7 @@ pub trait VideoProcessor: Saveable + Any {
             todo!(
                 "It appears that either the VideoProcessor::is_video_processor or the VideoProcessor::is_audio_processor methods have been changed while the VideoProcessor::is_supported_file function has not been changed. Please modify the VideoProcessor::is_supported_file function to cover all cases. "
             );
-        };
+        }
     }
 }
 
@@ -256,14 +251,14 @@ pub fn get_video_description(
             has_video_stream: has_video_stream_mutg.deref().get(),
             has_audio: has_audio_mutg.deref().get(),
         };
-        return Ok(description);
+        Ok(description)
     } else {
         let err_str = format!(
             "Error: The ffprobe process failed!\nStdout: \n{}\nStderr: \n{}",
             String::from_utf8(ffprobe_output.stdout).unwrap(),
             String::from_utf8(ffprobe_output.stderr).unwrap()
         );
-        return Err(std::io::Error::new(std::io::ErrorKind::NotFound, err_str));
+        Err(std::io::Error::new(std::io::ErrorKind::NotFound, err_str))
     }
 }
 

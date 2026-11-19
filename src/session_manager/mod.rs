@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     ops::{Deref, DerefMut},
     sync::{Arc, LazyLock, Mutex},
     thread, time,
@@ -7,9 +7,7 @@ use std::{
 
 use rand::RngExt;
 
-use crate::{
-    file_handling::video_processing::video_processor::BoolBox, session_manager::session::Session,
-};
+use crate::session_manager::session::Session;
 
 mod session;
 
@@ -27,7 +25,7 @@ where
     F: Fn(&String, &String) -> bool + std::marker::Send + std::marker::Sync,
 {
     pub const fn new(verify_password_function: &'static F) -> Self {
-        let result = Self {
+        Self {
             sessions: LazyLock::new(|| -> Mutex<HashMap<String, Vec<Arc<Mutex<Session>>>>> {
                 Mutex::new(HashMap::new())
             }),
@@ -37,9 +35,8 @@ where
                     Mutex::new(HashMap::new())
                 },
             ),
-            verify_password_function: verify_password_function,
-        };
-        return result;
+            verify_password_function,
+        }
     }
 
     pub fn start_autodelete(&'static self) {
@@ -49,7 +46,7 @@ where
                 {
                     let mut sessions_mutg = self.sessions.lock().unwrap();
                     let sessions = sessions_mutg.deref_mut();
-                    for (user_id, user_sessions_list) in sessions {
+                    for (_user_id, user_sessions_list) in sessions {
                         self.remove_user_expired_sessions(user_sessions_list);
                     }
                 }
@@ -87,13 +84,13 @@ where
                 sessions_by_session_id_mutg.deref_mut();
             sessions_by_session_id.insert(id, Arc::clone(&session_arc));
 
-            return Ok(id);
+            Ok(id)
         } else {
-            let err_str = format!("Either username or password was incorrect",);
-            return Err(std::io::Error::new(
+            let err_str = "Either username or password was incorrect".to_string();
+            Err(std::io::Error::new(
                 std::io::ErrorKind::PermissionDenied,
                 err_str,
-            ));
+            ))
         }
     }
 
@@ -141,7 +138,7 @@ where
             }
         }
 
-        return false;
+        false
     }
 
     ///Get a DEEP COPY of all of the sessions.
@@ -158,6 +155,6 @@ where
             result.insert(user_id.clone(), new_sessions_vec);
         }
 
-        return result;
+        result
     }
 }

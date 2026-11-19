@@ -46,7 +46,7 @@ impl VideoData {
         description: &String,
         author: &String,
     ) -> Self {
-        return Self {
+        Self {
             id,
             finished_processing: false,
             input_file: input_file.clone(),
@@ -59,7 +59,7 @@ impl VideoData {
             dislikes: 0,
             dirty: true,
             searchable_id: 0,
-        };
+        }
     }
 
     ///Get video id.
@@ -160,7 +160,7 @@ impl VideoData {
                 i += 1;
             }
         }
-        return -1;
+        -1
     }
 
     ///Recursively looks for a comment or reply with the given id (comment_id). Returns true if
@@ -179,7 +179,7 @@ impl VideoData {
             }
         }
 
-        return false;
+        false
     }
 
     ///Recursively looks for a comment or reply with the given id (comment_id). Returns the comment
@@ -215,7 +215,7 @@ impl VideoData {
             return true;
         }
 
-        return false;
+        false
     }
 
     ///Recursively looks for and removes a comment or reply with the given id (comment_id). Returns true if found, otherwise false.
@@ -240,7 +240,7 @@ impl VideoData {
             self.set_dirty(true);
         }
 
-        return result;
+        result
     }
 
     ///Does an action (on_comment) on each comment (and it's replies) recursively.
@@ -359,27 +359,27 @@ impl VideoData {
             }
         }
 
-        return Arc::new(Mutex::new(VideoData {
+        Arc::new(Mutex::new(VideoData {
             id: video_id,
-            finished_processing: finished_processing,
+            finished_processing,
             input_file: input_file.to_string(),
             name: name.to_string(),
             description: description.to_string(),
             author: default_message.clone(),
-            uploaded_time: uploaded_time,
-            comments: comments,
+            uploaded_time,
+            comments,
             likes: 0,
             dislikes: 0,
             dirty: false,
             searchable_id: 0,
-        }));
+        }))
     }
 }
 
 impl Saveable for VideoData {
     fn to_json(&self, pretty: bool) -> String {
         let comments_json = make_json_from_saveable_list(self.comments.deref());
-        return if pretty {
+        if pretty {
             format!(
                 "\"{}\": {{
 \t\"finished_processing\": {},{}
@@ -429,7 +429,7 @@ impl Saveable for VideoData {
                 self.get_uploaded_time(),
                 comments_json
             )
-        };
+        }
     }
 }
 

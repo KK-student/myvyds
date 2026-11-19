@@ -20,9 +20,9 @@ pub fn make_json_list_from_strings(list: &Vec<String>) -> String {
             i += 1;
         }
     }
-    result.push_str("]");
+    result.push(']');
 
-    return result;
+    result
 }
 
 pub fn make_json_list_from_saveable_list(list: &Vec<Arc<Mutex<impl Saveable>>>) -> String {
@@ -43,7 +43,7 @@ pub fn make_json_list_from_saveable_list(list: &Vec<Arc<Mutex<impl Saveable>>>) 
     }
 
     result.push(']');
-    return result;
+    result
 }
 
 pub fn make_json_list_from_u64_list(list: &Vec<u64>) -> String {
@@ -59,9 +59,9 @@ pub fn make_json_list_from_u64_list(list: &Vec<u64>) -> String {
             i += 1;
         }
     }
-    result.push_str("]");
+    result.push(']');
 
-    return result;
+    result
 }
 
 pub fn make_json_from_saveable_list(list: &Vec<Arc<Mutex<impl Saveable>>>) -> String {
@@ -82,7 +82,7 @@ pub fn make_json_from_saveable_list(list: &Vec<Arc<Mutex<impl Saveable>>>) -> St
     }
 
     result.push('}');
-    return result;
+    result
 }
 
 pub trait Saveable {

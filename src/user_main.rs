@@ -31,15 +31,11 @@ pub fn get_user_id_session_id(form_data: &HashMap<String, Vec<u8>>) -> Option<(S
         Ok(id) => id,
         Err(_) => return None,
     };
-    return Some((user_id, session_id));
+    Some((user_id, session_id))
 }
 
 pub async fn authenticate(payload: &mut Multipart) -> Option<(HashMap<String, Vec<u8>>, String)> {
-    //Get DATA_MANAGER:
-    // let data_manager_mutg = DATA_MANAGER.lock().unwrap();
-    // let data_manager = data_manager_mutg.deref();
-
-    //Get and very user_id and session_id:
+    //Get and verify user_id and session_id:
     let mut parsed_form_data: HashMap<String, Vec<u8>> = HashMap::new();
     parse_form_data(payload, &mut parsed_form_data).await;
     let (user_id, session_id) = match get_user_id_session_id(&parsed_form_data) {
@@ -50,7 +46,7 @@ pub async fn authenticate(payload: &mut Multipart) -> Option<(HashMap<String, Ve
         return None;
     }
 
-    return Some((parsed_form_data, user_id));
+    Some((parsed_form_data, user_id))
 }
 
 #[derive(Deserialize)]
@@ -85,9 +81,9 @@ async fn get_public_info(query: Query<UserIdQuery>) -> impl Responder {
         comments_string
     );
 
-    return HttpResponse::Ok()
+    HttpResponse::Ok()
         .append_header(header::ContentType(mime::APPLICATION_JSON))
-        .body(json_result);
+        .body(json_result)
 }
 
 #[get("/user/get_user_icon")]
@@ -120,9 +116,9 @@ async fn get_user_icon(query: Query<UserIdQuery>) -> impl Responder {
         Err(_) => return response404,
     };
 
-    return HttpResponse::Ok()
+    HttpResponse::Ok()
         .append_header(header::ContentType(mime::IMAGE_PNG))
-        .body(icon_image);
+        .body(icon_image)
 }
 
 ///Gets the user id (username field) and password (password field) from the given parsed form data (form_data). Returns None if either user_id or session_id was not found or if session_id is not a valid u64 number.
@@ -135,7 +131,7 @@ fn get_login_data(form_data: &HashMap<String, Vec<u8>>) -> Option<(String, Strin
         Some(id) => String::from_utf8_lossy(id.as_slice()).to_string(),
         None => return None,
     };
-    return Some((user_id, password));
+    Some((user_id, password))
 }
 
 ///Logging in:
@@ -164,9 +160,9 @@ async fn login_endpoint(mut payload: Multipart) -> impl Responder {
         Err(_) => return response400,
     };
 
-    return HttpResponse::Ok()
+    HttpResponse::Ok()
         .append_header(header::ContentType(mime::APPLICATION_OCTET_STREAM))
-        .body(session_id.to_be_bytes().to_vec());
+        .body(session_id.to_be_bytes().to_vec())
 }
 
 #[post("/user/signup")]
@@ -206,9 +202,9 @@ async fn signup(mut payload: Multipart) -> impl Responder {
         Err(_) => return response400,
     };
 
-    return HttpResponse::Ok()
+    HttpResponse::Ok()
         .append_header(header::ContentType(mime::APPLICATION_OCTET_STREAM))
-        .body(session_id.to_be_bytes().to_vec());
+        .body(session_id.to_be_bytes().to_vec())
 }
 
 #[post("/user/get_subscriptions")]
@@ -231,7 +227,7 @@ async fn get_subscriptions(mut payload: Multipart) -> impl Responder {
     //     return response401;
     // }
 
-    let (parsed_form_data, user_id) = match authenticate(&mut payload).await {
+    let (_parsed_form_data, user_id) = match authenticate(&mut payload).await {
         Some(data) => data,
         None => return response401,
     };
@@ -243,9 +239,9 @@ async fn get_subscriptions(mut payload: Multipart) -> impl Responder {
 
     //Return result:
     let result: String = format!("{{\"subscriptions\": {:?}}}", user.get_subscriptions());
-    return HttpResponse::Ok()
+    HttpResponse::Ok()
         .append_header(header::ContentType(mime::APPLICATION_JSON))
-        .body(result);
+        .body(result)
 }
 
 #[post("/user/get_liked_videos")]
@@ -267,7 +263,7 @@ async fn get_liked_videos(mut payload: Multipart) -> impl Responder {
     // if !SESSION_MANAGER.verify_session(&user_id, session_id) {
     //     return response401;
     // }
-    let (parsed_form_data, user_id) = match authenticate(&mut payload).await {
+    let (_parsed_form_data, user_id) = match authenticate(&mut payload).await {
         Some(data) => data,
         None => return response401,
     };
@@ -279,9 +275,9 @@ async fn get_liked_videos(mut payload: Multipart) -> impl Responder {
 
     //Return result:
     let result: String = format!("{{\"liked_videos\": {:?}}}", user.get_liked_vids());
-    return HttpResponse::Ok()
+    HttpResponse::Ok()
         .append_header(header::ContentType(mime::APPLICATION_JSON))
-        .body(result);
+        .body(result)
 }
 
 #[post("/user/get_disliked_videos")]
@@ -294,16 +290,7 @@ async fn get_disliked_videos(mut payload: Multipart) -> impl Responder {
     let data_manager = data_manager_mutg.deref();
 
     //Get and very user_id and session_id:
-    // let mut parsed_form_data: HashMap<String, Vec<u8>> = HashMap::new();
-    // parse_form_data(&mut payload, &mut parsed_form_data).await;
-    // let (user_id, session_id) = match get_user_id_session_id(&parsed_form_data) {
-    //     Some(res) => res,
-    //     None => return response401,
-    // };
-    // if !SESSION_MANAGER.verify_session(&user_id, session_id) {
-    //     return response401;
-    // }
-    let (parsed_form_data, user_id) = match authenticate(&mut payload).await {
+    let (_parsed_form_data, user_id) = match authenticate(&mut payload).await {
         Some(data) => data,
         None => return response401,
     };
@@ -315,9 +302,9 @@ async fn get_disliked_videos(mut payload: Multipart) -> impl Responder {
 
     //Return result:
     let result: String = format!("{{\"disliked_videos\": {:?}}}", user.get_disliked_vids());
-    return HttpResponse::Ok()
+    HttpResponse::Ok()
         .append_header(header::ContentType(mime::APPLICATION_JSON))
-        .body(result);
+        .body(result)
 }
 
 #[post("/user/get_user_comments")]
@@ -339,7 +326,7 @@ async fn get_user_comments(mut payload: Multipart) -> impl Responder {
     // if !SESSION_MANAGER.verify_session(&user_id, session_id) {
     //     return response401;
     // }
-    let (parsed_form_data, user_id) = match authenticate(&mut payload).await {
+    let (_parsed_form_data, user_id) = match authenticate(&mut payload).await {
         Some(data) => data,
         None => return response401,
     };
@@ -351,9 +338,9 @@ async fn get_user_comments(mut payload: Multipart) -> impl Responder {
 
     //Return result:
     let result: String = format!("{{\"user_comments\": {:?}}}", user.get_comments());
-    return HttpResponse::Ok()
+    HttpResponse::Ok()
         .append_header(header::ContentType(mime::APPLICATION_JSON))
-        .body(result);
+        .body(result)
 }
 
 #[post("/user/get_liked_comments")]
@@ -366,16 +353,7 @@ async fn get_liked_comments(mut payload: Multipart) -> impl Responder {
     let data_manager = data_manager_mutg.deref();
 
     //Get and very user_id and session_id:
-    // let mut parsed_form_data: HashMap<String, Vec<u8>> = HashMap::new();
-    // parse_form_data(&mut payload, &mut parsed_form_data).await;
-    // let (user_id, session_id) = match get_user_id_session_id(&parsed_form_data) {
-    //     Some(res) => res,
-    //     None => return response401,
-    // };
-    // if !SESSION_MANAGER.verify_session(&user_id, session_id) {
-    //     return response401;
-    // }
-    let (parsed_form_data, user_id) = match authenticate(&mut payload).await {
+    let (_parsed_form_data, user_id) = match authenticate(&mut payload).await {
         Some(data) => data,
         None => return response401,
     };
@@ -387,9 +365,9 @@ async fn get_liked_comments(mut payload: Multipart) -> impl Responder {
 
     //Return result:
     let result: String = format!("{{\"liked_comments\": {:?}}}", user.get_liked_comments());
-    return HttpResponse::Ok()
+    HttpResponse::Ok()
         .append_header(header::ContentType(mime::APPLICATION_JSON))
-        .body(result);
+        .body(result)
 }
 
 #[post("/user/get_disliked_comments")]
@@ -402,16 +380,7 @@ async fn get_disliked_comments(mut payload: Multipart) -> impl Responder {
     let data_manager = data_manager_mutg.deref();
 
     //Get and very user_id and session_id:
-    // let mut parsed_form_data: HashMap<String, Vec<u8>> = HashMap::new();
-    // parse_form_data(&mut payload, &mut parsed_form_data).await;
-    // let (user_id, session_id) = match get_user_id_session_id(&parsed_form_data) {
-    //     Some(res) => res,
-    //     None => return response401,
-    // };
-    // if !SESSION_MANAGER.verify_session(&user_id, session_id) {
-    //     return response401;
-    // }
-    let (parsed_form_data, user_id) = match authenticate(&mut payload).await {
+    let (_parsed_form_data, user_id) = match authenticate(&mut payload).await {
         Some(data) => data,
         None => return response401,
     };
@@ -426,7 +395,7 @@ async fn get_disliked_comments(mut payload: Multipart) -> impl Responder {
         "{{\"disliked_comments\": {:?}}}",
         user.get_disliked_comments()
     );
-    return HttpResponse::Ok()
+    HttpResponse::Ok()
         .append_header(header::ContentType(mime::APPLICATION_JSON))
-        .body(result);
+        .body(result)
 }

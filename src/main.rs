@@ -19,7 +19,6 @@ use actix_web::{
     dev::{ServiceFactory, ServiceRequest, ServiceResponse},
 };
 use simple_search_engine_lib::DEFAULT_MEMORY_BUDGET;
-use tantivy::time::Error::ConversionRange;
 
 use crate::{
     comment_main::{
@@ -167,7 +166,6 @@ pub fn build_app() -> App<
     if cfg!(test) {
         app = app.service(is_online);
     }
-    // app.wrap(cors.into())
     app
 }
 
@@ -194,14 +192,14 @@ async fn main() -> std::io::Result<()> {
     //Get command line args:
     let args: Vec<String> = std::env::args().collect::<Vec<String>>();
     //Get cli optionns:
+    if args.contains(&"--help".to_string()) || args.contains(&"-h".to_string()) {
+        println!("--help or -h -> Show this help message.
+--testing_mode -> Start in testing mode (does not load any data at all at startup). Cannot be used with \"--text_console\".
+--text_console -> Enable the text console. ");
+        return Ok(());
+    }
     let t_mode: bool = args.contains(&"--testing_mode".to_string());
     let is_text_console: bool = args.contains(&"--text_console".to_string());
-
-    // if t_mode {
-    //     let mut testing_mode_mutg = TESTING_MODE.lock().unwrap();
-    //     let testing_mode_box = testing_mode_mutg.deref_mut();
-    //     testing_mode_box.set(true);
-    // }
 
     //Initialize PROCESSOR_MANAGER:
     if !t_mode {
@@ -238,7 +236,6 @@ async fn main() -> std::io::Result<()> {
                 0,
             );
         }
-        // data_manager.save_data();
     }
 
     // Start autodelete thread for SESSION_MANAGER:
@@ -269,11 +266,6 @@ async fn main() -> std::io::Result<()> {
     } else if is_text_console && t_mode {
         panic!("Cannot use the \"--testing_mode\" option with the \"--text_console\" option!");
     }
-
-    // println!(
-    //     "Term frequencies: \n{:#?}",
-    //     compute_term_frequencies("Hello ''' \"'''World's'''\" !@#!fjfdjs%#$@#$    !")
-    // );
 
     //Launch Actix-web:
     match HttpServer::new(build_app).bind(("127.0.0.1", get_server_port())) {

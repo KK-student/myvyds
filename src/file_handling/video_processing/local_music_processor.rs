@@ -76,10 +76,10 @@ impl Saveable for LocalMusicProcessor {
     fn to_json(&self, pretty: bool) -> String {
         let ffmpeg_options_string: String = make_json_list_from_strings(&self.ffmpeg_options);
         let max_speed_string: String = self.speed.to_string();
-        return format!(
+        format!(
             "{{\"id\": {}, \"ffmpeg_options\": {ffmpeg_options_string}, \"speed\": {max_speed_string}}}",
             self.get_id()
-        );
+        )
     }
 }
 
@@ -89,8 +89,8 @@ impl LocalMusicProcessor {
     where
         Self: Sized,
     {
-        return Self {
-            id: id,
+        Self {
+            id,
             active: Arc::new(Mutex::new(BoolBox::new(true))),
             ffmpeg_options: ffmpeg_opts.clone(),
             currently_processing: Arc::new(Mutex::new(HashSet::new())),
@@ -99,7 +99,7 @@ impl LocalMusicProcessor {
             running_pids: Arc::new(Mutex::new(HashMap::new())),
 
             speed,
-        };
+        }
     }
 }
 
@@ -116,11 +116,11 @@ impl VideoProcessor for LocalMusicProcessor {
             ffmpeg_options.push(json_item.as_str().unwrap().to_string());
         }
         let id: u64 = config_json_data["id"].as_u64().unwrap();
-        return Self::new_with_opts(
+        Self::new_with_opts(
             id,
             &ffmpeg_options,
             config_json_data["speed"].as_u64().unwrap(),
-        );
+        )
     }
 
     fn process_video(
@@ -255,7 +255,7 @@ impl VideoProcessor for LocalMusicProcessor {
                 let _ = tx.send(true);
             }
         });
-        return Ok(rx);
+        Ok(rx)
     }
 
     fn stop_processing(&mut self, video_id: u64) {
@@ -270,7 +270,7 @@ impl VideoProcessor for LocalMusicProcessor {
     fn get_currently_processing(&self) -> HashSet<u64> {
         let cp_mutg = self.currently_processing.lock().unwrap();
         let cp = cp_mutg.deref();
-        return cp.clone();
+        cp.clone()
     }
 
     fn is_processing(&self, video_id: &u64) -> bool {
@@ -325,13 +325,13 @@ impl VideoProcessor for LocalMusicProcessor {
 
     fn is_activated(&self) -> bool {
         let act_mutg = self.active.lock().unwrap();
-        return act_mutg.deref().get();
+        act_mutg.deref().get()
     }
 
     fn get_num_active_jobs(&self) -> u64 {
         let cp_mutg = self.currently_processing.lock().unwrap();
         let cp: &HashSet<u64> = cp_mutg.deref();
-        return cp.len() as u64;
+        cp.len() as u64
     }
 
     fn get_type_trait() -> super::video_processor::VideoProcessorType

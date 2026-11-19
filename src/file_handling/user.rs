@@ -137,7 +137,7 @@ impl User {
         //     disliked_comments: disliked_comments,
         //     dirty: false,
         // }));
-        return Self::new_arc(
+        Self::new_arc(
             user_id,
             time_created,
             icon_id,
@@ -150,7 +150,7 @@ impl User {
             &disliked_vids,
             &liked_comments,
             &disliked_comments,
-        );
+        )
     }
 
     pub fn new_arc(
@@ -167,10 +167,10 @@ impl User {
         liked_comments: &Box<Vec<u64>>,
         disliked_comments: &Box<Vec<u64>>,
     ) -> Arc<Mutex<Self>> {
-        return Arc::new(Mutex::new(User {
+        Arc::new(Mutex::new(User {
             user_id: user_id.clone(),
-            time_created: time_created,
-            icon_id: icon_id,
+            time_created,
+            icon_id,
             description: description.clone(),
             videos: videos.clone(),
             subscriptions: subscriptions.clone(),
@@ -182,7 +182,7 @@ impl User {
             disliked_comments: disliked_comments.clone(),
             dirty: false,
             searchable_id: 0,
-        }));
+        }))
     }
 
     ///Gets the user id.
@@ -234,7 +234,7 @@ impl User {
             }
         }
 
-        return -1;
+        -1
     }
 
     ///Adds a new video to the list of created videos.
@@ -252,7 +252,7 @@ impl User {
         self.videos.remove(video_index as usize);
 
         self.set_dirty(true);
-        return true;
+        true
     }
 
     ///Removes all of the videos from the list of user created videos.
@@ -263,7 +263,7 @@ impl User {
 
     ///Gets a copy of the user's list of subscriptions.
     pub fn get_subscriptions(&self) -> Box<Vec<String>> {
-        return self.subscriptions.clone();
+        self.subscriptions.clone()
     }
 
     ///Adds a subscription to the user's list of subscriptions.
@@ -283,7 +283,7 @@ impl User {
                 i += 1;
             }
         }
-        return -1;
+        -1
     }
 
     ///Removes a subscription from the user's list of subscriptions.
@@ -294,7 +294,7 @@ impl User {
         }
         self.subscriptions.remove(sub_index as usize);
         self.set_dirty(true);
-        return true;
+        true
     }
 
     ///Removes all subscriptions from the user's list of subscriptions.
@@ -305,7 +305,7 @@ impl User {
 
     ///Gets a copy of the list of the comments created by the user.
     pub fn get_comments(&self) -> Box<Vec<u64>> {
-        return self.comments.clone();
+        self.comments.clone()
     }
 
     ///Adds a comment to the list of the comments created by the user.
@@ -325,7 +325,7 @@ impl User {
                 i += 1;
             }
         }
-        return -1;
+        -1
     }
 
     ///Removes a comment from the list of the comments created by the user.
@@ -336,7 +336,7 @@ impl User {
         }
         self.comments.remove(comment_index as usize);
         self.set_dirty(true);
-        return true;
+        true
     }
 
     ///Checks if the given password (password parameter) matches the user's password hash.
@@ -345,10 +345,9 @@ impl User {
         // return self.password_hash == password.clone();
         let password_hash = PasswordHash::new(self.password_hash.as_str()).unwrap();
         let argon2 = Argon2::default();
-        match argon2.verify_password(password.as_bytes(), &password_hash) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        argon2
+            .verify_password(password.as_bytes(), &password_hash)
+            .is_ok()
     }
 
     ///Gets the hash of the password:
@@ -385,7 +384,7 @@ impl User {
                 i += 1;
             }
         }
-        return -1;
+        -1
     }
 
     ///Is the given video_id currently in the list of disliked videos? Returns -1 if no, otherwise
@@ -401,7 +400,7 @@ impl User {
                 i += 1;
             }
         }
-        return -1;
+        -1
     }
 
     ///Removes a video from the list of liked vids. Returns true if successful, otherwise false.
@@ -413,7 +412,7 @@ impl User {
 
         self.liked_vids.remove(vid_index as usize);
         self.set_dirty(true);
-        return true;
+        true
     }
 
     ///Removes a video from the list of disliked vids. Returns true if successful, otherwise false.
@@ -425,7 +424,7 @@ impl User {
 
         self.disliked_vids.remove(vid_index as usize);
         self.set_dirty(true);
-        return true;
+        true
     }
 
     ///Adds a video to the list of liked videos.
@@ -462,7 +461,7 @@ impl User {
                 i += 1;
             }
         }
-        return -1;
+        -1
     }
 
     ///Is the comment with the given comment id (comment_id) in the user's list of disliked comments?
@@ -477,7 +476,7 @@ impl User {
                 i += 1;
             }
         }
-        return -1;
+        -1
     }
 
     ///Remove the comment with the given comment id (comment_id) from the user's list of liked comments. Returns true if successful, otherwise false.
@@ -488,7 +487,7 @@ impl User {
         }
         self.liked_comments.remove(comm_ind as usize);
         self.set_dirty(true);
-        return true;
+        true
     }
 
     ///Remove the comment with the given comment id (comment_id) from the user's list of disliked comments. Returns true if successful, otherwise false.
@@ -499,7 +498,7 @@ impl User {
         }
         self.disliked_comments.remove(comm_ind as usize);
         self.set_dirty(true);
-        return true;
+        true
     }
 
     ///Add a comment to the user's list of liked comments.
@@ -581,7 +580,7 @@ impl Saveable for User {
         let description_escaped = escape_str(&self.description).collect::<String>();
         let password_hash_escaped = escape_str(&self.password_hash).collect::<String>();
 
-        return if pretty {
+        if pretty {
             format!(
                 "\"{}\": {{
 \t\"time_created\": {},
@@ -625,6 +624,6 @@ impl Saveable for User {
                 liked_comments_string,
                 disliked_comments_string,
             )
-        };
+        }
     }
 }
