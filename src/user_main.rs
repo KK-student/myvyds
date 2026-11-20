@@ -14,7 +14,7 @@ use serde::Deserialize;
 use crate::{
     DATA_MANAGER, DATA_PATH, SESSION_MANAGER,
     file_handling::{read_small_file, saveable::make_json_list_from_u64_list, user::User},
-    parse_form_data,
+    get_data_path, parse_form_data,
 };
 
 ///Gets the user_id and session_id from the given parsed form data (form_data). Returns None if either user_id or session_id was not found or if session_id is not a valid u64 number.
@@ -102,7 +102,7 @@ async fn get_user_icon(query: Query<UserIdQuery>) -> impl Responder {
     let user: &User = user_mutg.deref();
 
     //Get user image:
-    let mut icon_image_path: PathBuf = match PathBuf::from_str(DATA_PATH) {
+    let mut icon_image_path: PathBuf = match PathBuf::from_str(get_data_path().as_str()) {
         Ok(buf) => buf,
         Err(_) => return response404,
     };

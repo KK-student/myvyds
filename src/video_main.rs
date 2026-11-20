@@ -25,7 +25,7 @@ use crate::{
         DEFAULT_MAX_SEARCH_RESULTS, DataManager, comment::Comment, describable::Describable,
         likeable::Likeable, read_small_file, video_data::VideoData,
     },
-    parse_form_data,
+    get_data_path, parse_form_data,
     user_main::{authenticate, get_user_id_session_id},
 };
 
@@ -58,7 +58,9 @@ pub async fn get_video_file(url_params: web::Path<(String, String)>) -> impl Res
     //Get video file:
     let file_path_string = format!(
         "{}/media/{}/{}",
-        DATA_PATH, video_id, vid_seg_file_tpath_string
+        get_data_path(),
+        video_id,
+        vid_seg_file_tpath_string
     );
     match read_small_file(file_path_string.as_str()) {
         Ok(file_contents) => HttpResponse::Ok().body(file_contents),
@@ -118,7 +120,8 @@ pub async fn get_video_thumbnail_image(url_query: Query<VideoIDQuery>) -> impl R
         }
     }
     //Get thumbnail image:
-    let thumbnail_image_path: String = format!("{}/media/{}/thumbnail.png", DATA_PATH, video_id);
+    let thumbnail_image_path: String =
+        format!("{}/media/{}/thumbnail.png", get_data_path(), video_id);
     match read_small_file(thumbnail_image_path.as_str()) {
         Ok(contents) => HttpResponse::Ok()
             .append_header(header::ContentType(mime::IMAGE_PNG))

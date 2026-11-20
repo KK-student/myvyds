@@ -2,6 +2,7 @@
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
+    str::FromStr,
     sync::{Arc, LazyLock, Mutex},
     thread,
     time::Duration,
@@ -35,7 +36,9 @@ use crate::{
     management_console::{
         ManagementConsole, text_based_management_console::TextBasedManagementConsole,
     },
-    misc::collections::{DynClone, DynCloneBox},
+    misc::collections::{
+        DynClone, DynCloneBox, MutableBox, linear_search_slice, linear_search_vec,
+    },
     other_main::search_endpoint,
     session_manager::SessionManager,
     tests::DEFAULT_PASSWORD,
@@ -80,10 +83,17 @@ static _GET_USER_FOR_SESSION_MANAGER_FUNC: fn(&String, &String) -> bool =
 static ON_FINISH_SUCCESS_FUNC: fn(u64) -> () = _on_finish_success_func;
 static ON_FINISH_FAIL_FUNC: fn(u64) -> () = _on_finish_fail_func;
 
-static DATA_PATH: &str = "./data";
+// static DATA_PATH: &str = "./data";
+static DATA_PATH: LazyLock<Mutex<MutableBox<String>>> =
+    LazyLock::new(|| -> Mutex<MutableBox<String>> {
+        Mutex::new(MutableBox::new(Some("./data".to_string())))
+    });
 static DATA_MANAGER: std::sync::LazyLock<Mutex<DataManager>> =
     std::sync::LazyLock::new(|| -> Mutex<DataManager> {
-        Mutex::new(DataManager::new(DATA_PATH, DEFAULT_MEMORY_BUDGET))
+        Mutex::new(DataManager::new(
+            get_data_path().as_str(),
+            DEFAULT_MEMORY_BUDGET,
+        ))
     });
 static SESSION_MANAGER: SessionManager<fn(&String, &String) -> bool> =
     SessionManager::new(&_GET_USER_FOR_SESSION_MANAGER_FUNC);
@@ -108,6 +118,13 @@ pub fn _on_finish_success_func(video_id: u64) {
 
 pub fn _on_finish_fail_func(video_id: u64) {
     _on_finish_proc_func(video_id);
+}
+
+///Get the current value of DATA_PATH:
+pub fn get_data_path() -> String {
+    let data_path_mutg = DATA_PATH.lock().unwrap();
+    let data_path_box = data_path_mutg.deref();
+    data_path_box.get().unwrap()
 }
 
 ///Given the multipart form data (payload), this parses all of the form data and stores it in the given HashMap (result).
@@ -201,10 +218,30 @@ async fn main() -> std::io::Result<()> {
     let t_mode: bool = args.contains(&"--testing_mode".to_string());
     let is_text_console: bool = args.contains(&"--text_console".to_string());
 
+    //Set data dir if --data_path flag is used correctly:
+    if let Some(flag_index) = linear_search_vec(&args, "--data_path".to_string()) {
+        //Check if the data flag has a valid value.
+        let value_index = flag_index + 1;
+        let invalid_value_message: &str = "Invalid value for the \"--data_path\" option!";
+        if value_index < args.len() {
+            let value: &String = args.get(value_index).unwrap();
+            if value.starts_with("--") {
+                panic!("{invalid_value_message}");
+            }
+            let mut data_path_mutg = DATA_PATH.lock().unwrap();
+            let data_path_box = data_path_mutg.deref_mut();
+            data_path_box.set(Some(value.clone()));
+        } else {
+            panic!("{invalid_value_message}");
+        }
+    }
+
     //Initialize PROCESSOR_MANAGER:
     if !t_mode {
+        let data_path_mutg = DATA_PATH.lock().unwrap();
+        let data_path_box = data_path_mutg.deref();
         PROCESSOR_MANAGER.init(
-            std::path::Path::new(DATA_PATH),
+            std::path::Path::new(data_path_box.get().unwrap().as_str()),
             ON_FINISH_SUCCESS_FUNC,
             ON_FINISH_FAIL_FUNC,
         );
@@ -220,6 +257,10 @@ async fn main() -> std::io::Result<()> {
         let mut data_manager_guard = DATA_MANAGER.lock().unwrap();
         let data_manager: &mut DataManager = data_manager_guard.deref_mut();
         if !t_mode {
+            let data_path_mutg = DATA_PATH.lock().unwrap();
+            let data_path_box = data_path_mutg.deref();
+            let d_path = data_path_box.get().unwrap();
+            data_manager.set_data_path(&d_path);
             data_manager.load_data();
             // println!("DATA_MANAGER: \n{:#?}\n\n", data_manager);
         } else {

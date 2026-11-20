@@ -155,3 +155,18 @@ impl<T: Any + std::marker::Sized + std::marker::Send + std::marker::Sync + Debug
         Self { value: None }
     }
 }
+
+pub fn linear_search_slice<T: PartialEq>(list: &[T], search_item: T) -> Option<usize> {
+    let mut i: usize = 0;
+    while i < list.len() {
+        if list[i] == search_item {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
+pub fn linear_search_vec<T: PartialEq>(list: &Vec<T>, search_item: T) -> Option<usize> {
+    linear_search_slice(list.as_slice(), search_item)
+}

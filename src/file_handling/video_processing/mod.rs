@@ -276,23 +276,6 @@ impl<
             // }
         }
         //Thumbnail image processor:
-        // self.thumbnail_image_processor = LazyLock::new(Self::new_thi_mutex(json_data));
-        // self.thumbnail_image_processor
-        //     .set(Arc::new(Mutex::new(Some({
-        //         let thumbnail_processor_jobj =
-        //             json_data["thumbnail_processor"].as_object().unwrap();
-        //         match thumbnail_processor_jobj
-        //             .get("type")
-        //             .unwrap()
-        //             .as_str()
-        //             .unwrap()
-        //         {
-        //             "local" => Box::new(LocalThumbnailImageProcessor::from_json(
-        //                 thumbnail_processor_jobj.get("options").unwrap(),
-        //             )),
-        //             &_ => unimplemented!("Invalid thumbnail processor type!"),
-        //         }
-        //     }))));
         {
             println!("Loading thumbnail processor data. ");
             let mut thip_cont_mutg = self.thumbnail_image_processor.lock().unwrap();
@@ -358,10 +341,17 @@ impl<
         }
         let local_music_procs_string: String =
             make_json_list_from_saveable_list(&local_music_procs_list);
+        //Thumbnail processor:
+        let thumbnail_processor_string: String = {
+            let thumbnail_processor_mutg = self.thumbnail_image_processor.lock().unwrap();
+            let thumbnail_processor_box = thumbnail_processor_mutg.deref();
+            let thumbnail_processor = thumbnail_processor_box.get().unwrap();
+            thumbnail_processor.to_json(false)
+        };
 
         //Final result:
         let result: String = format!(
-            "{{\"local_video_processors\": {local_video_procs_string}, \"local_music_processors\": {local_music_procs_string}}}"
+            "{{\"local_video_processors\": {local_video_procs_string}, \"local_music_processors\": {local_music_procs_string}, \"thumbnail_processor\": {thumbnail_processor_string}}}"
         );
 
         //Write processors.json file:

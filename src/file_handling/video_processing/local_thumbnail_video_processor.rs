@@ -8,7 +8,8 @@ use serde_json::Value;
 
 use crate::{
     file_handling::{
-        from_json::FromJson, video_processing::thumbnail_processor::ThumbnailImageProcessor,
+        from_json::FromJson, saveable::Saveable,
+        video_processing::thumbnail_processor::ThumbnailImageProcessor,
     },
     misc::collections::DynClone,
 };
@@ -144,6 +145,12 @@ impl ThumbnailImageProcessor for LocalThumbnailImageProcessor {
 
     fn set_filter_type(&mut self, filter_type: &FilterType) {
         self.filter_type = *filter_type;
+    }
+}
+
+impl Saveable for LocalThumbnailImageProcessor {
+    fn to_json(&self, pretty: bool) -> String {
+        todo!()
     }
 }
 

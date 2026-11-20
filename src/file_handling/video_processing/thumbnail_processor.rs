@@ -3,13 +3,15 @@ use std::{any::Any, fmt::Debug};
 use image::{ImageError, ImageFormat, imageops::FilterType};
 
 use crate::{
-    file_handling::{from_json::FromJson, video_processing::video_processor::VideoProcessor},
+    file_handling::{
+        from_json::FromJson, saveable::Saveable, video_processing::video_processor::VideoProcessor,
+    },
     misc::collections::DynClone,
 };
 
 pub trait ThumbnailVideoProcessor: VideoProcessor + Debug {}
 
-pub trait ThumbnailImageProcessor: Debug + Any + DynClone + FromJson {
+pub trait ThumbnailImageProcessor: Debug + Any + DynClone + FromJson + Saveable {
     fn new(
         id: u64,
         width: u32,
