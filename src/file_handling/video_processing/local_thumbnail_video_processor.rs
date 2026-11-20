@@ -150,7 +150,28 @@ impl ThumbnailImageProcessor for LocalThumbnailImageProcessor {
 
 impl Saveable for LocalThumbnailImageProcessor {
     fn to_json(&self, pretty: bool) -> String {
-        todo!()
+        /*
+        "thumbnail_processor": {
+            "type": "local",
+            "options": {
+              "id": 0,
+              "output_format": "png",
+              "width": 720,
+              "height": 720,
+              "filter_type": "triangle"
+            }
+          }
+                */
+        let output_format_string: String = image_format_to_string(self.get_output_format());
+        let filter_type_string: String = filter_type_to_string(self.get_filter_type());
+        format!(
+            "{{\"type\": \"local\", \"options\": {{\"id\": {}, \"output_format\": \"{}\", \"width\": {}, \"height\": {}, \"filter_type\": \"{}\"}}}}",
+            self.get_id(),
+            output_format_string,
+            self.get_width(),
+            self.get_height(),
+            filter_type_string
+        )
     }
 }
 
@@ -165,7 +186,7 @@ fn string_to_image_format(input: &str) -> ImageFormat {
         "tiff" => ImageFormat::Tiff,
         "tga" => ImageFormat::Tga,
         "dds" => ImageFormat::Dds,
-        "bmp" => ImageFormat::Dds,
+        "bmp" => ImageFormat::Bmp,
         "ico" => ImageFormat::Ico,
         "hdr" => ImageFormat::Hdr,
         "exr" => ImageFormat::OpenExr,
@@ -174,6 +195,28 @@ fn string_to_image_format(input: &str) -> ImageFormat {
         "qoi" => ImageFormat::Qoi,
         _ => unimplemented!("Unsupported file format!"),
     }
+}
+
+fn image_format_to_string(input: ImageFormat) -> String {
+    match input {
+        ImageFormat::Png => "png",
+        ImageFormat::Jpeg => "jpg",
+        ImageFormat::Gif => "gif",
+        ImageFormat::WebP => "webp",
+        ImageFormat::Pnm => "pnm",
+        ImageFormat::Tiff => "tiff",
+        ImageFormat::Tga => "tga",
+        ImageFormat::Dds => "dds",
+        ImageFormat::Bmp => "bmp",
+        ImageFormat::Ico => "ico",
+        ImageFormat::Hdr => "hdr",
+        ImageFormat::OpenExr => "exr",
+        ImageFormat::Farbfeld => "farbfeld",
+        ImageFormat::Avif => "avif",
+        ImageFormat::Qoi => "qoi",
+        _ => unimplemented!("Unsupported image format!"),
+    }
+    .to_string()
 }
 
 fn string_to_filter_type(input: &str) -> FilterType {
@@ -185,6 +228,17 @@ fn string_to_filter_type(input: &str) -> FilterType {
         "lanczos3" => FilterType::Lanczos3,
         _ => unimplemented!("Unsupported filter type!"),
     }
+}
+
+fn filter_type_to_string(input: FilterType) -> String {
+    match input {
+        FilterType::Nearest => "nearest",
+        FilterType::Triangle => "triangle",
+        FilterType::CatmullRom => "catmullrom",
+        FilterType::Gaussian => "gaussian",
+        FilterType::Lanczos3 => "lanczos3",
+    }
+    .to_string()
 }
 
 impl FromJson for LocalThumbnailImageProcessor {
