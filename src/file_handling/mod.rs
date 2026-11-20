@@ -147,10 +147,16 @@ pub static DEFAULT_MAX_SEARCH_RESULTS: usize = 50;
 pub fn read_small_file(file_path_str: &str) -> Result<Vec<u8>, std::io::Error> {
     let file_path_str_new = format!("./{}", file_path_str);
     // let file_path = std::path::Path::new(&file_path_str);
-    let file_path_buf = std::fs::canonicalize(&file_path_str_new).unwrap();
+    read_small_file_anywhere(file_path_str_new.as_str())
+}
+
+///Read a file and returns it's contents as a Vec of bytes if successful. If not, return an error. Do not use on large files as it will use up a lot of RAM!
+pub fn read_small_file_anywhere(file_path_str: &str) -> Result<Vec<u8>, std::io::Error> {
+    println!("Reading from file \"{}\". ", file_path_str);
+    let file_path_buf = std::fs::canonicalize(file_path_str).unwrap();
     let file_path = file_path_buf.as_path();
     if !file_path.exists() {
-        let err_str = format!("Error: The file \"{}\" does not exist. ", file_path_str_new);
+        let err_str = format!("Error: The file \"{}\" does not exist. ", file_path_str);
         return Err(std::io::Error::new(std::io::ErrorKind::NotFound, err_str));
     }
     match std::fs::read(file_path) {
@@ -633,7 +639,8 @@ impl DataManager {
         //Load users:
         //Load JSON:
         let users_json_cont =
-            read_small_file(format!("{}/user_data/users.json", data_path).as_str()).unwrap();
+            read_small_file_anywhere(format!("{}/user_data/users.json", data_path).as_str())
+                .unwrap();
         let users_json_cont_slice: &[u8] = users_json_cont.as_slice();
         let users_json_cont_slice_str: &str = str::from_utf8(users_json_cont_slice).unwrap();
         //Parse JSON:
@@ -652,7 +659,8 @@ impl DataManager {
         let media_path_string: &String = &format!("{}/media/", data_path);
         //Load JSON:
         let videos_json_cont =
-            read_small_file(format!("{}/videos.json", media_path_string).as_str()).unwrap();
+            read_small_file_anywhere(format!("{}/videos.json", media_path_string).as_str())
+                .unwrap();
         let videos_json_cont_slice: &[u8] = videos_json_cont.as_slice();
         let videos_json_cont_slice_str: &str = str::from_utf8(videos_json_cont_slice).unwrap();
         //Parse JSON:

@@ -1,8 +1,10 @@
 ///This is a video sharing platform website, similar to YouTube.
 use std::{
     collections::HashMap,
+    fs::File,
+    io::Write,
     ops::{Deref, DerefMut},
-    str::FromStr,
+    path::PathBuf,
     sync::{Arc, LazyLock, Mutex},
     thread,
     time::Duration,
@@ -36,9 +38,7 @@ use crate::{
     management_console::{
         ManagementConsole, text_based_management_console::TextBasedManagementConsole,
     },
-    misc::collections::{
-        DynClone, DynCloneBox, MutableBox, linear_search_slice, linear_search_vec,
-    },
+    misc::collections::{DynClone, DynCloneBox, MutableBox, linear_search_vec},
     other_main::search_endpoint,
     session_manager::SessionManager,
     tests::DEFAULT_PASSWORD,
@@ -212,28 +212,69 @@ async fn main() -> std::io::Result<()> {
     if args.contains(&"--help".to_string()) || args.contains(&"-h".to_string()) {
         println!("--help or -h -> Show this help message.
 --testing_mode -> Start in testing mode (does not load any data at all at startup). Cannot be used with \"--text_console\".
---text_console -> Enable the text console. ");
+--text_console -> Enable the text console.
+--data_path [PATH] -> Use the database located in the given directory (PATH).
+--create_new -> Create a new database in the directory given by the \"--data_path\" option. All files that were previously located in the given directory ARE GOING TO BE ERASED! Must be used with the \"--data_path\" option. ");
         return Ok(());
     }
     let t_mode: bool = args.contains(&"--testing_mode".to_string());
     let is_text_console: bool = args.contains(&"--text_console".to_string());
 
     //Set data dir if --data_path flag is used correctly:
-    if let Some(flag_index) = linear_search_vec(&args, "--data_path".to_string()) {
-        //Check if the data flag has a valid value.
-        let value_index = flag_index + 1;
-        let invalid_value_message: &str = "Invalid value for the \"--data_path\" option!";
-        if value_index < args.len() {
-            let value: &String = args.get(value_index).unwrap();
-            if value.starts_with("--") {
+    let data_path_flag_set: bool =
+        if let Some(flag_index) = linear_search_vec(&args, "--data_path".to_string()) {
+            //Check if the data flag has a valid value.
+            let value_index = flag_index + 1;
+            let invalid_value_message: &str = "Invalid value for the \"--data_path\" option!";
+            if value_index < args.len() {
+                let value: &String = args.get(value_index).unwrap();
+                if value.starts_with("--") {
+                    panic!("{invalid_value_message}");
+                }
+                let mut data_path_mutg = DATA_PATH.lock().unwrap();
+                let data_path_box = data_path_mutg.deref_mut();
+                data_path_box.set(Some(value.clone()));
+                true
+            } else {
                 panic!("{invalid_value_message}");
             }
-            let mut data_path_mutg = DATA_PATH.lock().unwrap();
-            let data_path_box = data_path_mutg.deref_mut();
-            data_path_box.set(Some(value.clone()));
         } else {
-            panic!("{invalid_value_message}");
+            false
+        };
+
+    //If "--create_new" and "--data_path" options are used, delete everything in the DATA_PATH directory and create a new database there.
+    let create_new_set: bool = args.contains(&"--create_new".to_string());
+    if create_new_set && data_path_flag_set {
+        let data_path_string = get_data_path();
+        let data_path_buf: PathBuf = std::fs::canonicalize(data_path_string.as_str())
+            .unwrap_or_else(|_e| -> PathBuf {
+                panic!("The directory \"{data_path_string}\" cannot be canonicalized!");
+            });
+        let data_path: &str = data_path_buf.to_str().unwrap_or_else(|| -> &str {
+            panic!("The directory given to the \"--data_path\" option must not contain any non-UTF-8 characters!");
+        });
+        // Remove all files in the given directory:
+        std::fs::remove_dir_all(data_path).unwrap();
+        // Create the directory:
+        std::fs::create_dir(data_path).unwrap();
+        // Create a new database at the given directory:
+        {
+            let mut temp_data_manager: DataManager =
+                DataManager::new(data_path, DEFAULT_MEMORY_BUDGET);
+            temp_data_manager.save_data();
         }
+        let processors_path_buf: PathBuf = data_path_buf.join("./processors.json");
+        let processors_path: &str = processors_path_buf.to_str().unwrap();
+        let mut processors_file = File::create_new(processors_path).unwrap_or_else(|_e| -> File {
+            panic!("Cannot create a new file at the path \"{processors_path}\"!");
+        });
+        processors_file
+            .write_all("{\"local_video_processors\": [], \"local_music_processors\": [], \"thumbnail_processor\": {\"type\": \"local\", \"options\": {\"id\": 0, \"output_format\": \"png\", \"width\": 720, \"height\": 720, \"filter_type\": \"triangle\"}}}".as_bytes())
+            .unwrap_or_else(|_e| {
+                panic!("Cannot write to the file at the path \"{processors_path}\"!");
+            });
+    } else if create_new_set && !data_path_flag_set {
+        panic!("\"--create_new\" must be used with the \"--data_path\" option!");
     }
 
     //Initialize PROCESSOR_MANAGER:

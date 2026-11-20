@@ -15,7 +15,7 @@ use serde_json::Value;
 
 use crate::{
     file_handling::{
-        read_small_file,
+        read_small_file, read_small_file_anywhere,
         saveable::make_json_list_from_saveable_list,
         video_processing::{
             local_music_processor::LocalMusicProcessor,
@@ -254,7 +254,8 @@ impl<
             "Loading VideoProcessorManager data from \"{}\". ",
             config_file_path.to_str().unwrap()
         );
-        let config_file_contents = read_small_file(config_file_path.to_str().unwrap()).unwrap();
+        let config_file_contents =
+            read_small_file_anywhere(config_file_path.to_str().unwrap()).unwrap();
         let json_data: Value = serde_json::from_slice(config_file_contents.as_slice()).unwrap();
         //Process JSON data:
         //Local video processors:
