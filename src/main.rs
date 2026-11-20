@@ -195,13 +195,16 @@ impl DynClone for u16 {
     }
 }
 
-static SERVER_PORT: LazyLock<Mutex<DynCloneBox<u16>>> =
-    LazyLock::new(|| -> Mutex<DynCloneBox<u16>> { Mutex::new(DynCloneBox::new(5999)) });
+// static SERVER_PORT: LazyLock<Mutex<DynCloneBox<u16>>> =
+//     LazyLock::new(|| -> Mutex<DynCloneBox<u16>> { Mutex::new(DynCloneBox::new(5999)) });
+
+static SERVER_PORT: LazyLock<Mutex<MutableBox<u16>>> =
+    LazyLock::new(|| -> Mutex<MutableBox<u16>> { Mutex::new(MutableBox::new(Some(5999))) });
 
 pub fn get_server_port() -> u16 {
     let sp_mutg = SERVER_PORT.lock().unwrap();
     let sp_box = sp_mutg.deref();
-    *sp_box.deref()
+    sp_box.unwrap()
 }
 
 #[actix_web::main]
@@ -214,7 +217,8 @@ async fn main() -> std::io::Result<()> {
 --testing_mode -> Start in testing mode (does not load any data at all at startup). Cannot be used with \"--text_console\".
 --text_console -> Enable the text console.
 --data_path [PATH] -> Use the database located in the given directory (PATH).
---create_new -> Create a new database in the directory given by the \"--data_path\" option. All files that were previously located in the given directory ARE GOING TO BE ERASED! Must be used with the \"--data_path\" option. ");
+--create_new -> Create a new database in the directory given by the \"--data_path\" option. All files that were previously located in the given directory ARE GOING TO BE ERASED! Must be used with the \"--data_path\" option.
+--port [PORT_NUM] -> Start the server with the given port (PORT_NUM) instead of the default port number of {}. ", get_server_port());
         return Ok(());
     }
     let t_mode: bool = args.contains(&"--testing_mode".to_string());
@@ -241,6 +245,29 @@ async fn main() -> std::io::Result<()> {
         } else {
             false
         };
+
+    //Set port number if "--port" flag is set correctly:
+    if let Some(flag_index) = linear_search_vec(&args, "--data_path".to_string()) {
+        //Check if the data flag has a valid value.
+        let value_index = flag_index + 1;
+        let invalid_value_message: &str = "Invalid value for the \"--data_path\" option!";
+        if value_index < args.len() {
+            let value: &String = args.get(value_index).unwrap();
+            if value.starts_with("--") {
+                panic!("{invalid_value_message}");
+            }
+            let mut port_num_mutg = SERVER_PORT.lock().unwrap();
+            let port_num_mutbox = port_num_mutg.deref_mut();
+            port_num_mutbox.set(Some(match value.parse::<u16>() {
+                Ok(num) => num,
+                Err(_) => {
+                    panic!("{invalid_value_message}");
+                }
+            }));
+        } else {
+            panic!("{invalid_value_message}");
+        }
+    }
 
     //If "--create_new" and "--data_path" options are used, delete everything in the DATA_PATH directory and create a new database there.
     let create_new_set: bool = args.contains(&"--create_new".to_string());
