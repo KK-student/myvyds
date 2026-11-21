@@ -68,7 +68,7 @@ where
             let mut rng = rand::rng();
             let id: u64 = rng.random::<u64>();
             let session_arc: Arc<Mutex<Session>> =
-                Arc::new(Mutex::new(Session::new(id, user_id, 60 * 60 * 12)));
+                Arc::new(Mutex::new(Session::new(id, user_id, 2 * 60 * 60)));
 
             let mut sessions_mutg = self.sessions.lock().unwrap();
             let sessions: &mut HashMap<String, Vec<Arc<Mutex<Session>>>> =
