@@ -44,8 +44,8 @@ use crate::{
     tests::DEFAULT_PASSWORD,
     user_main::{
         get_disliked_comments, get_disliked_videos, get_liked_comments, get_liked_videos,
-        get_public_info, get_subscriptions, get_user_comments, get_user_icon, login_endpoint,
-        signup,
+        get_public_info, get_subscriptions, get_user_comments, get_user_icon,
+        is_logged_in_endpoint, login_endpoint, signup,
     },
     video_main::{
         get_comments_page, get_video_basic_info, get_video_file, get_video_thumbnail_image,
@@ -179,7 +179,8 @@ pub fn build_app() -> App<
         .service(comment_edit_endpoint)
         .service(comment_add_reply_endpoint)
         .service(comment_remove_endpoint)
-        .service(search_endpoint);
+        .service(search_endpoint)
+        .service(is_logged_in_endpoint);
     if cfg!(test) {
         app = app.service(is_online);
     }

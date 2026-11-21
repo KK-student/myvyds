@@ -7,7 +7,9 @@ use std::{
 };
 
 use actix_multipart::Multipart;
-use actix_web::{HttpResponse, Responder, get, http::header, mime, post, web::Query};
+use actix_web::{
+    HttpResponse, HttpResponseBuilder, Responder, get, http::header, mime, post, web::Query,
+};
 use argon2::{Argon2, PasswordHasher};
 use serde::Deserialize;
 
@@ -368,6 +370,22 @@ async fn get_liked_comments(mut payload: Multipart) -> impl Responder {
     HttpResponse::Ok()
         .append_header(header::ContentType(mime::APPLICATION_JSON))
         .body(result)
+}
+
+#[post("/user/is_logged_in")]
+///Serves the "/user/is_logged_in" endpoint.
+async fn is_logged_in_endpoint(mut payload: Multipart) -> impl Responder {
+    let mut okr = HttpResponse::Ok();
+    let ok_response: &mut HttpResponseBuilder =
+        okr.append_header(header::ContentType(mime::APPLICATION_OCTET_STREAM));
+
+    //Get and very user_id and session_id:
+    let (_parsed_form_data, _user_id) = match authenticate(&mut payload).await {
+        Some(data) => data,
+        None => return ok_response.body(0_u8.to_be_bytes().to_vec()),
+    };
+
+    ok_response.body(1_u8.to_be_bytes().to_vec())
 }
 
 #[post("/user/get_disliked_comments")]

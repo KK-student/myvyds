@@ -146,13 +146,12 @@ pub static DEFAULT_MAX_SEARCH_RESULTS: usize = 50;
 ///Read a file and returns it's contents as a Vec of bytes if successful. If not, return an error. Do not use on large files as it will use up a lot of RAM! Note: This function prepends "./" to the beginning of the file path!
 pub fn read_small_file(file_path_str: &str) -> Result<Vec<u8>, std::io::Error> {
     let file_path_str_new = format!("./{}", file_path_str);
-    // let file_path = std::path::Path::new(&file_path_str);
     read_small_file_anywhere(file_path_str_new.as_str())
 }
 
 ///Read a file and returns it's contents as a Vec of bytes if successful. If not, return an error. Do not use on large files as it will use up a lot of RAM!
 pub fn read_small_file_anywhere(file_path_str: &str) -> Result<Vec<u8>, std::io::Error> {
-    println!("Reading from file \"{}\". ", file_path_str);
+    // println!("Reading from file \"{}\". ", file_path_str);
     let file_path_buf = std::fs::canonicalize(file_path_str).unwrap();
     let file_path = file_path_buf.as_path();
     if !file_path.exists() {

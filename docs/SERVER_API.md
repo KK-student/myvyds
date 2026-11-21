@@ -1,5 +1,23 @@
 # Backend API:
 
+# Notes:
+
+1. All forms are to be sent as multipart form data (except certain items that the documentation says needs to be sent as url parameters).
+
+2. In JavaScript, by default JSON.parse(text) parses numbers as JavaScript numbers, which are all floating point numbers and therefore, when parsing JSON data containing a u64, it will NOT get parsed correctly! In order to force it to parse correctly, you must manually parse the numbers as an unsigned BigInt:
+
+```javascript
+function parseJSONTextWithUnsignedBigInt(text) {
+  return JSON.parse(text, (key, value, context) => {
+    if (typeof value === 'number' && Number.isInteger(value) && !Number.isSafeInteger(value)) {
+      let bi = BigInt(context.source);
+      return BigInt.asUintN(64, bi);
+    }
+    return value;
+  });
+}
+```
+
 ## Videos: 
 ### Getting a video:
 
@@ -187,7 +205,13 @@ Otherwise, server sends error response with the 404 error code.
 
 1. Client sends a form to the server with the fields "username"=[user's user_id] and "password"=[the user's password] with path "/user/signup".
 
-2. If username is not already taken, server sends OK response with the body being a randomly-generated session_id as a u64 value which will only be valid for 2h (after which the user will have to log in to get a new session_id). Otherwise, server sends an error message with the 400 (Bad Request) error code. 
+2. If username is not already taken, server sends OK response with the body being a randomly-generated session_id as a u64 value which will only be valid for 2h (after which the user will have to log in to get a new session_id). Otherwise, server sends an error message with the 400 (Bad Request) error code.
+
+### Checking if a user is logged in:
+
+1. Client sends a POST request with a form with the field "username"=[user's user_id] and "session_id" to the server at the endpoint "/user/is_logged_in".
+
+2. If the username and session_id are valid: Server replies with an OK response with the body being 1 as a single u8. Otherwise, the server responds with an OK response with the body being 0 as a single u8. 
 
 ### Getting user's subscriptions: 
 
