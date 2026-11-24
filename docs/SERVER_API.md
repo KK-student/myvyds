@@ -35,7 +35,7 @@ function parseJSONTextWithUnsignedBigInt(text) {
 ```json
 {
   "result": [{
-    "doc_type":[A u64 indicating the type document being represented (0 for video, 1 for comment/reply, 2 for user)],
+    "doc_type":[A u64 indicating the type document being represented (0 for video, 1 for user, 2 for comment/reply)],
     "id":[The id the object being represented - either a u64 (if it's a video or comment/reply) or a string (if it's a user)]
   }, ...]
 }
