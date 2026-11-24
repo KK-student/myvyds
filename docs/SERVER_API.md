@@ -55,7 +55,7 @@ Available tantivy fields:
     Description: An identifier that the search engine uses to keep track of all the documents. For internal use only. THIS IS NOT THE SAME AS A COMMENT, VIDEO, OR USER ID!
 - "doc_type":
     Type: u64,
-    Description: Represents the type of document (0 for video, 1 for comment/reply, 2 for user). 
+    Description: Represents the type of document (0 for video, 1 for user, 2 for comment/reply). 
 
 ### Getting a video by name:
 
