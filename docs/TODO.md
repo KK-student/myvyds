@@ -24,6 +24,8 @@
 - [ ] Editing a video.
 - [ ] Removing a video.
 - [ ] Implemented live streaming using the ez-ffmpeg crate. 
+- [ ] Categorize each video by different categories such as news, comedy, .etc. 
+- [ ] Add individual endpoints to get the video description and name. 
 
 ## [x] Users: 
 - [x] Getting publicly-available user information.
