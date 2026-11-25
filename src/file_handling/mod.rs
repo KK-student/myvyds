@@ -350,6 +350,7 @@ impl DataManager {
         password_hash: &String,
         description: &String,
         icon_id: u64,
+        playlists: HashMap<String, Vec<u64>>,
     ) {
         if self.has_user(user_id) {
             return;
@@ -368,6 +369,7 @@ impl DataManager {
             &Box::new(Vec::new()),
             &Box::new(Vec::new()),
             &Box::new(Vec::new()),
+            playlists,
         );
         //Add the new user:
         self.users.insert(user_id.clone(), user_arc.clone());
@@ -1118,6 +1120,137 @@ impl DataManager {
                 Some(reply_id)
             }
             None => None,
+        }
+    }
+
+    ///Returns a list of all of the names of the user with the given user id (`user_id`) playlists wrapped up in Some(), if user exists. Otherwise, returns None.
+    pub fn get_playlist_names(&self, user_id: &String) -> Option<Vec<String>> {
+        match self.get_user(user_id) {
+            Some(user_arc) => {
+                let user_mutg = user_arc.lock().unwrap();
+                let user = user_mutg.deref();
+                Some(user.get_playlist_names())
+            }
+            None => None,
+        }
+    }
+
+    ///If the user with the given user id (`user_id`) has a playlist of the given name (`name`), then this function returns that playlist, wrapped up in Some(). Otherwize, it returns None. Also returns None if user doesn't exist.
+    pub fn get_playlist(&self, user_id: &String, name: &String) -> Option<Vec<u64>> {
+        match self.get_user(user_id) {
+            Some(user_arc) => {
+                let user_mutg = user_arc.lock().unwrap();
+                let user = user_mutg.deref();
+                user.get_playlist_clone(name)
+            }
+            None => None,
+        }
+    }
+
+    ///Returns whether or not if the user with the given user id (`user_id`) currently has a playlist with the given name (`name`), wrapped in Some() if user exists. Otherwise, returns None.
+    pub fn has_playlist(&self, user_id: &String, name: &String) -> Option<bool> {
+        match self.get_user(user_id) {
+            Some(user_arc) => {
+                let user_mutg = user_arc.lock().unwrap();
+                let user = user_mutg.deref();
+                Some(user.has_playlist(name))
+            }
+            None => None,
+        }
+    }
+
+    ///Adds the given video id (`video_id`) to the playlist with the given name (`playlist_name`), creating a new playlist if the user previously didn't have a playlist with the given name. Returns `true` (wrapped in Some()) if the user previously already had a playlist with the given name. Otherwise, this method returns `false` (wrapped in Some()). Otherwise, returns None.
+    pub fn add_to_playlist(
+        &mut self,
+        user_id: &String,
+        playlist_name: String,
+        video_id: u64,
+    ) -> Option<bool> {
+        match self.get_user(user_id) {
+            Some(user_arc) => {
+                let mut user_mutg = user_arc.lock().unwrap();
+                let user = user_mutg.deref_mut();
+                Some(user.add_to_playlist(playlist_name, video_id))
+            }
+            None => None,
+        }
+    }
+
+    ///Given a user's id (`user_id`), adds a new playlist with the given name (`playlist_name`) and video id's (`playlist`) to the corresponding user. Returns Ok (wrapped in Some()) if user exists and playlist was added successfully, if playlist was not added succesfully but user exists, returns Err (also wrapped in Some()). Returns None if user doesn't exist.
+    pub fn add_playlist(
+        &mut self,
+        user_id: &String,
+        playlist_name: String,
+        playlist: Vec<u64>,
+    ) -> Option<Result<(), ()>> {
+        match self.get_user(user_id) {
+            Some(user_arc) => {
+                let mut user_mutg = user_arc.lock().unwrap();
+                let user = user_mutg.deref_mut();
+                Some(user.add_playlist(playlist_name, playlist))
+            }
+            None => None,
+        }
+    }
+
+    ///Given a user's id (`user_id`), returns whether or not if the corresponding user's playlist with the given name (`playlist_name`) has a video with the given video id (`video_id`), wrapped in Some(). Returns None if the user doesn't exist.
+    pub fn playlist_has_video(
+        &self,
+        user_id: &String,
+        playlist_name: &String,
+        video_id: u64,
+    ) -> Option<bool> {
+        match self.get_user(user_id) {
+            Some(user_arc) => {
+                let user_mutg = user_arc.lock().unwrap();
+                let user = user_mutg.deref();
+                Some(user.playlist_has_video(playlist_name, video_id))
+            }
+            None => None,
+        }
+    }
+
+    ///Removes the given video id (`video_id`) from the playlist with the given name (`playlist_name`) for the user with the given user id (`user_id`). Does nothing if the user either doesn't exist, doesn't have a playlist with the given name, or the playlist doesn't have the given video id. Removes the playlist if it's size reaches 0.
+    pub fn remove_from_playlist(
+        &mut self,
+        user_id: &String,
+        playlist_name: &String,
+        video_id: u64,
+    ) {
+        if let Some(user_arc) = self.get_user(user_id) {
+            let mut user_mutg = user_arc.lock().unwrap();
+            let user = user_mutg.deref_mut();
+            user.remove_from_playlist(playlist_name, video_id);
+        }
+    }
+
+    ///Given a user's user id (`user_id`), removes the playlist with the given name (`playlist_name`) from the corresponding user's set of playlists. Returns whether or not the user previously had a playlist with the given name wrapped in Some(), if the corresponding user exists. Otherwise, returns None.
+    pub fn remove_playlist(&mut self, user_id: &String, playlist_name: &String) -> Option<bool> {
+        match self.get_user(user_id) {
+            Some(user_arc) => {
+                let mut user_mutg = user_arc.lock().unwrap();
+                let user = user_mutg.deref_mut();
+                Some(user.remove_playlist(playlist_name))
+            }
+            None => None,
+        }
+    }
+
+    ///Given a user's user id (`user_id`), removes all of the corresponding user's playlists. Does nothing if user doesn't exist.
+    pub fn remove_all_playlists(&mut self, user_id: &String) {
+        if let Some(user_arc) = self.get_user(user_id) {
+            let mut user_mutg = user_arc.lock().unwrap();
+            let user = user_mutg.deref_mut();
+            user.remove_all_playlists();
+        }
+    }
+
+    ///Given a user's user id (`user_id`), executes a given function (`action`) for each of the corresponding user's playlists. First parameter of the given function is the playlist's name and the second parameter is the playlist's video ids. Does nothing if the corresponding user doesn't exist.
+    pub fn for_each_playlist<F: Fn(&String, &Vec<u64>)>(&self, user_id: &String, action: F) {
+        if let Some(user_arc) = self.get_user(user_id) {
+            let user_mutg = user_arc.lock().unwrap();
+            let user = user_mutg.deref();
+            user.for_each_playlist(action);
         }
     }
 }

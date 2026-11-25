@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     ops::Deref,
     sync::{Arc, Mutex},
 };
@@ -87,4 +88,40 @@ pub fn make_json_from_saveable_list(list: &Vec<Arc<Mutex<impl Saveable>>>) -> St
 
 pub trait Saveable {
     fn to_json(&self, pretty: bool) -> String;
+}
+
+impl Saveable for HashMap<String, Vec<u64>> {
+    fn to_json(&self, _pretty: bool) -> String {
+        let mut result: String = '{'.to_string();
+        let mut i = 0;
+        for (key, value) in self.iter() {
+            if i != 0 {
+                result.push(',');
+            }
+            result.push_str(format!("\"{key}\": {}", make_json_list_from_u64_list(value)).as_str());
+
+            i += 1;
+        }
+
+        result.push('}');
+        result
+    }
+}
+
+impl<Sav: Saveable> Saveable for HashMap<String, Sav> {
+    fn to_json(&self, _pretty: bool) -> String {
+        let mut result: String = '{'.to_string();
+        let mut i = 0;
+        for (key, value) in self.iter() {
+            if i != 0 {
+                result.push(',');
+            }
+            result.push_str(format!("\"{key}\": {}", value.to_json(false)).as_str());
+
+            i += 1;
+        }
+
+        result.push('}');
+        result
+    }
 }

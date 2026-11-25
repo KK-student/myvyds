@@ -195,7 +195,7 @@ async fn signup(mut payload: Multipart) -> impl Responder {
             .to_string();
 
         //Create new user:
-        data_manager.add_user(&user_id, &password_hash, &"".to_string(), 0);
+        data_manager.add_user(&user_id, &password_hash, &"".to_string(), 0, HashMap::new());
     }
 
     //Get session id:

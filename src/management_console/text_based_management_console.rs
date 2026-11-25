@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     ops::{Deref, DerefMut},
     sync::{Arc, Mutex},
     thread,
@@ -200,7 +200,7 @@ To quit, press Ctrl+C. ";
                 }
                 fn view_user_obj(user_obj: &User) {
                     println!(
-                        "id (aka username) \"{}\": 
+                        "id (aka username) \"{}\":
 \tpassword_hash: \"{}\"
 \tdescription: \"{}\"
 \tvideos: {:?}
@@ -209,7 +209,8 @@ To quit, press Ctrl+C. ";
 \tdisliked videos: {:?}
 \tcomments: {:?}
 \tliked comments: {:?}
-\tdisliked comments: {:?}",
+\tdisliked comments: {:?}
+\tplaylists: \n\t\t{:#?}",
                         user_obj.get_user_id(),
                         user_obj.get_password_hash(),
                         user_obj.get_description(),
@@ -219,7 +220,8 @@ To quit, press Ctrl+C. ";
                         user_obj.get_disliked_vids(),
                         user_obj.get_comments(),
                         user_obj.get_liked_comments(),
-                        user_obj.get_disliked_comments()
+                        user_obj.get_disliked_comments(),
+                        user_obj.get_playlists(),
                     );
                 }
                 fn view_video_data_obj(video_data_obj: &VideoData) {
@@ -489,7 +491,13 @@ To quit, press Ctrl+C. ";
                             .hash_password(password.as_bytes())
                             .unwrap()
                             .to_string();
-                        data_manager.add_user(user_id, &password_hash, description, icon_id);
+                        data_manager.add_user(
+                            user_id,
+                            &password_hash,
+                            description,
+                            icon_id,
+                            HashMap::new(),
+                        );
                     }
                     "remove_user" => {
                         let user_id: String = get_value_in_set(

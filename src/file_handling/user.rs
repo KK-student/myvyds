@@ -1,5 +1,6 @@
 use std::{
-    ops::Deref,
+    collections::HashMap,
+    ops::{Deref, Index},
     str::FromStr,
     sync::{Arc, Mutex},
 };
@@ -31,6 +32,7 @@ pub struct User {
     disliked_vids: Box<Vec<u64>>,
     liked_comments: Box<Vec<u64>>,
     disliked_comments: Box<Vec<u64>>,
+    playlists: HashMap<String, Vec<u64>>,
 
     dirty: bool,
 
@@ -122,21 +124,18 @@ impl User {
             user_json_value["disliked_comments"].as_array().unwrap(),
         );
 
-        // return Arc::new(Mutex::new(User {
-        //     user_id: user_id.clone(),
-        //     time_created: time_created,
-        //     icon_id: icon_id,
-        //     description: description.clone(),
-        //     videos: videos,
-        //     subscriptions: subscriptions,
-        //     comments: comments,
-        //     password_hash: password_hash.clone(),
-        //     liked_vids: liked_vids,
-        //     disliked_vids: disliked_vids,
-        //     liked_comments: liked_comments,
-        //     disliked_comments: disliked_comments,
-        //     dirty: false,
-        // }));
+        //playlists:
+        let mut playlists: HashMap<String, Vec<u64>> = HashMap::new();
+        if let Some(playlists_json_obj) = user_json_value["playlists"].as_object() {
+            for (playlist_name, playlist_json_obj) in playlists_json_obj {
+                let mut playlist: Vec<u64> = Vec::new();
+                for video_id_json_obj in playlist_json_obj.as_array().unwrap() {
+                    playlist.push(video_id_json_obj.as_u64().unwrap());
+                }
+                playlists.insert(playlist_name.to_string(), playlist);
+            }
+        }
+
         Self::new_arc(
             user_id,
             time_created,
@@ -150,6 +149,7 @@ impl User {
             &disliked_vids,
             &liked_comments,
             &disliked_comments,
+            playlists,
         )
     }
 
@@ -166,6 +166,7 @@ impl User {
         disliked_vids: &Box<Vec<u64>>,
         liked_comments: &Box<Vec<u64>>,
         disliked_comments: &Box<Vec<u64>>,
+        playlists: HashMap<String, Vec<u64>>,
     ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(User {
             user_id: user_id.clone(),
@@ -182,6 +183,7 @@ impl User {
             disliked_comments: disliked_comments.clone(),
             dirty: false,
             searchable_id: 0,
+            playlists,
         }))
     }
 
@@ -259,6 +261,123 @@ impl User {
     pub fn remove_all_videos(&mut self) {
         self.videos.clear();
         self.set_dirty(true);
+    }
+
+    ///Returns a list of all of the names of the user's playlists.
+    pub fn get_playlist_names(&self) -> Vec<String> {
+        let mut result: Vec<String> = Vec::new();
+        for name in self.playlists.keys() {
+            result.push(name.to_string());
+        }
+        result
+    }
+
+    ///Returns a DEEP COPY of all of the playlists.
+    pub fn get_playlists(&self) -> HashMap<String, Vec<u64>> {
+        let mut result: HashMap<String, Vec<u64>> = HashMap::new();
+        self.for_each_playlist(|playlist_name: &String, _playlist: &Vec<u64>| {
+            result.insert(
+                playlist_name.to_string(),
+                self.get_playlist_clone(playlist_name).unwrap(),
+            );
+        });
+        result
+    }
+
+    ///If user has a playlist of the given name (`name`), then this function returns that playlist, wrapped up in Some(). Otherwize, it returns None.
+    pub fn get_playlist(&self, name: &String) -> Option<&Vec<u64>> {
+        self.playlists.get(name)
+    }
+
+    ///Same as `get_playlist`, but returns a DEEP COPY of the playlist.
+    pub fn get_playlist_clone(&self, name: &String) -> Option<Vec<u64>> {
+        match self.get_playlist(name) {
+            Some(val) => Some(Vec::<u64>::from_fn(val.len(), |i| -> u64 { val[i] })),
+            None => None,
+        }
+    }
+
+    ///Returns whether or not if the user currently has a playlist with the given name (`name`).
+    pub fn has_playlist(&self, name: &String) -> bool {
+        self.get_playlist(name).is_some()
+    }
+
+    ///Adds the given video id (`video_id`) to the playlist with the given name (`playlist_name`), creating a new playlist if the user previously didn't have a playlist with the given name. Returns `true` if the user previously already had a playlist with the given name. Otherwise, this method returns `false`.
+    pub fn add_to_playlist(&mut self, playlist_name: String, video_id: u64) -> bool {
+        let mut result = true;
+        if !self.has_playlist(&playlist_name) {
+            self.add_playlist(playlist_name.clone(), Vec::new())
+                .unwrap();
+            result = false;
+        }
+        let playlist = self.playlists.get_mut(&playlist_name).unwrap();
+        playlist.push(video_id);
+        result
+    }
+
+    ///Adds a new playlist with the given name (`playlist_name`) and video id's (`playlist`). Returns Ok if playlist was added successfully, otherwise returns Err.
+    pub fn add_playlist(&mut self, playlist_name: String, playlist: Vec<u64>) -> Result<(), ()> {
+        if !self.has_playlist(&playlist_name) {
+            self.playlists.insert(playlist_name, playlist);
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+
+    ///Returns whether or not if the user's playlist with the given name (`playlist_name`) has a video with the given video id (`video_id`).
+    pub fn playlist_has_video(&self, playlist_name: &String, video_id: u64) -> bool {
+        let playlist: &Vec<u64> = match self.get_playlist(playlist_name) {
+            Some(val) => val,
+            None => return false,
+        };
+        playlist.contains(&video_id)
+    }
+
+    ///Removes the given video id (`video_id`) from the playlist with the given name (`playlist_name`) for this user. Does nothing if the user doesn't have a playlist with the given name or the playlist doesn't have the given video id. Removes the playlist if it's size reaches 0.
+    pub fn remove_from_playlist(&mut self, playlist_name: &String, video_id: u64) {
+        {
+            let playlist: &Vec<u64> = match self.get_playlist(playlist_name) {
+                Some(val) => val,
+                None => return,
+            };
+            if playlist.len() == 1 && playlist[0] == video_id {
+                self.remove_playlist(playlist_name);
+            }
+        }
+        let playlist: &mut Vec<u64> = self.playlists.get_mut(playlist_name).unwrap();
+
+        let mut item_index: isize = -1;
+        {
+            let mut i = 0;
+            while i < playlist.len() {
+                if playlist[i] == video_id {
+                    item_index = i as isize;
+                    break;
+                }
+                i += 1;
+            }
+        }
+        if item_index >= 0 {
+            playlist.remove(item_index as usize);
+        }
+    }
+
+    ///Removes the playlist with the given name (`playlist_name`) from the user's set of playlists. Returns whether or not the user previously had a playlist with the given name.
+    pub fn remove_playlist(&mut self, playlist_name: &String) -> bool {
+        self.playlists.remove(playlist_name).is_some()
+    }
+
+    ///Removes all of the user's playlists.
+    pub fn remove_all_playlists(&mut self) {
+        self.playlists = HashMap::new();
+    }
+
+    ///Executes a given function (`action`) for each of the user's playlists. First parameter of the given function is the playlist's name and the second parameter is the playlist's video ids.
+    pub fn for_each_playlist<F: FnMut(&String, &Vec<u64>)>(&self, mut action: F) {
+        for (playlist_name, playlist) in self.playlists.iter() {
+            action(playlist_name, playlist);
+        }
     }
 
     ///Gets a copy of the user's list of subscriptions.
@@ -593,7 +712,8 @@ impl Saveable for User {
 \t\"liked_vids\": {},
 \t\"disliked_vids\": {},
 \t\"liked_comments\": {},
-\t\"disliked_comments\": {}
+\t\"disliked_comments\": {},
+\t\"playlists:\", {},
 }}",
                 user_id_escaped,
                 self.time_created,
@@ -607,10 +727,11 @@ impl Saveable for User {
                 disliked_vids_string,
                 liked_comments_string,
                 disliked_comments_string,
+                self.playlists.to_json(false)
             )
         } else {
             format!(
-                "\"{}\": {{\"time_created\": {},\"icon_id\": {},\"description\": \"{}\",\"videos\": {},\"subscriptions\": {},\"comments\": {},\"password_hash\": \"{}\",\"liked_vids\": {},\"disliked_vids\": {},\"liked_comments\": {},\"disliked_comments\": {}}}",
+                "\"{}\": {{\"time_created\": {},\"icon_id\": {},\"description\": \"{}\",\"videos\": {},\"subscriptions\": {},\"comments\": {},\"password_hash\": \"{}\",\"liked_vids\": {},\"disliked_vids\": {},\"liked_comments\": {},\"disliked_comments\": {},\"playlists\": {}}}",
                 user_id_escaped,
                 self.time_created,
                 self.icon_id,
@@ -623,6 +744,7 @@ impl Saveable for User {
                 disliked_vids_string,
                 liked_comments_string,
                 disliked_comments_string,
+                self.playlists.to_json(false)
             )
         }
     }

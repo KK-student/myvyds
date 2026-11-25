@@ -1,5 +1,5 @@
 [package]
-name = "myvids"
+name = "myvyds"
 version = "0.1.0"
 edition = "2024"
 
@@ -9,7 +9,6 @@ actix-web = {version = "4.15.0"}
 argon2 = "0.6.0"
 futures = "0.3.34"
 image = {version = "0.25.10", default-features = false, features=["default-formats"]}
-imageproc = {version = "0.27.0", default-features = false}
 json-escape = {version = "0.3.1", features = ["alloc"]}
 num-traits = "0.2.19"
 rand = "0.10.2"
@@ -17,7 +16,6 @@ serde = {version = "1.0.229", features = ["derive"]}
 serde_json = "1.0.151"
 tokio = {version = "1.53.1", features = ["fs"]}
 tokio-util = "0.7.19"
-posix-regex = {version = "0.1.4", features = ["no_std"]}
 libm = "0.2.16"
 simple_search_engine_lib = { git = "https://codeberg.org/kseniya-kolokolkina/simple_search_engine.git", version = "0.1.2" }
 actix-cors = "0.7.2"

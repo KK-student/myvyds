@@ -344,6 +344,7 @@ async fn main() -> std::io::Result<()> {
                 },
                 &"This is a sample user created only for testing purposes. ".to_string(),
                 0,
+                HashMap::new(),
             );
         }
     }

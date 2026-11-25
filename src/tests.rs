@@ -50,6 +50,7 @@ pub fn initialize_test_data() {
 #[cfg(test)]
 pub mod test_functions {
     use std::{
+        collections::HashMap,
         ops::{Deref, DerefMut},
         sync::{Arc, Mutex},
     };
@@ -108,7 +109,7 @@ pub mod test_functions {
                 .to_string()
         };
         let description: String = "This is a randomly generated test user. ".to_string();
-        data_manager.add_user(&user_id, &password_hash, &description, 0);
+        data_manager.add_user(&user_id, &password_hash, &description, 0, HashMap::new());
 
         if data_manager.has_user(&user_id) {
             Ok(user_id)
