@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    ops::{Deref, Index},
+    ops::Deref,
     str::FromStr,
     sync::{Arc, Mutex},
 };
@@ -14,6 +14,7 @@ use crate::file_handling::{
     comment::Comment,
     dirty_data::DirtyData,
     document_type_ids::USER_TYPE_ID,
+    playlist::Playlist,
     saveable::{Saveable, make_json_list_from_strings, make_json_list_from_u64_list},
 };
 
@@ -32,7 +33,7 @@ pub struct User {
     disliked_vids: Box<Vec<u64>>,
     liked_comments: Box<Vec<u64>>,
     disliked_comments: Box<Vec<u64>>,
-    playlists: HashMap<String, Vec<u64>>,
+    playlists: HashMap<String, Playlist>,
 
     dirty: bool,
 
@@ -125,14 +126,11 @@ impl User {
         );
 
         //playlists:
-        let mut playlists: HashMap<String, Vec<u64>> = HashMap::new();
-        if let Some(playlists_json_obj) = user_json_value["playlists"].as_object() {
-            for (playlist_name, playlist_json_obj) in playlists_json_obj {
-                let mut playlist: Vec<u64> = Vec::new();
-                for video_id_json_obj in playlist_json_obj.as_array().unwrap() {
-                    playlist.push(video_id_json_obj.as_u64().unwrap());
-                }
-                playlists.insert(playlist_name.to_string(), playlist);
+        let mut playlists: HashMap<String, Playlist> = HashMap::new();
+        if let Some(playlists_json_list) = user_json_value["playlists"].as_array() {
+            for playlist_json_obj in playlists_json_list {
+                let playlist = Playlist::from_json_saveable(playlist_json_obj);
+                playlists.insert(playlist.get_name(), playlist);
             }
         }
 
@@ -166,7 +164,7 @@ impl User {
         disliked_vids: &Box<Vec<u64>>,
         liked_comments: &Box<Vec<u64>>,
         disliked_comments: &Box<Vec<u64>>,
-        playlists: HashMap<String, Vec<u64>>,
+        playlists: HashMap<String, Playlist>,
     ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(User {
             user_id: user_id.clone(),
@@ -272,27 +270,24 @@ impl User {
         result
     }
 
-    ///Returns a DEEP COPY of all of the playlists.
-    pub fn get_playlists(&self) -> HashMap<String, Vec<u64>> {
-        let mut result: HashMap<String, Vec<u64>> = HashMap::new();
-        self.for_each_playlist(|playlist_name: &String, _playlist: &Vec<u64>| {
-            result.insert(
-                playlist_name.to_string(),
-                self.get_playlist_clone(playlist_name).unwrap(),
-            );
+    ///Returns a COPY of all of the playlists.
+    pub fn get_playlists(&self) -> HashMap<String, Playlist> {
+        let mut result: HashMap<String, Playlist> = HashMap::new();
+        self.for_each_playlist(|playlist: &Playlist| {
+            result.insert(playlist.get_name(), playlist.clone());
         });
         result
     }
 
     ///If user has a playlist of the given name (`name`), then this function returns that playlist, wrapped up in Some(). Otherwize, it returns None.
-    pub fn get_playlist(&self, name: &String) -> Option<&Vec<u64>> {
+    pub fn get_playlist(&self, name: &String) -> Option<&Playlist> {
         self.playlists.get(name)
     }
 
-    ///Same as `get_playlist`, but returns a DEEP COPY of the playlist.
-    pub fn get_playlist_clone(&self, name: &String) -> Option<Vec<u64>> {
+    ///Same as `get_playlist`, but returns a COPY of the playlist.
+    pub fn get_playlist_clone(&self, name: &String) -> Option<Playlist> {
         match self.get_playlist(name) {
-            Some(val) => Some(Vec::<u64>::from_fn(val.len(), |i| -> u64 { val[i] })),
+            Some(val) => Some(val.clone()),
             None => None,
         }
     }
@@ -302,21 +297,32 @@ impl User {
         self.get_playlist(name).is_some()
     }
 
-    ///Adds the given video id (`video_id`) to the playlist with the given name (`playlist_name`), creating a new playlist if the user previously didn't have a playlist with the given name. Returns `true` if the user previously already had a playlist with the given name. Otherwise, this method returns `false`.
+    ///Adds the given video id (`video_id`) to the playlist with the given name (`playlist_name`), creating a new private playlist if the user previously didn't have a playlist with the given name. Returns `true` if the user previously already had a playlist with the given name. Otherwise, this method returns `false`.
     pub fn add_to_playlist(&mut self, playlist_name: String, video_id: u64) -> bool {
         let mut result = true;
         if !self.has_playlist(&playlist_name) {
-            self.add_playlist(playlist_name.clone(), Vec::new())
+            self.add_playlist(playlist_name.clone(), Vec::new(), false)
                 .unwrap();
             result = false;
         }
         let playlist = self.playlists.get_mut(&playlist_name).unwrap();
-        playlist.push(video_id);
+        playlist.add_video_id(video_id);
         result
     }
 
-    ///Adds a new playlist with the given name (`playlist_name`) and video id's (`playlist`). Returns Ok if playlist was added successfully, otherwise returns Err.
-    pub fn add_playlist(&mut self, playlist_name: String, playlist: Vec<u64>) -> Result<(), ()> {
+    ///Adds a new playlist with the given name (`playlist_name`), video id's (`playlist`), and publicity (`true` for public, or `false` for private) (`public`). Returns Ok if playlist was added successfully, otherwise returns Err.
+    pub fn add_playlist(
+        &mut self,
+        playlist_name: String,
+        playlist: Vec<u64>,
+        public: bool,
+    ) -> Result<(), ()> {
+        self.add_playlist_object(Playlist::new(playlist_name, playlist, public))
+    }
+
+    ///Adds a new playlist (`playlist`). Returns Ok if playlist was added successfully, otherwise returns Err.
+    pub fn add_playlist_object(&mut self, playlist: Playlist) -> Result<(), ()> {
+        let playlist_name = playlist.get_name();
         if !self.has_playlist(&playlist_name) {
             self.playlists.insert(playlist_name, playlist);
             Ok(())
@@ -327,39 +333,23 @@ impl User {
 
     ///Returns whether or not if the user's playlist with the given name (`playlist_name`) has a video with the given video id (`video_id`).
     pub fn playlist_has_video(&self, playlist_name: &String, video_id: u64) -> bool {
-        let playlist: &Vec<u64> = match self.get_playlist(playlist_name) {
+        let playlist: &Playlist = match self.get_playlist(playlist_name) {
             Some(val) => val,
             None => return false,
         };
-        playlist.contains(&video_id)
+        playlist.contains(video_id)
     }
 
     ///Removes the given video id (`video_id`) from the playlist with the given name (`playlist_name`) for this user. Does nothing if the user doesn't have a playlist with the given name or the playlist doesn't have the given video id. Removes the playlist if it's size reaches 0.
     pub fn remove_from_playlist(&mut self, playlist_name: &String, video_id: u64) {
         {
-            let playlist: &Vec<u64> = match self.get_playlist(playlist_name) {
+            let playlist: &Playlist = match self.get_playlist(playlist_name) {
                 Some(val) => val,
                 None => return,
             };
             if playlist.len() == 1 && playlist[0] == video_id {
                 self.remove_playlist(playlist_name);
             }
-        }
-        let playlist: &mut Vec<u64> = self.playlists.get_mut(playlist_name).unwrap();
-
-        let mut item_index: isize = -1;
-        {
-            let mut i = 0;
-            while i < playlist.len() {
-                if playlist[i] == video_id {
-                    item_index = i as isize;
-                    break;
-                }
-                i += 1;
-            }
-        }
-        if item_index >= 0 {
-            playlist.remove(item_index as usize);
         }
     }
 
@@ -374,9 +364,9 @@ impl User {
     }
 
     ///Executes a given function (`action`) for each of the user's playlists. First parameter of the given function is the playlist's name and the second parameter is the playlist's video ids.
-    pub fn for_each_playlist<F: FnMut(&String, &Vec<u64>)>(&self, mut action: F) {
-        for (playlist_name, playlist) in self.playlists.iter() {
-            action(playlist_name, playlist);
+    pub fn for_each_playlist<F: FnMut(&Playlist)>(&self, mut action: F) {
+        for playlist in self.playlists.values() {
+            action(playlist);
         }
     }
 

@@ -5,6 +5,7 @@ use std::{
 };
 
 use json_escape::escape_str;
+use serde_json::Value;
 pub fn make_json_list_from_strings(list: &Vec<String>) -> String {
     let mut result = String::from("[");
     {
@@ -88,6 +89,12 @@ pub fn make_json_from_saveable_list(list: &Vec<Arc<Mutex<impl Saveable>>>) -> St
 
 pub trait Saveable {
     fn to_json(&self, pretty: bool) -> String;
+    fn from_json_saveable(json_data: &Value) -> Self
+    where
+        Self: std::marker::Sized,
+    {
+        unimplemented!()
+    }
 }
 
 impl Saveable for HashMap<String, Vec<u64>> {

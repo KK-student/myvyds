@@ -92,6 +92,7 @@ mod dirty_data;
 pub mod document_type_ids;
 pub mod from_json;
 pub mod likeable;
+pub mod playlist;
 pub mod saveable;
 pub mod user;
 pub mod video_data;
@@ -111,8 +112,8 @@ use std::{
 
 use crate::{
     file_handling::{
-        comment::*, dirty_data::DirtyData, likeable::Likeable, saveable::Saveable, user::*,
-        video_data::*,
+        comment::*, dirty_data::DirtyData, likeable::Likeable, playlist::Playlist,
+        saveable::Saveable, user::*, video_data::*,
     },
     tests::TestingDefault,
     time::get_current_time,
@@ -343,14 +344,14 @@ impl DataManager {
         }
     }
 
-    ///Add a new user with the specified user id (user_id), password hash (password_hash), description (description), and icon id (icon_id).
+    ///Add a new user with the specified user id (user_id), password hash (password_hash), description (description), icon id (icon_id), and playlists (playlists).
     pub fn add_user(
         &mut self,
         user_id: &String,
         password_hash: &String,
         description: &String,
         icon_id: u64,
-        playlists: HashMap<String, Vec<u64>>,
+        playlists: HashMap<String, Playlist>,
     ) {
         if self.has_user(user_id) {
             return;
@@ -1136,7 +1137,7 @@ impl DataManager {
     }
 
     ///If the user with the given user id (`user_id`) has a playlist of the given name (`name`), then this function returns that playlist, wrapped up in Some(). Otherwize, it returns None. Also returns None if user doesn't exist.
-    pub fn get_playlist(&self, user_id: &String, name: &String) -> Option<Vec<u64>> {
+    pub fn get_playlist(&self, user_id: &String, name: &String) -> Option<Playlist> {
         match self.get_user(user_id) {
             Some(user_arc) => {
                 let user_mutg = user_arc.lock().unwrap();
@@ -1176,18 +1177,19 @@ impl DataManager {
         }
     }
 
-    ///Given a user's id (`user_id`), adds a new playlist with the given name (`playlist_name`) and video id's (`playlist`) to the corresponding user. Returns Ok (wrapped in Some()) if user exists and playlist was added successfully, if playlist was not added succesfully but user exists, returns Err (also wrapped in Some()). Returns None if user doesn't exist.
+    ///Given a user's id (`user_id`), adds a new playlist with the given name (`playlist_name`), video id's (`playlist`), and publicity (`public`) to the corresponding user. Returns Ok (wrapped in Some()) if user exists and playlist was added successfully, if playlist was not added succesfully but user exists, returns Err (also wrapped in Some()). Returns None if user doesn't exist.
     pub fn add_playlist(
         &mut self,
         user_id: &String,
         playlist_name: String,
         playlist: Vec<u64>,
+        public: bool,
     ) -> Option<Result<(), ()>> {
         match self.get_user(user_id) {
             Some(user_arc) => {
                 let mut user_mutg = user_arc.lock().unwrap();
                 let user = user_mutg.deref_mut();
-                Some(user.add_playlist(playlist_name, playlist))
+                Some(user.add_playlist(playlist_name, playlist, public))
             }
             None => None,
         }
@@ -1245,8 +1247,8 @@ impl DataManager {
         }
     }
 
-    ///Given a user's user id (`user_id`), executes a given function (`action`) for each of the corresponding user's playlists. First parameter of the given function is the playlist's name and the second parameter is the playlist's video ids. Does nothing if the corresponding user doesn't exist.
-    pub fn for_each_playlist<F: Fn(&String, &Vec<u64>)>(&self, user_id: &String, action: F) {
+    ///Given a user's user id (`user_id`), executes a given function (`action`) for each of the corresponding user's playlists. The parameter of the given function is the playlist. Does nothing if the corresponding user doesn't exist.
+    pub fn for_each_playlist<F: FnMut(&Playlist)>(&self, user_id: &String, action: F) {
         if let Some(user_arc) = self.get_user(user_id) {
             let user_mutg = user_arc.lock().unwrap();
             let user = user_mutg.deref();

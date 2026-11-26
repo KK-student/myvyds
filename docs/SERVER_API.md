@@ -1,6 +1,6 @@
 # Backend API:
 
-# Notes:
+## Notes:
 
 1. All forms are to be sent as multipart form data (except certain items that the documentation says needs to be sent as url parameters).
 
@@ -17,6 +17,8 @@ function parseJSONTextWithUnsignedBigInt(text) {
   });
 }
 ```
+
+Also note that the 2nd argument to the JSON.parse function was only added quite recently, so it would be best to use a pollyfill. 
 
 ## Videos: 
 ### Getting a video:
@@ -301,7 +303,9 @@ Otherwise, server sends error response with the 404 error code.
 }
 ```
 
-- Otherwise, server sends error message with the error code 401 (Unauthorized). 
+- Otherwise, server sends error message with the error code 401 (Unauthorized).
+
+### Getting the names of a user's publicly available playlists: 
 
 ## Comments: 
 ### Getting a specific comment or reply: 
