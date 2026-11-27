@@ -423,7 +423,32 @@ async fn get_disliked_comments(mut payload: Multipart) -> impl Responder {
         .body(result)
 }
 
-#[get("/usr/get_public_playlist_names")]
+#[post("/user/get_playlist_names")]
+async fn get_playlist_names(mut payload: Multipart) -> impl Responder {
+    let response401 = HttpResponse::Unauthorized().finish();
+
+    //Get and very user_id and session_id:
+    let (_parsed_form_data, user_id) = match authenticate(&mut payload).await {
+        Some(data) => data,
+        None => return response401,
+    };
+
+    //Get DATA_MANAGER:
+    let data_manager_mutg = DATA_MANAGER.lock().unwrap();
+    let data_manager = data_manager_mutg.deref();
+
+    let public_playlist_names: Vec<String> = match data_manager.get_playlist_names(&user_id) {
+        Some(res) => res,
+        None => return HttpResponse::NotFound().finish(),
+    };
+
+    HttpResponse::Ok().body(format!(
+        "{{\"public_playlist_names\": {}}}",
+        make_json_list_from_strings(&public_playlist_names)
+    ))
+}
+
+#[get("/user/get_public_playlist_names")]
 async fn get_public_playlist_names(q: Query<UserIdQuery>) -> impl Responder {
     let public_playlist_names: Vec<String> = match {
         let data_manager_mutg = DATA_MANAGER.lock().unwrap();
