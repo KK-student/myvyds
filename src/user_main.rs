@@ -15,7 +15,11 @@ use serde::Deserialize;
 
 use crate::{
     DATA_MANAGER, DATA_PATH, SESSION_MANAGER,
-    file_handling::{read_small_file, saveable::make_json_list_from_u64_list, user::User},
+    file_handling::{
+        read_small_file,
+        saveable::{make_json_list_from_strings, make_json_list_from_u64_list},
+        user::User,
+    },
     get_data_path, parse_form_data,
 };
 
@@ -55,6 +59,7 @@ pub async fn authenticate(payload: &mut Multipart) -> Option<(HashMap<String, Ve
 struct UserIdQuery {
     user_id: String,
 }
+
 #[get("/user/get_public_info")]
 ///Getting publicly-available user information:
 async fn get_public_info(query: Query<UserIdQuery>) -> impl Responder {
@@ -416,4 +421,21 @@ async fn get_disliked_comments(mut payload: Multipart) -> impl Responder {
     HttpResponse::Ok()
         .append_header(header::ContentType(mime::APPLICATION_JSON))
         .body(result)
+}
+
+#[get("/usr/get_public_playlist_names")]
+async fn get_public_playlist_names(q: Query<UserIdQuery>) -> impl Responder {
+    let public_playlist_names: Vec<String> = match {
+        let data_manager_mutg = DATA_MANAGER.lock().unwrap();
+        let data_manager = data_manager_mutg.deref();
+        data_manager.get_public_playlist_names(&q.user_id)
+    } {
+        Some(res) => res,
+        None => return HttpResponse::NotFound().finish(),
+    };
+
+    HttpResponse::Ok().body(format!(
+        "{{\"public_playlist_names\": {}}}",
+        make_json_list_from_strings(&public_playlist_names)
+    ))
 }

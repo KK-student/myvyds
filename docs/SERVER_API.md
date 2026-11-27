@@ -305,7 +305,33 @@ Otherwise, server sends error response with the 404 error code.
 
 - Otherwise, server sends error message with the error code 401 (Unauthorized).
 
-### Getting the names of a user's publicly available playlists: 
+### Getting the names of a user's publicly available playlists:
+
+1. Client sends a GET request to the server at the endpoint "/usr/get_public_playlist_names?user_id=[User's user id]".
+
+2. If `user_id` is valid: Server replies with an OK response with the body being the list of the user's publically available playlist names in the following JSON format:
+
+```json
+{
+  "public_playlist_names": [list of the names of the user's publically available playlists]
+}
+```
+
+Otherwise: Server responds with a 404 error response. 
+
+### Getting the names of all a user's playlists (including private ones):
+
+1. Client sends a form to the server with the fields "username"=[user's user_id] and "session_id"=[user's session_id] to the endpoint "/usr/get_playlist_names".
+
+2. If `username` and `session_id` are valid: Server replies with an OK response with the body being the list of all of the user's playlist names (including private ones) in the following JSON format:
+
+```json
+{
+  "playlist_names": [list of the names of all of the user's publically available playlists (including private ones)]
+}
+```
+
+Otherwise, server responds with a 401 Unathorized error response. 
 
 ## Comments: 
 ### Getting a specific comment or reply: 

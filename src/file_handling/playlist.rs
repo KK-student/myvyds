@@ -100,7 +100,7 @@ impl Saveable for Playlist {
         let name: String = json_data["name"].as_str().unwrap().to_string();
         let is_public: bool = json_data["public"].as_bool().unwrap();
         let mut video_ids: Vec<u64> = Vec::<u64>::new();
-        for video_id_json in json_data["videos"].as_array().unwrap() {
+        for video_id_json in json_data["video_ids"].as_array().unwrap() {
             video_ids.push(video_id_json.as_u64().unwrap());
         }
 

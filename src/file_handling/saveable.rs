@@ -5,6 +5,7 @@ use std::{
 };
 
 use json_escape::escape_str;
+use num_traits::Num;
 use serde_json::Value;
 pub fn make_json_list_from_strings(list: &Vec<String>) -> String {
     let mut result = String::from("[");
@@ -63,6 +64,20 @@ pub fn make_json_list_from_u64_list(list: &Vec<u64>) -> String {
     }
     result.push(']');
 
+    result
+}
+
+pub fn make_json_list_from_num_list<T: Num + ToString>(list: Vec<T>) -> String {
+    let mut result = '['.to_string();
+
+    for (i, item) in list.iter().enumerate() {
+        if i > 0 {
+            result.push(',');
+        }
+        result.push_str(item.to_string().as_str());
+    }
+
+    result.push(']');
     result
 }
 

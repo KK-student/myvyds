@@ -1136,6 +1136,20 @@ impl DataManager {
         }
     }
 
+    pub fn get_public_playlist_names(&self, user_id: &String) -> Option<Vec<String>> {
+        if !self.has_user(user_id) {
+            None
+        } else {
+            let mut result: Vec<String> = Vec::new();
+            self.for_each_playlist(user_id, |playlist: &Playlist| {
+                if playlist.is_public() {
+                    result.push(playlist.get_name());
+                }
+            });
+            Some(result)
+        }
+    }
+
     ///If the user with the given user id (`user_id`) has a playlist of the given name (`name`), then this function returns that playlist, wrapped up in Some(). Otherwize, it returns None. Also returns None if user doesn't exist.
     pub fn get_playlist(&self, user_id: &String, name: &String) -> Option<Playlist> {
         match self.get_user(user_id) {

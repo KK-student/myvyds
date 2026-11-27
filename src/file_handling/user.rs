@@ -15,7 +15,10 @@ use crate::file_handling::{
     dirty_data::DirtyData,
     document_type_ids::USER_TYPE_ID,
     playlist::Playlist,
-    saveable::{Saveable, make_json_list_from_strings, make_json_list_from_u64_list},
+    saveable::{
+        Saveable, make_json_from_saveable_list, make_json_list_from_strings,
+        make_json_list_from_u64_list,
+    },
 };
 
 ///Represents a user.
@@ -689,6 +692,20 @@ impl Saveable for User {
         let description_escaped = escape_str(&self.description).collect::<String>();
         let password_hash_escaped = escape_str(&self.password_hash).collect::<String>();
 
+        let mut playlists_string: String = '['.to_string();
+        {
+            let mut i = 0;
+            self.for_each_playlist(|playlist| {
+                if i > 0 {
+                    playlists_string.push(',');
+                }
+                playlists_string.push_str(playlist.to_json(false).as_str());
+
+                i += 1;
+            });
+        }
+        playlists_string.push(']');
+
         if pretty {
             format!(
                 "\"{}\": {{
@@ -717,7 +734,7 @@ impl Saveable for User {
                 disliked_vids_string,
                 liked_comments_string,
                 disliked_comments_string,
-                self.playlists.to_json(false)
+                playlists_string
             )
         } else {
             format!(
@@ -734,7 +751,7 @@ impl Saveable for User {
                 disliked_vids_string,
                 liked_comments_string,
                 disliked_comments_string,
-                self.playlists.to_json(false)
+                playlists_string
             )
         }
     }
